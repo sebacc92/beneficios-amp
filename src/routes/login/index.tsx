@@ -9,6 +9,7 @@ import {
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users } from "~/db/schema";
+import { LuLock } from "@qwikest/icons/lucide";
 import { hashPassword } from "~/utils/crypto";
 
 export const useLoginAction = routeAction$(
@@ -69,11 +70,11 @@ export default component$(() => {
   return (
     <div class="bg-slate-50 min-h-[85vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
       <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
-        
+
         {/* Title branding */}
         <div class="text-center space-y-2">
-          <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 mx-auto text-xl">
-            🔐
+          <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 mx-auto">
+            <LuLock class="w-5 h-5 text-brand-green" />
           </div>
           <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none mt-3">
             Iniciar Sesión
@@ -152,11 +153,9 @@ export default component$(() => {
 
         {/* Foot link */}
         <div class="pt-6 border-t border-slate-100 text-center">
-          <p class="text-xs sm:text-sm text-slate-400 font-semibold">
-            ¿No tenés una cuenta médica?{" "}
-            <Link href="/register" class="text-brand-green hover:underline">
-              Registrate ahora
-            </Link>
+          <p class="text-xs sm:text-sm text-slate-400 font-semibold leading-relaxed">
+            ¿No tenés una cuenta médica? <br />
+            <span class="text-slate-500 font-bold block mt-1">Solicitá tu alta en la administración de la AMP.</span>
           </p>
         </div>
 

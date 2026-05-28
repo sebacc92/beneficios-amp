@@ -195,7 +195,7 @@ export const Chatbot = component$(() => {
               <div class="relative">
                 <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
                   <img
-                    src={state.avatarUrl || "https://beneficios.amepla.org.ar/images/logo.png"}
+                    src={state.avatarUrl || "/path446.png"}
                     alt="Asistente AMP"
                     class="h-full w-full object-contain"
                     width={32}

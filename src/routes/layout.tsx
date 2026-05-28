@@ -2,6 +2,7 @@ import { component$, Slot, useSignal } from "@builder.io/qwik";
 import { Link, useLocation, routeLoader$ } from "@builder.io/qwik-city";
 import { Chatbot } from "~/components/chatbot/chatbot";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { LuMapPin, LuSettings, LuUser, LuCrown, LuLock } from "@qwikest/icons/lucide";
 
 export const useLayoutUser = routeLoader$((event) => {
   return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
@@ -40,25 +41,15 @@ export default component$(() => {
         <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between h-20">
             {/* Brand Logo & Title */}
-            <div class="flex items-center space-x-3 flex-shrink-0">
-              <Link href="/" class="flex items-center space-x-3 group">
-                <div class="w-11 h-11 bg-white rounded-full flex items-center justify-center border border-brand-gold shadow-md p-1 group-hover:scale-105 transition-all duration-300">
-                  <img
-                    src="https://beneficios.amepla.org.ar/images/logo.png"
-                    alt="Logo AMP"
-                    width={40}
-                    height={40}
-                    class="object-contain"
-                  />
-                </div>
-                <div class="flex flex-col">
-                  <span class="text-brand-green-dark font-display font-extrabold text-xl leading-none tracking-tight group-hover:text-brand-gold transition-colors duration-300">
-                    AMP<span class="text-brand-gold">+</span>
-                  </span>
-                  <span class="text-brand-green-light text-[10px] uppercase font-bold tracking-wider leading-none mt-1">
-                    Beneficios Médicos
-                  </span>
-                </div>
+            <div class="flex items-center flex-shrink-0">
+              <Link href="/" class="flex items-center group">
+                <img
+                  src="/path446.png"
+                  alt="Logo AMP"
+                  width={160}
+                  height={60}
+                  class="h-15 w-auto object-contain transition-all duration-300 group-hover:scale-105"
+                />
               </Link>
             </div>
 
@@ -136,9 +127,9 @@ export default component$(() => {
               {/* "Cerca Mío" Map View Button */}
               <Link
                 href="/?vista=mapa"
-                class="flex items-center space-x-1.5 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-extrabold text-xs shadow-sm hover:shadow transition-all uppercase tracking-wider cursor-pointer"
+                class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-extrabold text-xs shadow-sm hover:shadow transition-all uppercase tracking-wider cursor-pointer"
               >
-                <span>📍</span>
+                <LuMapPin class="w-3.5 h-3.5 text-brand-green" />
                 <span>Cerca Mío</span>
               </Link>
 
@@ -148,26 +139,27 @@ export default component$(() => {
                   {user.value.role === "admin" && (
                     <Link
                       href="/admin"
-                      class="flex items-center space-x-1.5 px-3.5 py-2 rounded-full border border-brand-gold bg-amber-50 hover:bg-amber-100 text-brand-gold-dark font-extrabold text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                      class="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-full border border-brand-gold bg-amber-50 hover:bg-amber-100 text-brand-gold-dark font-extrabold text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
                     >
-                      ⚙️ Panel Admin
+                      <LuSettings class="w-3 h-3 text-brand-gold-dark" />
+                      <span>Panel Admin</span>
                     </Link>
                   )}
                   <Link
                     href="/perfil"
-                    class="flex items-center space-x-2 px-4 py-2 rounded-full border border-brand-green bg-emerald-50 hover:bg-emerald-100 text-brand-green font-bold text-xs shadow-sm transition-all"
+                    class="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-brand-green bg-emerald-50 hover:bg-emerald-100 text-brand-green font-bold text-xs shadow-sm transition-all"
                   >
-                    <span>👤</span>
+                    <LuUser class="w-3.5 h-3.5 text-brand-green" />
                     <span class="truncate max-w-[120px]">{user.value.name}</span>
-                    {user.value.role === "premium" && <span class="text-[10px]">👑</span>}
+                    {user.value.role === "premium" && <LuCrown class="w-3.5 h-3.5 text-brand-gold fill-brand-gold" />}
                   </Link>
                 </div>
               ) : (
                 <Link
                   href="/login"
-                  class="flex items-center space-x-2 px-5 py-2 rounded-full bg-brand-green hover:bg-brand-green-light text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  class="inline-flex items-center space-x-2 px-5 py-2 rounded-full bg-brand-green hover:bg-brand-green-light text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  <span>🔐</span>
+                  <LuLock class="w-3.5 h-3.5 text-white" />
                   <span>Ingresar</span>
                 </Link>
               )}
@@ -232,19 +224,22 @@ export default component$(() => {
               <Link
                 href="/perfil"
                 onClick$={() => (isMobileMenuOpen.value = false)}
-                class={`block px-3 py-2 rounded-md text-base font-bold transition-colors ${
+                class={`inline-flex items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold transition-colors ${
                   isActive("/perfil") ? "text-brand-green bg-emerald-50" : "text-brand-green hover:bg-slate-50"
                 }`}
               >
-                👤 Mi Perfil {user.value.role === "premium" && "👑"}
+                <LuUser class="w-4 h-4 text-brand-green" />
+                <span>Mi Perfil</span>
+                {user.value.role === "premium" && <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold" />}
               </Link>
             ) : (
               <Link
                 href="/login"
                 onClick$={() => (isMobileMenuOpen.value = false)}
-                class="block px-3 py-2 rounded-md text-base font-bold text-brand-green hover:bg-slate-50"
+                class="inline-flex items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-brand-green hover:bg-slate-50"
               >
-                🔐 Iniciar Sesión
+                <LuLock class="w-4 h-4 text-brand-green" />
+                <span>Iniciar Sesión</span>
               </Link>
             )}
 
@@ -260,9 +255,10 @@ export default component$(() => {
             <Link
               href="/?vista=mapa"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class="block px-3 py-2 rounded-md text-base font-bold text-slate-700 hover:bg-slate-50 hover:text-brand-green"
+              class="inline-flex items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-slate-700 hover:bg-slate-50 hover:text-brand-green"
             >
-              📍 Cerca Mío
+              <LuMapPin class="w-4 h-4 text-slate-500" />
+              <span>Cerca Mío</span>
             </Link>
             <Link
               href="/eventos"
@@ -315,16 +311,14 @@ export default component$(() => {
           <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Branding Column */}
             <div class="col-span-1 md:col-span-2 space-y-4">
-              <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center p-1 border border-brand-gold">
-                  <img
-                    src="https://beneficios.amepla.org.ar/images/logo.png"
-                    alt="Logo AMP"
-                    width={35}
-                    height={35}
-                    class="object-contain"
-                  />
-                </div>
+              <div class="flex items-center space-x-3.5">
+                <img
+                  src="/path446.png"
+                  alt="Logo AMP"
+                  width={130}
+                  height={50}
+                  class="h-11 w-auto object-contain"
+                />
                 <span class="text-white font-display font-bold text-lg">
                   Agremiación Médica Platense
                 </span>

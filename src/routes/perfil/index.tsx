@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { LuShield, LuCrown, LuBell, LuTicket } from "@qwikest/icons/lucide";
 
 // Loader to retrieve the logged-in user from the sharedMap (populated by middleware)
 export const useUserLoader = routeLoader$(async (event) => {
@@ -84,9 +85,10 @@ export default component$(() => {
             {user.role === "admin" && (
               <Link
                 href="/admin"
-                class="px-4 py-2 border border-brand-gold text-brand-gold bg-transparent hover:bg-brand-gold hover:text-brand-green-dark text-xs sm:text-sm font-bold rounded-full transition-all duration-300 shadow-sm"
+                class="inline-flex items-center gap-1.5 px-4 py-2 border border-brand-gold text-brand-gold bg-transparent hover:bg-brand-gold hover:text-brand-green-dark text-xs sm:text-sm font-bold rounded-full transition-all duration-300 shadow-sm"
               >
-                🛠 Panel Admin
+                <LuShield class="w-4 h-4" />
+                <span>Panel Admin</span>
               </Link>
             )}
             <Form action={logoutAction}>
@@ -138,13 +140,20 @@ export default component$(() => {
                 
                 {/* Role Badge */}
                 <span
-                  class={`px-2.5 py-0.5 rounded-full text-[8px] font-extrabold tracking-widest uppercase border ${
+                  class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-extrabold tracking-widest uppercase border ${
                     user.role === "premium"
                       ? "bg-brand-gold text-brand-green-dark border-brand-gold"
                       : "bg-brand-green border-brand-gold text-white"
                   }`}
                 >
-                  {user.role === "premium" ? "👑 Premium" : "General"}
+                  {user.role === "premium" ? (
+                    <>
+                      <LuCrown class="w-2.5 h-2.5" />
+                      <span>Premium</span>
+                    </>
+                  ) : (
+                    <span>General</span>
+                  )}
                 </span>
               </div>
 
@@ -198,8 +207,9 @@ export default component$(() => {
                 </button>
               </div>
               {showPushPrompt.value && (
-                <div class="rounded-xl bg-amber-50 border border-amber-100 text-[10px] font-semibold text-amber-800 p-3 leading-relaxed animate-fade-in">
-                  🔔 ¡Notificaciones activadas! Te avisaremos cuando agreguemos nuevos beneficios en tu área.
+                <div class="inline-flex items-start gap-1.5 rounded-xl bg-amber-50 border border-amber-100 text-[10px] font-semibold text-amber-800 p-3 leading-relaxed animate-fade-in">
+                  <LuBell class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>¡Notificaciones activadas! Te avisaremos cuando agreguemos nuevos beneficios en tu área.</span>
                 </div>
               )}
             </div>
@@ -215,7 +225,8 @@ export default component$(() => {
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div class="space-y-3 max-w-md">
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-gold text-brand-green-dark text-[10px] font-extrabold tracking-widest uppercase">
-                      👑 AMP+ Premium
+                      <LuCrown class="w-3 h-3 text-brand-green-dark" />
+                      <span>AMP+ Premium</span>
                     </span>
                     <h3 class="text-xl sm:text-2xl font-display font-extrabold tracking-tight leading-tight">
                       Desbloqueá Beneficios Exclusivos de Alta Jerarquía
@@ -321,8 +332,9 @@ export default component$(() => {
               <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-4">
                 Mi Historial de Descargas
               </h3>
-              <div class="text-center py-6 text-slate-400 text-xs sm:text-sm font-medium">
-                🎟️ Aún no has impreso ni descargado cupones de beneficios recientemente.
+              <div class="flex items-center justify-center gap-2 py-6 text-slate-400 text-xs sm:text-sm font-medium">
+                <LuTicket class="w-5 h-5 text-purple-400 animate-pulse" />
+                <span>Aún no has impreso ni descargado cupones de beneficios recientemente.</span>
               </div>
             </div>
 

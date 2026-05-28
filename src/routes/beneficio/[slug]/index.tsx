@@ -2,6 +2,7 @@ import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { getBenefitBySlug, getBenefits, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
+import { LuLock, LuCrown } from "@qwikest/icons/lucide";
 
 // Extracts structured contact details from the raw HTML description
 function extractContacts(html: string) {
@@ -131,12 +132,13 @@ export default component$(() => {
       <div class="bg-slate-50 min-h-[75vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
         <div class="max-w-md w-full bg-white rounded-3xl border border-amber-250 p-8 sm:p-10 shadow-lg text-center space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-500">
           <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none"></div>
-          <div class="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto text-3xl animate-bounce">
-            🔒
+          <div class="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto animate-bounce">
+            <LuLock class="w-6 h-6 text-amber-600" />
           </div>
           <div class="space-y-2">
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-gold text-brand-green-dark text-[10px] font-extrabold tracking-widest uppercase">
-              👑 Beneficio Premium
+              <LuCrown class="w-3 h-3 text-brand-green-dark" />
+              <span>Beneficio Premium</span>
             </span>
             <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-tight mt-2">
               Contenido Restringido
@@ -478,15 +480,13 @@ export default component$(() => {
               
               <div class="flex items-center justify-between border-b border-white/20 pb-4 mb-6">
                 <div class="flex items-center space-x-2">
-                  <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center p-1 border border-brand-gold/45">
                     <img
-                      src="https://beneficios.amepla.org.ar/images/logo.png"
+                      src="/path446.png"
                       alt="AMP"
-                      width={25}
-                      height={25}
-                      class="object-contain"
+                      width={80}
+                      height={32}
+                      class="h-8 w-auto object-contain"
                     />
-                  </div>
                   <span class="text-xs font-bold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
                 </div>
                 <span class="text-[9px] font-black text-brand-gold border border-brand-gold/45 px-2 py-0.5 rounded uppercase tracking-wider">
@@ -640,7 +640,7 @@ export default component$(() => {
         <div class="flex flex-col items-center pb-4 border-b border-slate-200">
           <div class="w-16 h-16 bg-brand-green rounded-full flex items-center justify-center p-2 mb-2 border border-brand-gold">
             <img
-              src="https://beneficios.amepla.org.ar/images/logo.png"
+              src="/path446.png"
               alt="Logo AMP"
               width={45}
               height={45}

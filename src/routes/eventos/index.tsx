@@ -3,6 +3,7 @@ import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { asc } from "drizzle-orm";
 import { getDB } from "~/db";
 import { events as eventsTable } from "~/db/schema";
+import { LuCalendar, LuMapPin } from "@qwikest/icons/lucide";
 
 export interface MedicalEvent {
   id: string;
@@ -65,8 +66,9 @@ export default component$(() => {
       <div class="max-w-4xl mx-auto space-y-12">
         {/* Header */}
         <div class="text-center space-y-4">
-          <div class="inline-flex items-center space-x-2 bg-amber-50 text-amber-700 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-100">
-            <span>📅 Agenda Oficial</span>
+          <div class="inline-flex items-center space-x-1.5 bg-amber-50 text-amber-700 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-100">
+            <LuCalendar class="w-3.5 h-3.5" />
+            <span>Agenda Oficial</span>
           </div>
           <h1 class="text-4xl sm:text-5xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
             Eventos & Conferencias
@@ -79,10 +81,12 @@ export default component$(() => {
         {/* Events Grid */}
         <div class="space-y-8">
           {events.value.length === 0 ? (
-            <div class="text-center bg-white border border-slate-200 rounded-3xl p-12 shadow-sm">
-              <span class="text-4xl">🗓️</span>
-              <h3 class="text-lg font-bold text-slate-800 mt-4">No hay eventos agendados</h3>
-              <p class="text-slate-500 text-sm mt-1">Próximamente publicaremos el calendario científico completo.</p>
+            <div class="text-center bg-white border border-slate-200 rounded-3xl p-12 shadow-sm space-y-3">
+              <LuCalendar class="w-12 h-12 text-slate-400 mx-auto" />
+              <div>
+                <h3 class="text-lg font-bold text-slate-800">No hay eventos agendados</h3>
+                <p class="text-slate-500 text-sm mt-1">Próximamente publicaremos el calendario científico completo.</p>
+              </div>
             </div>
           ) : (
             events.value.map((eventItem) => {
@@ -127,8 +131,8 @@ export default component$(() => {
                       <p class="text-slate-600 text-sm sm:text-base leading-relaxed">
                         {eventItem.description}
                       </p>
-                      <div class="flex items-center gap-2 text-xs font-bold text-slate-500 pt-2">
-                        <span>📍</span>
+                      <div class="flex items-center gap-1.5 text-xs font-bold text-slate-500 pt-2">
+                        <LuMapPin class="w-3.5 h-3.5 text-slate-400" />
                         <span>{eventItem.location}</span>
                       </div>
                     </div>

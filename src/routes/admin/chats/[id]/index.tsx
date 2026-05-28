@@ -145,7 +145,7 @@ export default component$(() => {
             <div class="bg-brand-green-dark border-b border-brand-gold/15 p-4 flex items-center space-x-3.5 text-white">
               <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 border border-brand-gold">
                 <img
-                  src="https://beneficios.amepla.org.ar/images/logo.png"
+                  src="/path446.png"
                   alt="AMP Logo"
                   width={28}
                   height={28}

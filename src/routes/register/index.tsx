@@ -1,229 +1,62 @@
-import { component$, useSignal } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import {
   routeAction$,
   Link,
-  z,
-  zod$,
   type DocumentHead,
 } from "@builder.io/qwik-city";
-import { eq } from "drizzle-orm";
-import { getDB } from "~/db";
-import { users } from "~/db/schema";
-import { hashPassword } from "~/utils/crypto";
+import { LuShield } from "@qwikest/icons/lucide";
 
 export const useRegisterAction = routeAction$(
-  async (data, requestEvent) => {
-    try {
-      const db = getDB(requestEvent);
-      const email = data.email.toLowerCase().trim();
-
-      // Check if password and confirmation match
-      if (data.password !== data.confirmPassword) {
-        return requestEvent.fail(400, {
-          message: "Las contraseñas ingresadas no coinciden.",
-        });
-      }
-
-      // Check if email already exists
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (existingUser) {
-        return requestEvent.fail(409, {
-          message: "El correo electrónico ingresado ya se encuentra registrado.",
-        });
-      }
-
-      // Hash password
-      const passwordHash = await hashPassword(data.password);
-      const userId = "usr-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
-
-      // Insert user (default role: member)
-      await db.insert(users).values({
-        id: userId,
-        email,
-        passwordHash,
-        name: data.name.trim(),
-        matricula: data.matricula ? data.matricula.trim() : null,
-        role: "member",
-        createdAt: new Date().toISOString(),
-      });
-
-      // Set cookie session (auto login)
-      requestEvent.cookie.set("session_token", userId, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      });
-
-      throw requestEvent.redirect(302, "/perfil");
-    } catch (e: any) {
-      if (e.headers) throw e; // Pass redirect exception
-      console.error("Registration error:", e);
-      return requestEvent.fail(500, {
-        message: e.message || "Ocurrió un error inesperado al crear la cuenta.",
-      });
-    }
-  },
-  zod$({
-    name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
-    email: z.string().email("Ingresá un correo electrónico válido."),
-    matricula: z.string().min(2, "Por favor ingresá tu número de matrícula provincial."),
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
-    confirmPassword: z.string().min(6),
-  })
+  async (_, requestEvent) => {
+    return requestEvent.fail(403, {
+      message: "El registro público de cuentas médicas está deshabilitado. Por favor, comunícate con la administración de AMP+ para solicitar el alta.",
+    });
+  }
 );
 
 export default component$(() => {
-  const registerAction = useRegisterAction();
-  const showPassword = useSignal(false);
-
   return (
     <div class="bg-slate-50 min-h-[90vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
-      <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-sm space-y-7 animate-in fade-in slide-in-from-bottom-6 duration-500">
+      <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-sm space-y-7 animate-in fade-in slide-in-from-bottom-6 duration-500 text-center">
         
         {/* Header Title */}
-        <div class="text-center space-y-2">
-          <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto text-xl">
-            🩺
+        <div class="space-y-2">
+          <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto">
+            <LuShield class="w-6 h-6 text-amber-600" />
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none mt-3">
-            Registro Médico
+          <h1 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-tight mt-3">
+            Registro Médico Inhabilitado
           </h1>
-          <p class="text-xs sm:text-sm text-slate-400 font-medium">
-            Creá tu cuenta institucional del Portal de Beneficios AMP.
+          <p class="text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
+            El registro público de cuentas agremiadas se encuentra inhabilitado desde este portal de forma temporal.
           </p>
         </div>
 
-        {/* Global error */}
-        {registerAction.value?.failed && (
-          <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800 animate-fade-in shadow-sm">
-            ✗ {registerAction.value.message || "Error al registrar la cuenta."}
-          </div>
-        )}
-
-        {/* Form */}
-        <form method="post" action="/register/" class="space-y-4 text-left">
-          <div class="space-y-1">
-            <label for="name" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-              Nombre Completo
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              required
-              placeholder="Dr. o Dra. Nombre Apellido"
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-            />
-            {registerAction.value?.fieldErrors?.name && (
-              <p class="text-[10px] font-bold text-red-600 mt-1">{registerAction.value.fieldErrors.name[0]}</p>
-            )}
-          </div>
-
-          <div class="space-y-1">
-            <label for="matricula" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-              Matrícula Provincial
-            </label>
-            <input
-              type="text"
-              id="matricula"
-              name="matricula"
-              required
-              placeholder="Ej: 12345"
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-            />
-            {registerAction.value?.fieldErrors?.matricula && (
-              <p class="text-[10px] font-bold text-red-600 mt-1">{registerAction.value.fieldErrors.matricula[0]}</p>
-            )}
-          </div>
-
-          <div class="space-y-1">
-            <label for="email" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-              Correo Electrónico
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              required
-              placeholder="ejemplo@amepla.org.ar"
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-            />
-            {registerAction.value?.fieldErrors?.email && (
-              <p class="text-[10px] font-bold text-red-600 mt-1">{registerAction.value.fieldErrors.email[0]}</p>
-            )}
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-1">
-              <label for="password" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-                Contraseña
-              </label>
-              <div class="relative">
-                <input
-                  type={showPassword.value ? "text" : "password"}
-                  id="password"
-                  name="password"
-                  required
-                  placeholder="Min 6 carac."
-                  class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none pr-8 transition-all"
-                />
-              </div>
-              {registerAction.value?.fieldErrors?.password && (
-                <p class="text-[10px] font-bold text-red-600 mt-1">{registerAction.value.fieldErrors.password[0]}</p>
-              )}
-            </div>
-
-            <div class="space-y-1">
-              <label for="confirmPassword" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-                Confirmar
-              </label>
-              <input
-                type={showPassword.value ? "text" : "password"}
-                id="confirmPassword"
-                name="confirmPassword"
-                required
-                placeholder="Repetir..."
-                class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-2 pt-1">
-            <input
-              type="checkbox"
-              id="show-pass"
-              onClick$={() => (showPassword.value = !showPassword.value)}
-              class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
-            />
-            <label for="show-pass" class="text-xs font-semibold text-slate-500 cursor-pointer">
-              Mostrar contraseñas
-            </label>
-          </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={registerAction.isRunning}
-            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer mt-4"
-          >
-            {registerAction.isRunning ? "Registrando cuenta..." : "Crear Cuenta"}
-          </button>
-        </form>
-
-        {/* Foot link */}
-        <div class="pt-6 border-t border-slate-100 text-center">
-          <p class="text-xs sm:text-sm text-slate-400 font-semibold">
-            ¿Ya tenés una cuenta médica?{" "}
-            <Link href="/login" class="text-brand-green hover:underline">
-              Iniciá sesión
-            </Link>
+        {/* Dynamic Warning Alert Box */}
+        <div class="rounded-2xl border border-amber-150 bg-amber-50/50 p-5 text-left text-xs font-medium text-amber-800 leading-relaxed shadow-sm space-y-2">
+          <p class="font-bold uppercase tracking-wider text-[10px] text-amber-700">Aviso a Profesionales</p>
+          <p>
+            Para garantizar la seguridad e integridad del padrón, todas las altas y habilitaciones de matrícula son gestionadas directamente por el personal administrativo de la <strong>Agremiación Médica Platense</strong>.
           </p>
+          <p class="pt-1.5 border-t border-amber-200/50 font-semibold">
+            Por favor, ponete en contacto con la administración de la AMP para solicitar tu alta de usuario.
+          </p>
+        </div>
+
+        {/* Action Link to Login */}
+        <div class="pt-4 border-t border-slate-100 flex flex-col gap-3">
+          <Link
+            href="/login"
+            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all duration-300 cursor-pointer"
+          >
+            Volver a Iniciar Sesión
+          </Link>
+          <Link
+            href="/"
+            class="text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors uppercase tracking-wider"
+          >
+            Volver a la Home
+          </Link>
         </div>
 
       </div>
@@ -236,7 +69,7 @@ export const head: DocumentHead = {
   meta: [
     {
       name: "description",
-      content: "Creá tu cuenta profesional para acceder a los descuentos exclusivos de la Agremiación Médica Platense.",
+      content: "El registro público de cuentas médicas está inhabilitado. Contacte a la administración para el alta.",
     },
   ],
 };

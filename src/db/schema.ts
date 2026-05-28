@@ -107,3 +107,15 @@ export const sponsors = sqliteTable("sponsors", {
   createdAt: text("created_at").notNull(),
 });
 
+// --- Hero Slides ---
+export const heroSlides = sqliteTable("hero_slides", {
+  id: text("id").primaryKey(),
+  imageUrl: text("image_url").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull(),
+  buttonText: text("button_text"),
+  buttonLink: text("button_link"),
+  orderIndex: integer("order_index").default(0).notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
