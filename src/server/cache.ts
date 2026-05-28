@@ -52,10 +52,16 @@ export interface Filters {
   ofertas: Offer[];
 }
 
-// In-memory cache variables on the server
-let cachedBenefits: Benefit[] | null = null;
-let cachedFilters: Filters | null = null;
-let lastFetchTime = 0;
+// Support Node/Vite HMR persistence by storing the cache in globalThis
+const globalCached = globalThis as any;
+if (!globalCached.__benefitsCache) {
+  globalCached.__benefitsCache = {
+    benefits: null,
+    filters: null,
+    lastFetchTime: 0
+  };
+}
+
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 15000): Promise<Response> {
@@ -76,27 +82,32 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
 
 export async function initCache(force = false): Promise<{ benefitsCount: number; success: boolean }> {
   const now = Date.now();
-  if (!force && cachedBenefits && cachedFilters && now - lastFetchTime < CACHE_TTL) {
-    return { benefitsCount: cachedBenefits.length, success: true };
+  const cache = globalCached.__benefitsCache;
+  if (!force && cache.benefits && cache.filters && now - cache.lastFetchTime < CACHE_TTL) {
+    return { benefitsCount: cache.benefits.length, success: true };
   }
 
   console.log('[Cache] Refreshing benefits and filters cache...');
   try {
-    // 1. Fetch filters
-    const filtersRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/filtros/beneficios');
+    // 1. Fetch filters with an 8 second timeout to avoid blocking startup
+    const filtersRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/filtros/beneficios', {}, 8000);
     if (!filtersRes.ok) throw new Error(`Filters API returned ${filtersRes.status}`);
     const filtersData = await filtersRes.json() as Filters;
 
-    // 2. Fetch benefits pages in throttled batches to prevent timeouts
-    const totalPages = 45;
-    const allData: Benefit[] = [];
-    const batchSize = 8;
-    
-    for (let i = 1; i <= totalPages; i += batchSize) {
+    // Test page 1 first to check if API is responding fast
+    const testPageRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/beneficios?page=1', {}, 8000);
+    if (!testPageRes.ok) throw new Error(`API returned ${testPageRes.status} on page 1`);
+    const testPageJson = await testPageRes.json();
+    const totalPages = testPageJson.last_page || 45;
+
+    const allData: Benefit[] = [...(testPageJson.data || [])];
+    const batchSize = 4; // Smaller batch size to prevent overloading WAF / rate limits
+
+    for (let i = 2; i <= totalPages; i += batchSize) {
       const batchPromises: Promise<Benefit[]>[] = [];
       for (let page = i; page < i + batchSize && page <= totalPages; page++) {
         batchPromises.push(
-          fetchWithTimeout(`https://beneficios.amepla.org.ar/api/v1/beneficios?page=${page}`, {}, 15000)
+          fetchWithTimeout(`https://beneficios.amepla.org.ar/api/v1/beneficios?page=${page}`, {}, 10000)
             .then(async (res) => {
               if (!res.ok) throw new Error(`Status ${res.status}`);
               const json = await res.json();
@@ -129,12 +140,14 @@ export async function initCache(force = false): Promise<{ benefitsCount: number;
       throw new Error('No benefits fetched from API');
     }
 
-    cachedBenefits = uniqueBenefits;
-    cachedFilters = filtersData;
-    lastFetchTime = now;
+    globalCached.__benefitsCache = {
+      benefits: uniqueBenefits,
+      filters: filtersData,
+      lastFetchTime: now
+    };
 
-    console.log(`[Cache] Successfully cached ${cachedBenefits.length} benefits and filters.`);
-    return { benefitsCount: cachedBenefits.length, success: true };
+    console.log(`[Cache] Successfully cached ${uniqueBenefits.length} benefits and filters.`);
+    return { benefitsCount: uniqueBenefits.length, success: true };
   } catch (error: any) {
     console.error('[Cache] Failed to fetch live data:', error.message);
     
@@ -142,32 +155,34 @@ export async function initCache(force = false): Promise<{ benefitsCount: number;
     try {
       const localSeed = await import('./data/seed.json').catch(() => null);
       if (localSeed && localSeed.benefits && localSeed.filters) {
-        cachedBenefits = localSeed.benefits as Benefit[];
-        cachedFilters = localSeed.filters as Filters;
-        lastFetchTime = now;
-        console.log(`[Cache] Loaded fallback seed data: ${cachedBenefits.length} benefits.`);
-        return { benefitsCount: cachedBenefits.length, success: true };
+        globalCached.__benefitsCache = {
+          benefits: localSeed.benefits as Benefit[],
+          filters: localSeed.filters as Filters,
+          lastFetchTime: now
+        };
+        console.log(`[Cache] Loaded fallback seed data: ${localSeed.benefits.length} benefits.`);
+        return { benefitsCount: localSeed.benefits.length, success: true };
       }
     } catch (fallbackError) {
       console.error('[Cache] Fallback seed loading failed:', fallbackError);
     }
 
     // If cache is empty and API failed, initialize with empty structures to avoid crash
-    if (!cachedBenefits) cachedBenefits = [];
-    if (!cachedFilters) cachedFilters = { categorias: [], ubicaciones: [], ofertas: [] };
+    if (!globalCached.__benefitsCache.benefits) globalCached.__benefitsCache.benefits = [];
+    if (!globalCached.__benefitsCache.filters) globalCached.__benefitsCache.filters = { categorias: [], ubicaciones: [], ofertas: [] };
     
-    return { benefitsCount: cachedBenefits.length, success: false };
+    return { benefitsCount: globalCached.__benefitsCache.benefits.length, success: false };
   }
 }
 
 export async function getBenefits(): Promise<Benefit[]> {
   await initCache();
-  return cachedBenefits || [];
+  return globalCached.__benefitsCache.benefits || [];
 }
 
 export async function getFilters(): Promise<Filters> {
   await initCache();
-  return cachedFilters || { categorias: [], ubicaciones: [], ofertas: [] };
+  return globalCached.__benefitsCache.filters || { categorias: [], ubicaciones: [], ofertas: [] };
 }
 
 // Helper to automatically seed DB if it's empty
@@ -409,12 +424,22 @@ export interface SearchResult {
 }
 
 export async function searchBenefits(params: SearchParams): Promise<SearchResult> {
-  const allBenefits = [...await getBenefits()];
+  let allBenefits = [...await getBenefits()];
   
   // Include custom benefits from Turso if requestEvent is active
   if (params.requestEvent) {
     const customList = await getCustomBenefits(params.requestEvent);
-    allBenefits.unshift(...customList); // Prepend custom CRUD benefits
+    allBenefits = [...customList, ...allBenefits]; // Prepend custom CRUD benefits
+  }
+
+  // Deduplicate all benefits by ID (gives priority to local database benefits since they are prepended)
+  const seenIds = new Set<number>();
+  const uniqueBenefits: Benefit[] = [];
+  for (const b of allBenefits) {
+    if (!seenIds.has(b.id)) {
+      seenIds.add(b.id);
+      uniqueBenefits.push(b);
+    }
   }
   
   const query = params.query?.toLowerCase().trim() || '';

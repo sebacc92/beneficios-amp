@@ -525,6 +525,7 @@ export default component$(() => {
                     accept="image/*"
                     ref={desktopInputRef}
                     onChange$={(ev) => handleFileChange(ev, "desktop")}
+                    stoppropagation:click={true}
                     class="hidden"
                   />
 
@@ -585,6 +586,7 @@ export default component$(() => {
                     accept="image/*"
                     ref={mobileInputRef}
                     onChange$={(ev) => handleFileChange(ev, "mobile")}
+                    stoppropagation:click={true}
                     class="hidden"
                   />
 
@@ -804,23 +806,18 @@ export default component$(() => {
                         </Form>
 
                         {/* Delete Button */}
-                        <Form
-                          action={deleteSlideAction}
-                          onSubmit$={(ev) => {
-                            if (!confirm("¿Está seguro de que desea eliminar este slide de forma permanente?")) {
-                              ev.preventDefault();
+                        <button
+                          type="button"
+                          onClick$={$(async () => {
+                            if (confirm("¿Está seguro de que desea eliminar este slide de forma permanente?")) {
+                              await deleteSlideAction.submit({ id: slide.id });
                             }
-                          }}
+                          })}
+                          class="p-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-full border border-red-100 shadow-xs transition-all cursor-pointer active:scale-90"
+                          title="Eliminar Slide"
                         >
-                          <input type="hidden" name="id" value={slide.id} />
-                          <button
-                            type="submit"
-                            class="p-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-full border border-red-100 shadow-xs transition-all cursor-pointer active:scale-90"
-                            title="Eliminar Slide"
-                          >
-                            <LuTrash2 class="w-3.5 h-3.5" />
-                          </button>
-                        </Form>
+                          <LuTrash2 class="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>

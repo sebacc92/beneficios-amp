@@ -52,6 +52,7 @@
   "nx": {},
   "dependencies": {
     "@libsql/client": "latest",
+    "@vercel/blob": "^2.4.0",
     "drizzle-orm": "^0.45.2",
     "openai": "^6.39.0"
   }

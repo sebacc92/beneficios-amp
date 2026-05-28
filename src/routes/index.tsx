@@ -342,7 +342,7 @@ export default component$(() => {
       {!isMapView && !hasActiveFilters && page === 1 && curatedRows && (
         <>
           {/* 1. Optimized Hero Slider (Carousel) - Full Bleed Width */}
-          <section class="relative w-full h-[340px] md:h-[480px] bg-[#020617] overflow-hidden print:hidden group">
+          <section class="relative w-full h-[340px] md:h-[480px] lg:h-auto lg:aspect-[1600/646] bg-[#020617] overflow-hidden print:hidden group">
             {/* Slides */}
             <div class="relative w-full h-full flex items-center">
               {slides.map((slide, idx) => (
@@ -360,7 +360,7 @@ export default component$(() => {
                     loading={idx === 0 ? "eager" : "lazy"}
                     class="hidden md:block w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
                     width={1600}
-                    height={480}
+                    height={646}
                   />
                   {/* Mobile Image */}
                   <img

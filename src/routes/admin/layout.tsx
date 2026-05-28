@@ -17,7 +17,7 @@ export default component$(() => {
   const isPathActive = (routePath: string) => {
     const cleanPath = currentPath.replace(/\/$/, "");
     const cleanTarget = routePath.replace(/\/$/, "");
-    
+
     if (cleanTarget === "/admin/stats") {
       return cleanPath === "/admin/stats" || cleanPath === "/admin";
     }
@@ -100,21 +100,13 @@ export default component$(() => {
       <aside class="w-72 bg-[#0b1329] text-slate-300 flex flex-col flex-shrink-0 h-full select-none border-r border-slate-900 shadow-xl">
         {/* Brand Header */}
         <div class="px-6 py-7 border-b border-slate-800 flex items-center space-x-3.5 bg-[#080E1C]">
-            <img
-              src="/path446.png"
-              alt="AMP Logo"
-              width={100}
-              height={40}
-              class="h-9 w-auto object-contain"
-            />
-          <div class="flex flex-col">
-            <span class="text-white font-display font-extrabold text-base tracking-wider uppercase leading-none">
-              AMP<span class="text-brand-gold">+</span> Club
-            </span>
-            <span class="text-brand-green-light text-[9px] uppercase font-bold tracking-widest mt-1">
-              Panel Administrativo
-            </span>
-          </div>
+          <img
+            src="/path446.png"
+            alt="AMP Logo"
+            width={100}
+            height={40}
+            class="h-9 w-auto object-contain"
+          />
         </div>
 
 
