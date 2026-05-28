@@ -4,7 +4,7 @@ import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from
 import { useLayoutUser } from "./layout";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable } from "~/db/schema";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import {
   LuSmartphone,
   LuGift,
@@ -99,7 +99,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
     await ensureHeroSlidesSeeded(db);
-    slides = await db.select().from(heroSlidesTable).orderBy(asc(heroSlidesTable.orderIndex));
+    slides = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.isActive, 1)).orderBy(asc(heroSlidesTable.orderIndex));
   } catch (err) {
     console.error("Failed to load slides on homepage:", err);
     slides = [
@@ -352,18 +352,29 @@ export default component$(() => {
                     }`}
                 >
                   <div class="absolute inset-0 bg-gradient-to-t from-[#020617]/95 via-[#020617]/40 to-transparent z-10" />
+                  {/* Desktop Image */}
                   <img
                     src={slide.imageUrl}
                     alt={slide.title}
                     fetchPriority={idx === 0 ? "high" : "low"}
                     loading={idx === 0 ? "eager" : "lazy"}
-                    class="w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
+                    class="hidden md:block w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
                     width={1600}
                     height={480}
                   />
+                  {/* Mobile Image */}
+                  <img
+                    src={slide.imageMobile || slide.imageUrl}
+                    alt={slide.title}
+                    fetchPriority={idx === 0 ? "high" : "low"}
+                    loading={idx === 0 ? "eager" : "lazy"}
+                    class="block md:hidden w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
+                    width={480}
+                    height={600}
+                  />
                   <div class="absolute bottom-12 left-6 md:left-14 lg:left-20 z-20 max-w-2xl text-white text-left">
                     <span class="inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black bg-brand-gold text-brand-green-dark mb-4 shadow-lg tracking-widest uppercase border border-white/10">
-                      Exclusivo AMP+
+                      {slide.preTitle || "Exclusivo AMP+"}
                     </span>
                     <h2 class="text-4xl md:text-5xl font-display font-extrabold tracking-tight drop-shadow-md text-white mb-2 leading-none">
                       {slide.title}

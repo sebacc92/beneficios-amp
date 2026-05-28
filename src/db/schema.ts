@@ -117,5 +117,8 @@ export const heroSlides = sqliteTable("hero_slides", {
   buttonLink: text("button_link"),
   orderIndex: integer("order_index").default(0).notNull(),
   createdAt: text("created_at").notNull(),
+  preTitle: text("pre_title"),
+  imageMobile: text("image_mobile"),
+  isActive: integer("is_active").default(1).notNull(),
 });
 

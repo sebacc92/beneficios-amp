@@ -247,6 +247,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 1,
         createdAt: new Date().toISOString(),
+        preTitle: "Exclusivo AMP+",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg",
+        isActive: 1,
       },
       {
         id: "slide-2",
@@ -257,6 +260,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 2,
         createdAt: new Date().toISOString(),
+        preTitle: "Cuidado Médico",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
+        isActive: 1,
       },
       {
         id: "slide-3",
@@ -267,6 +273,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 3,
         createdAt: new Date().toISOString(),
+        preTitle: "Turismo & Escapadas",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/-DAZZLER SLIDE.jpg",
+        isActive: 1,
       },
       {
         id: "slide-4",
@@ -277,6 +286,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 4,
         createdAt: new Date().toISOString(),
+        preTitle: "Tendencias & Moda",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
+        isActive: 1,
       },
       {
         id: "slide-5",
@@ -287,6 +299,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 5,
         createdAt: new Date().toISOString(),
+        preTitle: "Bienestar & Relax",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/27-PHOTO-2025-11-03-12-09-52.jpg",
+        isActive: 1,
       },
       {
         id: "slide-6",
@@ -297,6 +312,9 @@ export async function ensureHeroSlidesSeeded(db: any) {
         buttonLink: "/",
         orderIndex: 6,
         createdAt: new Date().toISOString(),
+        preTitle: "Fitness & Salud",
+        imageMobile: "https://beneficios.amepla.org.ar/images/slider/-Tred Slide.jpg",
+        isActive: 1,
       },
     ];
 
