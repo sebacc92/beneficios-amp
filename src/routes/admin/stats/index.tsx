@@ -106,11 +106,11 @@ export default component$(() => {
 
         <div class="flex items-center gap-2">
           <button
-            onClick$={() => downloadCSV(adminUsers.value, `reporte-usuarios-${Date.now()}.csv`)}
+            onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `reporte-agremiados-${Date.now()}.csv`)}
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
           >
             <LuDownload class="w-4 h-4" />
-            <span>Exportar Usuarios</span>
+            <span>Exportar Agremiados</span>
           </button>
         </div>
       </div>
@@ -120,8 +120,10 @@ export default component$(() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-xs font-bold text-slate-400 uppercase block">Total Usuarios</span>
-              <span class="text-3xl font-display font-black text-slate-800">{adminUsers.value.length}</span>
+              <span class="text-xs font-bold text-slate-400 uppercase block">Total Agremiados</span>
+              <span class="text-3xl font-display font-black text-slate-800">
+                {adminUsers.value.filter((u) => u.role !== "admin").length}
+              </span>
             </div>
             <LuUsers class="w-8 h-8 text-brand-green" />
           </div>
@@ -216,12 +218,12 @@ export default component$(() => {
 
             <div class="flex flex-col gap-3 pt-2">
               <button
-                onClick$={() => downloadCSV(adminUsers.value, `users_report_${Date.now()}.csv`)}
+                onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `agremiados_report_${Date.now()}.csv`)}
                 class="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer text-slate-700"
               >
                 <div class="flex items-center gap-2">
                   <LuUsers class="w-4 h-4 text-brand-green" />
-                  <span>Reporte de Usuarios</span>
+                  <span>Reporte de Agremiados</span>
                 </div>
                 <div class="flex items-center gap-1.5 text-slate-400">
                   <LuDownload class="w-3.5 h-3.5" />

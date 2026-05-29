@@ -137,3 +137,17 @@ export const heroSlides = sqliteTable("hero_slides", {
   isActive: integer("is_active").default(1).notNull(),
 });
 
+// --- Merchant Club Applications ---
+export const merchantRequests = sqliteTable("merchant_requests", {
+  id: text("id").primaryKey(),
+  businessName: text("business_name").notNull(),
+  category: text("category").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  proposal: text("proposal").notNull(),
+  status: text("status").default("pending").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+

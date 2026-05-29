@@ -405,9 +405,10 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         ofertas: [off],
         orden_app: cb.isFeatured ? 1 : 0,
         mostrar_app: 1,
-        isPremiumOnly: cb.isPremiumOnly,
+              isPremiumOnly: cb.isPremiumOnly,
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
+        created_at: cb.createdAt,
       } as Benefit;
     });
   } catch (err) {

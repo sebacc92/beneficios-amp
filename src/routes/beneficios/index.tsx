@@ -435,10 +435,139 @@ export default component$(() => {
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* Row 2: Unified Search and Filters Bar (Full Width & Generous Spacing) */}
+        <div class="bg-white rounded-[2rem] border border-slate-200/60 p-6 md:p-8 mb-8 shadow-sm flex flex-col gap-6 text-left">
+          {/* Keyword Search - Spanning Full Width */}
+          <div class="w-full relative text-left">
+            <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Buscar por palabra clave o marca</label>
+            <div class="relative flex items-center">
+              <input
+                type="text"
+                id="catalog-search-input"
+                placeholder="Ej: Gimnasio, Hoteles, Restaurante, Heladería..."
+                value={activeFilters.query || ""}
+                onKeyDown$={(ev, el) => {
+                  if (ev.key === "Enter") {
+                    const searchParams = new URLSearchParams(window.location.search);
+                    if (el.value.trim()) {
+                      searchParams.set("buscar", el.value.trim());
+                    } else {
+                      searchParams.delete("buscar");
+                    }
+                    searchParams.set("page", "1");
+                    window.location.href = `/beneficios?${searchParams.toString()}`;
+                  }
+                }}
+                class="w-full bg-slate-50 text-slate-800 text-sm pl-12 pr-28 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all placeholder-slate-400 font-medium"
+              />
+              <span class="absolute left-4.5 text-slate-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </span>
+              <button
+                type="button"
+                onClick$={() => {
+                  const input = document.getElementById("catalog-search-input") as HTMLInputElement | null;
+                  if (input) {
+                    const searchParams = new URLSearchParams(window.location.search);
+                    if (input.value.trim()) {
+                      searchParams.set("buscar", input.value.trim());
+                    } else {
+                      searchParams.delete("buscar");
+                    }
+                    searchParams.set("page", "1");
+                    window.location.href = `/beneficios?${searchParams.toString()}`;
+                  }
+                }}
+                class="absolute right-2 px-6 py-2.5 bg-brand-green hover:bg-brand-green-light text-xs font-black uppercase tracking-wider text-white rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          {/* Filters Selectors Grid - Two Equal Columns with beautiful chevrons */}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+            {/* Location Dropdown Filter */}
+            <div class="text-left w-full">
+              <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Filtrar por Ubicación</label>
+              <div class="relative w-full">
+                <select
+                  onChange$={(ev, el) => {
+                    const searchParams = new URLSearchParams(window.location.search);
+                    if (el.value) {
+                      searchParams.set("ubicacion", el.value);
+                    } else {
+                      searchParams.delete("ubicacion");
+                    }
+                    searchParams.set("page", "1");
+                    window.location.href = `/beneficios?${searchParams.toString()}`;
+                  }}
+                  class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-10 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none appearance-none cursor-pointer font-medium"
+                >
+                  <option value="">Todas las ubicaciones</option>
+                  {filters.ubicaciones.map((loc) => (
+                    <option
+                      key={loc.id}
+                      value={loc.id}
+                      selected={activeFilters.locationId === loc.id}
+                    >
+                      {loc.descripcion}
+                    </option>
+                  ))}
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Offer type / Discount Dropdown Filter */}
+            <div class="text-left w-full">
+              <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Filtrar por Descuento</label>
+              <div class="relative w-full">
+                <select
+                  onChange$={(ev, el) => {
+                    const searchParams = new URLSearchParams(window.location.search);
+                    if (el.value) {
+                      searchParams.set("oferta", el.value);
+                    } else {
+                      searchParams.delete("oferta");
+                    }
+                    searchParams.set("page", "1");
+                    window.location.href = `/beneficios?${searchParams.toString()}`;
+                  }}
+                  class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-10 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none appearance-none cursor-pointer font-medium"
+                >
+                  <option value="">Todos los descuentos</option>
+                  {filters.ofertas.map((off) => (
+                    <option
+                      key={off.id}
+                      value={off.id}
+                      selected={activeFilters.offerId === off.id}
+                    >
+                      {off.descripcion}
+                    </option>
+                  ))}
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
           {/* Active filters pill list */}
           {hasActiveFilters && (
-            <div class="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
+            <div class="flex flex-wrap items-center gap-2 mt-4 md:mt-0 mb-6">
               <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
                 Filtros activos:
               </span>
@@ -487,7 +616,6 @@ export default component$(() => {
               </Link>
             </div>
           )}
-        </div>
 
         {isMapView ? (
           <div
@@ -622,7 +750,7 @@ export default component$(() => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <nav class="flex items-center justify-center space-x-2 mt-12 pt-8 border-t border-slate-200/60 print:hidden select-none">
+              <nav class="flex flex-wrap items-center justify-center gap-3 mt-12 pt-8 border-t border-slate-200/60 print:hidden select-none">
                 <Link
                   href={page > 1 ? getFilterUrl({ page: page - 1 }) : undefined}
                   class={`p-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${page > 1
@@ -636,23 +764,57 @@ export default component$(() => {
                   </svg>
                 </Link>
 
-                <div class="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const pNum = idx + 1;
-                    const isCurrent = pNum === page;
-                    return (
-                      <Link
-                        key={pNum}
-                        href={getFilterUrl({ page: pNum })}
-                        class={`w-10 h-10 flex items-center justify-center rounded-xl text-sm font-extrabold border transition-all shadow-sm ${isCurrent
-                          ? "bg-brand-green border-brand-green text-white shadow-brand-green/10"
-                          : "bg-white border-slate-200 text-slate-750 hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
-                          }`}
-                      >
-                        {pNum}
-                      </Link>
-                    );
-                  })}
+                <div class="flex flex-wrap items-center justify-center gap-1.5 max-w-full px-2">
+                  {(() => {
+                    // Smart pagination subset to avoid rendering a long strip of 20+ buttons
+                    const range = [];
+                    const maxVisible = 5;
+                    let start = Math.max(1, page - Math.floor(maxVisible / 2));
+                    const end = Math.min(totalPages, start + maxVisible - 1);
+
+                    if (end - start + 1 < maxVisible) {
+                      start = Math.max(1, end - maxVisible + 1);
+                    }
+
+                    if (start > 1) {
+                      range.push(1);
+                      if (start > 2) range.push("...");
+                    }
+
+                    for (let i = start; i <= end; i++) {
+                      range.push(i);
+                    }
+
+                    if (end < totalPages) {
+                      if (end < totalPages - 1) range.push("...");
+                      range.push(totalPages);
+                    }
+
+                    return range.map((p, idx) => {
+                      if (p === "...") {
+                        return (
+                          <span key={`dots-${idx}`} class="w-8 text-center text-slate-400 font-bold select-none">
+                            ...
+                          </span>
+                        );
+                      }
+
+                      const pNum = p as number;
+                      const isCurrent = pNum === page;
+                      return (
+                        <Link
+                          key={`page-${pNum}`}
+                          href={getFilterUrl({ page: pNum })}
+                          class={`w-10 h-10 flex items-center justify-center rounded-xl text-sm font-extrabold border transition-all shadow-sm ${isCurrent
+                            ? "bg-brand-green border-brand-green text-white shadow-brand-green/10"
+                            : "bg-white border-slate-200 text-slate-750 hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
+                            }`}
+                        >
+                          {pNum}
+                        </Link>
+                      );
+                    });
+                  })()}
                 </div>
 
                 <Link
