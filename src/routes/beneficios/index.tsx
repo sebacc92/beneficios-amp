@@ -1,59 +1,14 @@
-import { component$, useSignal, $, useVisibleTask$ } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../layout";
+import { CategorySlider } from "~/components/category-slider/category-slider";
 import {
-  LuSmartphone,
   LuList,
   LuMap,
-  LuUtensils,
-  LuHeartPulse,
-  LuDumbbell,
-  LuFilm,
-  LuCar,
-  LuTags,
-  LuHotel,
-  LuShoppingBag,
-  LuSparkles,
-  LuGraduationCap,
   LuCrown
 } from "@qwikest/icons/lucide";
 
-// Helper function to return category icon components dynamically
-const getCategoryIcon = (iconName: string) => {
-  const norm = iconName ? iconName.toLowerCase().trim() : "";
-  if (norm.includes("hotel") || norm.includes("alojamiento") || norm.includes("turismo")) {
-    return <LuHotel class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("gastronomia") || norm.includes("cafe") || norm.includes("comida") || norm.includes("restaurante")) {
-    return <LuUtensils class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("deporte") || norm.includes("gimnasio") || norm.includes("salud") || norm.includes("fitness")) {
-    return <LuDumbbell class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("compras") || norm.includes("tienda") || norm.includes("shopp") || norm.includes("indumentaria") || norm.includes("moda")) {
-    return <LuShoppingBag class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("bienestar") || norm.includes("estetica") || norm.includes("belleza") || norm.includes("spa")) {
-    return <LuHeartPulse class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("auto") || norm.includes("moto") || norm.includes("taller") || norm.includes("combustible")) {
-    return <LuCar class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("educacion") || norm.includes("curso") || norm.includes("universidad")) {
-    return <LuGraduationCap class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("tecnologia") || norm.includes("celular") || norm.includes("computacion")) {
-    return <LuSmartphone class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("servicio") || norm.includes("profesional")) {
-    return <LuSparkles class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  if (norm.includes("entretenimiento") || norm.includes("cine") || norm.includes("teatro") || norm.includes("diversion")) {
-    return <LuFilm class="w-14 h-14 text-current stroke-[1.5]" />;
-  }
-  return <LuTags class="w-14 h-14 text-current stroke-[1.5]" />;
-};
 
 // Server Loader to retrieve benefits and filters
 export const useBenefitsData = routeLoader$(async (event) => {
@@ -289,88 +244,18 @@ export default component$(() => {
 
     return `/beneficios?${searchParams.toString()}`;
   };
-
-  const scrollCategoryLeft = $(() => {
-    const container = document.getElementById("category-scroll-container");
-    if (container) {
-      container.scrollBy({ left: -260, behavior: "smooth" });
-    }
-  });
-
-  const scrollCategoryRight = $(() => {
-    const container = document.getElementById("category-scroll-container");
-    if (container) {
-      container.scrollBy({ left: 260, behavior: "smooth" });
-    }
-  });
-
   return (
     <div class="relative min-h-screen bg-slate-50">
       {/* Search Header Info */}
       <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 print:hidden text-left">
         {/* Beautiful Horizontal Category Slider Bar */}
         <div class="relative mb-8 pb-3 border-b border-slate-200/50">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-extrabold uppercase tracking-widest text-slate-400">
-              Explorar por Categoría
-            </h3>
-            {/* Category scroll controllers */}
-            <div class="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick$={scrollCategoryLeft}
-                class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-655 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
-                aria-label="Anterior"
-              >
-                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick$={scrollCategoryRight}
-                class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-655 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
-                aria-label="Siguiente"
-              >
-                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div
-            id="category-scroll-container"
-            class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory"
-          >
-            {filters.categorias.map((cat) => {
-              const isSelected = activeFilters.categoryId === cat.id;
-              return (
-                <Link
-                  key={cat.id}
-                  href={getFilterUrl({ categoria: isSelected ? null : cat.id, page: 1 })}
-                  class={[
-                    "flex flex-col items-center justify-center p-5 rounded-[2rem] w-32 h-32 flex-shrink-0 border transition-all duration-300 shadow-sm cursor-pointer select-none group",
-                    isSelected
-                      ? "bg-brand-green border-brand-green text-white shadow-brand-green/20"
-                      : "bg-white border-slate-100 hover:border-brand-green/30 text-slate-500 hover:text-brand-green hover:shadow-md"
-                  ]}
-                >
-                  <div
-                    class={[
-                      "transition-transform duration-300 group-hover:scale-110",
-                      isSelected ? "text-white" : "text-brand-green"
-                    ]}
-                  >
-                    {getCategoryIcon(cat.descripcion)}
-                  </div>
-                  <span class="text-[12px] font-black uppercase tracking-wider mt-4 truncate max-w-[108px]">
-                    {cat.descripcion}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+          <CategorySlider
+            categorias={filters.categorias}
+            activeCategoryId={activeFilters.categoryId}
+            sliderId="category-scroll-container"
+            title="Explorar por Categoría"
+          />
         </div>
       </section>
 

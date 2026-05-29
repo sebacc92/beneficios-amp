@@ -2,6 +2,7 @@ import { component$, useSignal, $, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
 import { useLayoutUser } from "./layout";
+import { CategorySlider } from "~/components/category-slider/category-slider";
 import { getSettings } from "~/server/chatbotDb";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
@@ -11,21 +12,10 @@ import {
   LuGift,
   LuStore,
   LuUtensils,
-  LuPlane,
-  LuShirt,
-  LuHeartPulse,
   LuDumbbell,
-  LuFilm,
-  LuHome,
-  LuCar,
-  LuTags,
   LuCompass,
   LuHotel,
   LuShoppingBag,
-  LuSparkles,
-  LuCalendar,
-  LuCamera,
-  LuGraduationCap,
   LuCreditCard
 } from "@qwikest/icons/lucide";
 
@@ -195,24 +185,6 @@ export const submitMerchantRequest = server$(async function(data: {
   }
 });
 
-const getCategoryIcon = (desc: string) => {
-  const d = desc.toLowerCase();
-  if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuPlane class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("estética") || d.includes("belleza") || d.includes("peluquería")) return <LuSparkles class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("salud") || d.includes("cuidado") || d.includes("farmacia") || d.includes("ortopedia") || d.includes("médic")) return <LuHeartPulse class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("deporte") || d.includes("gimnasio") || d.includes("club") || d.includes("fitness")) return <LuDumbbell class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("entretenimiento") || d.includes("cine") || d.includes("teatro") || d.includes("espectáculo")) return <LuFilm class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("evento") || d.includes("fiesta") || d.includes("reunión")) return <LuCalendar class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("fotografía") || d.includes("foto")) return <LuCamera class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("educación") || d.includes("curso") || d.includes("colegio") || d.includes("universidad") || d.includes("librería")) return <LuGraduationCap class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("banco") || d.includes("financiero") || d.includes("seguro") || d.includes("crédito")) return <LuCreditCard class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("compras") || d.includes("supermercado") || d.includes("regalo") || d.includes("mayorista")) return <LuShoppingBag class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("hogar") || d.includes("deco") || d.includes("mueble") || d.includes("inmobiliari") || d.includes("construc")) return <LuHome class="w-14 h-14 text-current stroke-[1.5]" />;
-  if (d.includes("servicio") || d.includes("auto") || d.includes("taller") || d.includes("mecánica")) return <LuCar class="w-14 h-14 text-current stroke-[1.5]" />;
-  return <LuTags class="w-14 h-14 text-current stroke-[1.5]" />;
-};
 
 const parseDate = (dateStr?: string) => {
   if (!dateStr) return null;
@@ -425,57 +397,11 @@ export default component$(() => {
 
           {/* Beautiful Horizontal Category Slider Bar */}
           <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden text-left">
-            <div class="flex items-center justify-between mb-5 border-b border-slate-200/60 pb-3">
-              <p class="text-[13px] font-black tracking-widest text-slate-450 uppercase pl-1 m-0">Explorá por Categoría</p>
-              {/* Category scroll controllers */}
-              <div class="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick$={() => scrollContainer("home-category-container", "left")}
-                  class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
-                  aria-label="Anterior"
-                >
-                  <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick$={() => scrollContainer("home-category-container", "right")}
-                  class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
-                  aria-label="Siguiente"
-                >
-                  <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div
-              id="home-category-container"
-              class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory"
-            >
-              {filters.categorias
-                .filter((c: any) => (c.beneficios_count || 0) > 0)
-                .map((cat: any) => {
-                  const icon = getCategoryIcon(cat.descripcion);
-                  return (
-                    <Link
-                      key={cat.id}
-                      href={`/beneficios?categoria=${cat.id}`}
-                      class="flex flex-col items-center justify-center text-center p-4 rounded-[2.5rem] border transition-all duration-300 w-[164px] h-[164px] flex-shrink-0 select-none cursor-pointer group bg-white border-slate-200 text-slate-700 hover:border-brand-green/45 hover:shadow-md hover:scale-105"
-                    >
-                      <span class="flex items-center justify-center transition-transform duration-300 text-slate-400 group-hover:text-brand-green group-hover:scale-110">
-                        {icon}
-                      </span>
-                      <span class="text-[12px] font-black uppercase tracking-wider mt-4 truncate max-w-[148px]">
-                        {cat.descripcion}
-                      </span>
-                    </Link>
-                  );
-                })}
-            </div>
+            <CategorySlider
+              categorias={filters.categorias}
+              sliderId="home-category-container"
+              filterEmpty={true}
+            />
           </div>
 
           {/* Row Gold: Beneficios Gold (Premium Exclusivos) */}
