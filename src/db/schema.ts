@@ -61,6 +61,7 @@ export const customBenefits = sqliteTable("custom_benefits", {
   couponCode: text("coupon_code"),
   validUntil: text("valid_until"),
   terms: text("terms"),
+  pdfUrl: text("pdf_url"),
   createdAt: text("created_at").notNull(),
 });
 

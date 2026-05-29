@@ -452,6 +452,59 @@ export default component$(() => {
                   />
                 </div>
 
+                {/* Documentación PDF Adjunta */}
+                {benefit.pdfUrl && (
+                  <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all duration-300">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all duration-500 pointer-events-none" />
+                    
+                    {/* Icon container */}
+                    <div class="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                      <svg class="w-9 h-9 text-red-500 fill-current" viewBox="0 0 24 24">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Text content */}
+                    <div class="flex-grow text-center sm:text-left space-y-1">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-750 border border-red-100 uppercase tracking-widest">
+                        Documento PDF
+                      </span>
+                      <h3 class="text-lg font-black text-brand-green-dark tracking-tight leading-snug">
+                        Documentación y Menú Adjunto
+                      </h3>
+                      <p class="text-xs text-slate-450 font-medium leading-relaxed">
+                        Consultá la lista de precios, bases o información extra digital de este beneficio.
+                      </p>
+                    </div>
+                    
+                    {/* Actions */}
+                    <div class="flex flex-row sm:flex-col gap-2.5 w-full sm:w-auto">
+                      <a
+                        href={benefit.pdfUrl}
+                        target="_blank"
+                        rel="noopener"
+                        class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                      >
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Ver Documento
+                      </a>
+                      <a
+                        href={benefit.pdfUrl}
+                        download
+                        class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                      >
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Descargar
+                      </a>
+                    </div>
+                  </div>
+                )}
+
                 {/* How to use */}
                 <div class="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                   <div class="flex items-center space-x-2 text-brand-green font-bold text-sm">

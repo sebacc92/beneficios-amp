@@ -44,6 +44,7 @@ export interface Benefit {
   ubicacion: Location[]; // Note: Singular in original API response but is an array
   ofertas: Offer[];
   isPremiumOnly?: boolean; // Premium badge
+  pdfUrl?: string | null; // PDF file document URL or path
 }
 
 export interface Filters {
@@ -377,6 +378,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         orden_app: cb.isFeatured ? 1 : 0,
         mostrar_app: 1,
         isPremiumOnly: cb.isPremiumOnly,
+        pdfUrl: cb.pdfUrl || null,
       } as Benefit;
     });
   } catch (err) {
