@@ -49,7 +49,7 @@ export default component$(() => {
     },
     {
       path: "/admin/benefits",
-      label: "Beneficios (CRUD)",
+      label: "Beneficios",
       icon: (
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-12h12c.621 0 1.125.504 1.125 1.125V17c0 .621-.504 1.125-1.125 1.125H7.5A1.125 1.125 0 016.375 17V7.125C6.375 6.504 6.879 6 7.5 6zM4.5 8.625h1.5m-1.5 3h1.5m-1.5 3h1.5" />
@@ -80,6 +80,15 @@ export default component$(() => {
       icon: (
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20c-2.213 0-4.302-.63-6.089-1.73v-.109A11.386 11.386 0 0110.089 18c2.213 0 4.302.63 6.089 1.73zM10.089 18v-.003c0-1.113.285-2.16.786-3.07M15 7.5a3 3 0 11-6 0 3 3 0 016 0zm6 2.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+        </svg>
+      ),
+    },
+    {
+      path: "/admin/popup",
+      label: "Popup Inicial",
+      icon: (
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
     },

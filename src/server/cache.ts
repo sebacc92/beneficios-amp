@@ -44,6 +44,7 @@ export interface Benefit {
   ubicacion: Location[]; // Note: Singular in original API response but is an array
   ofertas: Offer[];
   isPremiumOnly?: boolean; // Premium badge
+  isFeatured?: boolean; // Featured status
   pdfUrl?: string | null; // PDF file document URL or path
 }
 
@@ -90,6 +91,21 @@ export async function initCache(force = false): Promise<{ benefitsCount: number;
 
   console.log('[Cache] Refreshing benefits and filters cache...');
   try {
+    // To completely prevent Vercel 504 Function Invocation Timeout, we serve the local seed data by default.
+    // The live database custom benefits are queried directly from Turso, so they are always 100% up-to-date.
+    if (!force) {
+      const localSeed = await import('./data/seed.json').catch(() => null);
+      if (localSeed && localSeed.benefits && localSeed.filters) {
+        globalCached.__benefitsCache = {
+          benefits: localSeed.benefits as Benefit[],
+          filters: localSeed.filters as Filters,
+          lastFetchTime: now
+        };
+        console.log(`[Cache] Instantly initialized cache from local seed: ${localSeed.benefits.length} benefits.`);
+        return { benefitsCount: localSeed.benefits.length, success: true };
+      }
+    }
+
     // 1. Fetch filters with an 8 second timeout to avoid blocking startup
     const filtersRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/filtros/beneficios', {}, 8000);
     if (!filtersRes.ok) throw new Error(`Filters API returned ${filtersRes.status}`);
@@ -142,7 +158,10 @@ export async function initCache(force = false): Promise<{ benefitsCount: number;
     }
 
     globalCached.__benefitsCache = {
-      benefits: uniqueBenefits,
+      benefits: uniqueBenefits.map(item => ({
+        ...item,
+        isFeatured: item.orden_app !== null && item.orden_app !== undefined && item.orden_app > 0
+      })),
       filters: filtersData,
       lastFetchTime: now
     };
@@ -189,13 +208,20 @@ export async function getFilters(): Promise<Filters> {
 // Helper to automatically seed DB if it's empty
 export async function ensureDbSeeded(db: any) {
   try {
+    // Ensure benefit with ID 775 is completely deleted from the database
+    await db.delete(customBenefits).where(eq(customBenefits.id, "775"));
+
     const existing = await db.select().from(customBenefits);
-    // If we already have seeded custom benefits (more than 5), don't seed again
-    if (existing.length > 5) {
+    const lacksCoordinates = existing.length > 0 && existing.some((x: any) => x.latitud === null || x.latitud === undefined);
+
+    if (lacksCoordinates) {
+      console.log("[Seeder] Custom benefits lacking coordinates detected. Re-seeding table with coordinates...");
+      await db.delete(customBenefits);
+    } else if (existing.length > 5) {
       return;
     }
 
-    console.log("[Seeder] custom_benefits table is empty. Seeding from seed.json...");
+    console.log("[Seeder] custom_benefits table is empty or needs coordinate updates. Seeding from seed.json...");
     const seedData = await import("./data/seed.json");
     if (!seedData || !seedData.benefits) {
       console.warn("[Seeder] Could not load seed.json");
@@ -226,6 +252,8 @@ export async function ensureDbSeeded(db: any) {
         couponCode: "AMEPLA" + b.id,
         validUntil: "2026-12-31",
         terms: "Válido presentando credencial digital.",
+        latitud: b.latitud || null,
+        longitud: b.longitud || null,
         createdAt: b.created_at || new Date().toISOString(),
       });
     }
@@ -370,14 +398,15 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         imagen: cb.imagen || null,
         url: cb.slug,
         resumen: cb.resumen,
-        latitud: null,
-        longitud: null,
+        latitud: cb.latitud || null,
+        longitud: cb.longitud || null,
         categorias: [cat],
         ubicacion: [loc],
         ofertas: [off],
         orden_app: cb.isFeatured ? 1 : 0,
         mostrar_app: 1,
         isPremiumOnly: cb.isPremiumOnly,
+        isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
       } as Benefit;
     });
@@ -392,6 +421,14 @@ export async function getBenefitBySlug(slug: string, requestEvent?: RequestEvent
     const customList = await getCustomBenefits(requestEvent);
     const customMatch = customList.find(b => b.url === slug);
     if (customMatch) return customMatch;
+
+    // Check fallback match by ID prefix on customList
+    const idPrefix = slug.split('-')[0];
+    if (idPrefix && !isNaN(Number(idPrefix))) {
+      const id = Number(idPrefix);
+      return customList.find(b => b.id === id) || null;
+    }
+    return null;
   }
 
   const benefits = await getBenefits();
@@ -415,6 +452,7 @@ export interface SearchParams {
   page?: number;
   limit?: number;
   requestEvent?: RequestEventBase; // Support fetching custom DB benefits
+  isPremiumOnly?: boolean;
 }
 
 export interface SearchResult {
@@ -426,22 +464,12 @@ export interface SearchResult {
 }
 
 export async function searchBenefits(params: SearchParams): Promise<SearchResult> {
-  let allBenefits = [...await getBenefits()];
+  let uniqueBenefits: Benefit[] = [];
   
-  // Include custom benefits from Turso if requestEvent is active
   if (params.requestEvent) {
-    const customList = await getCustomBenefits(params.requestEvent);
-    allBenefits = [...customList, ...allBenefits]; // Prepend custom CRUD benefits
-  }
-
-  // Deduplicate all benefits by ID (gives priority to local database benefits since they are prepended)
-  const seenIds = new Set<number>();
-  const uniqueBenefits: Benefit[] = [];
-  for (const b of allBenefits) {
-    if (!seenIds.has(b.id)) {
-      seenIds.add(b.id);
-      uniqueBenefits.push(b);
-    }
+    uniqueBenefits = await getCustomBenefits(params.requestEvent);
+  } else {
+    uniqueBenefits = await getBenefits();
   }
   
   const query = params.query?.toLowerCase().trim() || '';
@@ -451,7 +479,7 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   const page = params.page && params.page > 0 ? Number(params.page) : 1;
   const limit = params.limit && params.limit > 0 ? Number(params.limit) : 12;
 
-  let filtered = allBenefits;
+  let filtered = uniqueBenefits;
 
   // 1. Text search filter
   if (query) {
@@ -477,6 +505,11 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   // 4. Offer/Discount filter
   if (offerId) {
     filtered = filtered.filter(b => b.ofertas.some(o => o.id === offerId));
+  }
+
+  // 5. Gold/Premium filter
+  if (params.isPremiumOnly) {
+    filtered = filtered.filter(b => b.isPremiumOnly);
   }
 
   const total = filtered.length;

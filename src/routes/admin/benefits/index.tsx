@@ -1,7 +1,8 @@
 import { component$, useSignal, useComputed$, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuTicket, LuCrown, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight } from "@qwikest/icons/lucide";
+import { LuPlus, LuTicket, LuCrown, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
+import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters, ensureDbSeeded } from "~/server/cache";
@@ -48,17 +49,46 @@ export const useCreateBenefitAction = routeAction$(
 
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
+        
+        // Attempt Vercel Blob Upload
+        let uploaded = false;
+        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
+          try {
+            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
+            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
+              access: "public",
+              token: token
+            });
+            uploadedPdfUrl = blob.url;
+            uploaded = true;
+            console.log("[Vercel Blob] Uploaded PDF to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
+          }
+        }
 
-        const extension = file.name.split(".").pop() || "pdf";
-        const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        uploadedPdfUrl = `/uploads/${fileName}`;
+        if (!uploaded) {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+
+          const extension = file.name.split(".").pop() || "pdf";
+          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedPdfUrl = `/uploads/${fileName}`;
+        }
+      }
+
+      let lat = data.latitud?.trim() || null;
+      let lng = data.longitud?.trim() || null;
+      if (!lat || !lng) {
+        const randomOffsetLat = (Math.random() - 0.5) * 0.04;
+        const randomOffsetLng = (Math.random() - 0.5) * 0.04;
+        lat = (-34.9205 + randomOffsetLat).toFixed(6);
+        lng = (-57.9536 + randomOffsetLng).toFixed(6);
       }
 
       await db.insert(customBenefitsTable).values({
@@ -77,6 +107,8 @@ export const useCreateBenefitAction = routeAction$(
         validUntil: data.validUntil || null,
         terms: data.terms || null,
         pdfUrl: uploadedPdfUrl,
+        latitud: lat,
+        longitud: lng,
         createdAt: new Date().toISOString(),
       });
 
@@ -101,6 +133,8 @@ export const useCreateBenefitAction = routeAction$(
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
+    latitud: z.string().optional(),
+    longitud: z.string().optional(),
   })
 );
 
@@ -119,19 +153,46 @@ export const useEditBenefitAction = routeAction$(
 
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
+        
+        // Attempt Vercel Blob Upload
+        let uploaded = false;
+        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
+          try {
+            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
+            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
+              access: "public",
+              token: token
+            });
+            finalPdfUrl = blob.url;
+            uploaded = true;
+            console.log("[Vercel Blob] Uploaded PDF during edit to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed during edit, falling back to disk:", blobErr.message);
+          }
+        }
 
-        const extension = file.name.split(".").pop() || "pdf";
-        const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        finalPdfUrl = `/uploads/${fileName}`;
+        if (!uploaded) {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+
+          const extension = file.name.split(".").pop() || "pdf";
+          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          finalPdfUrl = `/uploads/${fileName}`;
+        }
       } else if (data.pdfUrl === "") {
         finalPdfUrl = null;
+      }
+
+      let lat = data.latitud?.trim() || null;
+      let lng = data.longitud?.trim() || null;
+      if (!lat || !lng) {
+        lat = existing.latitud || (-34.9205 + (Math.random() - 0.5) * 0.04).toFixed(6);
+        lng = existing.longitud || (-57.9536 + (Math.random() - 0.5) * 0.04).toFixed(6);
       }
 
       await db
@@ -150,6 +211,8 @@ export const useEditBenefitAction = routeAction$(
           validUntil: data.validUntil || null,
           terms: data.terms || null,
           pdfUrl: finalPdfUrl,
+          latitud: lat,
+          longitud: lng,
         })
         .where(eq(customBenefitsTable.id, data.id));
 
@@ -175,6 +238,8 @@ export const useEditBenefitAction = routeAction$(
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
+    latitud: z.string().optional(),
+    longitud: z.string().optional(),
   })
 );
 
@@ -207,8 +272,10 @@ export default component$(() => {
   const isCreateBenefitOpen = useSignal(false);
   const editingBenefit = useSignal<any | null>(null);
 
-  // Pagination state
+  // Pagination & Search state
   const currentPage = useSignal(1);
+  const searchQuery = useSignal("");
+  const goldFilterActive = useSignal(false);
 
   useTask$(({ track }) => {
     track(() => editBenefitAction.value);
@@ -216,17 +283,43 @@ export default component$(() => {
       editingBenefit.value = null;
     }
   });
-  const itemsPerPage = 8;
+
+  useTask$(({ track }) => {
+    track(() => searchQuery.value);
+    currentPage.value = 1;
+  });
+
+  useTask$(({ track }) => {
+    track(() => goldFilterActive.value);
+    currentPage.value = 1;
+  });
+
+  const itemsPerPage = 25;
+
+  const filteredBenefits = useComputed$(() => {
+    let items = customBenefits.value;
+    if (goldFilterActive.value) {
+      items = items.filter(b => b.isPremiumOnly);
+    }
+    const query = searchQuery.value.toLowerCase().trim();
+    if (!query) return items;
+    return items.filter(
+      (b) =>
+        b.titulo.toLowerCase().includes(query) ||
+        b.resumen?.toLowerCase().includes(query) ||
+        b.descripcion?.toLowerCase().includes(query)
+    );
+  });
 
   const totalPages = useComputed$(() => {
-    const count = customBenefits.value.length;
+    const count = filteredBenefits.value.length;
     return Math.max(1, Math.ceil(count / itemsPerPage));
   });
 
   const paginatedBenefits = useComputed$(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
     const end = start + itemsPerPage;
-    return customBenefits.value.slice(start, end);
+    return filteredBenefits.value.slice(start, end);
   });
 
   const changePage = $((page: number) => {
@@ -254,13 +347,54 @@ export default component$(() => {
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          {/* Search Input Box */}
+          <div class="relative w-full sm:w-64">
+            <input
+              type="text"
+              placeholder="Buscar por título..."
+              value={searchQuery.value}
+              onInput$={(ev) => {
+                searchQuery.value = (ev.target as HTMLInputElement).value;
+              }}
+              class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-3 pl-9 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+            />
+            <LuSearch class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            {searchQuery.value && (
+              <button
+                type="button"
+                onClick$={() => {
+                  searchQuery.value = "";
+                }}
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 font-bold text-sm"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {/* Gold Filter Chip */}
+          <button
+            type="button"
+            onClick$={() => {
+              goldFilterActive.value = !goldFilterActive.value;
+            }}
+            class={`inline-flex items-center gap-1.5 px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap border ${
+              goldFilterActive.value
+                ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <LuCrown class="w-4 h-4" />
+            <span>Filtrar Gold</span>
+          </button>
+
           <button
             onClick$={() => {
               editingBenefit.value = null;
               isCreateBenefitOpen.value = !isCreateBenefitOpen.value;
             }}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
           >
             <LuPlus class="w-4 h-4" />
             <span>{isCreateBenefitOpen.value ? "Cerrar Formulario" : "Crear Beneficio"}</span>
@@ -366,6 +500,28 @@ export default component$(() => {
               </div>
             </div>
 
+            {/* Coordenadas Geográficas (Mapa) */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-5">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Latitud (Coordenadas)</label>
+                <input
+                  type="text"
+                  name="latitud"
+                  placeholder="Ej: -34.9205 (Opcional, vacío para autocompletar alrededor de La Plata)"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Longitud (Coordenadas)</label>
+                <input
+                  type="text"
+                  name="longitud"
+                  placeholder="Ej: -57.9536 (Opcional, vacío para autocompletar alrededor de La Plata)"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
+
             {/* Documentación PDF Widget */}
             <div class="border-t border-slate-100 pt-5 space-y-4">
               <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -421,7 +577,7 @@ export default component$(() => {
                 />
                 <label for="isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
                   <LuCrown class="w-4 h-4 text-amber-500" />
-                  <span>Premium Only (Segmentación)</span>
+                  <span>Beneficio Gold/Premium</span>
                 </label>
               </div>
             </div>
@@ -524,6 +680,30 @@ export default component$(() => {
               </div>
             </div>
 
+            {/* Coordenadas Geográficas (Mapa) */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-5">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Latitud (Coordenadas)</label>
+                <input
+                  type="text"
+                  name="latitud"
+                  value={editingBenefit.value.latitud || ""}
+                  placeholder="Ej: -34.9205"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Longitud (Coordenadas)</label>
+                <input
+                  type="text"
+                  name="longitud"
+                  value={editingBenefit.value.longitud || ""}
+                  placeholder="Ej: -57.9536"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
+
             {/* Documentación PDF Widget */}
             <div class="border-t border-slate-100 pt-5 space-y-4">
               <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -584,7 +764,7 @@ export default component$(() => {
                 />
                 <label for="edit_isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
                   <LuCrown class="w-4 h-4 text-amber-500" />
-                  <span>Premium Only (Segmentación)</span>
+                  <span>Beneficio Gold/Premium</span>
                 </label>
               </div>
             </div>
@@ -662,7 +842,7 @@ export default component$(() => {
                           {benefit.isPremiumOnly ? (
                             <>
                               <LuCrown class="w-2.5 h-2.5" />
-                              <span>Premium</span>
+                              <span>Gold</span>
                             </>
                           ) : (
                             <span>General</span>
@@ -713,7 +893,7 @@ export default component$(() => {
           {totalPages.value > 1 && (
             <div class="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50/50">
               <span class="text-xs text-slate-500">
-                Página <span class="font-bold text-slate-800">{currentPage.value}</span> de <span class="font-bold text-slate-800">{totalPages.value}</span> ({customBenefits.value.length} beneficios totales)
+                Página <span class="font-bold text-slate-800">{currentPage.value}</span> de <span class="font-bold text-slate-800">{totalPages.value}</span> ({filteredBenefits.value.length} beneficios)
               </span>
               <div class="flex items-center gap-1">
                 <button

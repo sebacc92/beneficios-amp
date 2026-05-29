@@ -59,7 +59,7 @@ export default component$(() => {
                 onSubmit$={(e) => {
                   e.preventDefault();
                   if (searchInput.value.trim()) {
-                    window.location.href = `/?buscar=${encodeURIComponent(searchInput.value.trim())}`;
+                    window.location.href = `/beneficios?buscar=${encodeURIComponent(searchInput.value.trim())}`;
                   }
                 }}
                 class="w-full relative"
@@ -202,7 +202,7 @@ export default component$(() => {
               onSubmit$={(e) => {
                 e.preventDefault();
                 if (searchInput.value.trim()) {
-                  window.location.href = `/?buscar=${encodeURIComponent(searchInput.value.trim())}`;
+                  window.location.href = `/beneficios?buscar=${encodeURIComponent(searchInput.value.trim())}`;
                 }
               }}
               class="relative w-full mb-3"
@@ -306,7 +306,7 @@ export default component$(() => {
       </main>
 
       {/* Premium Footer */}
-      <footer class="bg-brand-green-dark text-slate-300 border-t border-brand-gold/30">
+      <footer class="bg-slate-50 text-slate-650 border-t border-slate-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Branding Column */}
@@ -317,13 +317,13 @@ export default component$(() => {
                   alt="Logo AMP"
                   width={130}
                   height={50}
-                  class="h-11 w-auto object-contain"
+                  class="h-11 w-auto object-contain brightness-95"
                 />
-                <span class="text-white font-display font-bold text-lg">
+                <span class="text-slate-850 font-display font-black text-lg">
                   Agremiación Médica Platense
                 </span>
               </div>
-              <p class="text-sm text-slate-400 max-w-sm">
+              <p class="text-sm text-slate-500 max-w-sm font-medium">
                 Comprometidos con el bienestar de la comunidad médica. Disfrutá de una exclusiva cartilla de más de 250 comercios adheridos, descuentos, y sorteos exclusivos en toda la provincia y el país.
               </p>
               {/* Social Media Networks */}
@@ -332,7 +332,7 @@ export default component$(() => {
                   href="https://www.facebook.com/AgremiacionMedicaPlatense"
                   target="_blank"
                   rel="noopener"
-                  class="w-9 h-9 bg-brand-green hover:bg-brand-gold text-white hover:text-brand-green-dark flex items-center justify-center rounded-full transition-all duration-300 shadow-md"
+                  class="w-9 h-9 bg-slate-200 hover:bg-brand-green text-slate-700 hover:text-white flex items-center justify-center rounded-full transition-all duration-300 shadow-sm"
                   aria-label="Facebook"
                 >
                   <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -343,7 +343,7 @@ export default component$(() => {
                   href="https://www.instagram.com/ameplatense"
                   target="_blank"
                   rel="noopener"
-                  class="w-9 h-9 bg-brand-green hover:bg-brand-gold text-white hover:text-brand-green-dark flex items-center justify-center rounded-full transition-all duration-300 shadow-md"
+                  class="w-9 h-9 bg-slate-200 hover:bg-brand-green text-slate-700 hover:text-white flex items-center justify-center rounded-full transition-all duration-300 shadow-sm"
                   aria-label="Instagram"
                 >
                   <svg class="w-5 h-5 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
@@ -356,7 +356,7 @@ export default component$(() => {
                   href="https://www.youtube.com/channel/UCnJj6TzC6_oZ3z3qV86pMzA"
                   target="_blank"
                   rel="noopener"
-                  class="w-9 h-9 bg-brand-green hover:bg-brand-gold text-white hover:text-brand-green-dark flex items-center justify-center rounded-full transition-all duration-300 shadow-md"
+                  class="w-9 h-9 bg-slate-200 hover:bg-brand-green text-slate-700 hover:text-white flex items-center justify-center rounded-full transition-all duration-300 shadow-sm"
                   aria-label="YouTube"
                 >
                   <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -368,27 +368,27 @@ export default component$(() => {
 
             {/* Quick Links Column */}
             <div class="col-span-1 space-y-4">
-              <h3 class="text-white font-display font-semibold text-sm uppercase tracking-wider border-l-2 border-brand-gold pl-2">
+              <h3 class="text-slate-850 font-display font-black text-sm uppercase tracking-wider border-l-2 border-brand-gold pl-2">
                 Navegación
               </h3>
-              <ul class="space-y-2.5 text-sm">
+              <ul class="space-y-2.5 text-sm text-slate-550">
                 <li>
-                  <Link href="/" class="hover:text-brand-gold transition-colors">
+                  <Link href="/" class="hover:text-brand-green transition-colors font-bold">
                     Inicio / Beneficios
                   </Link>
                 </li>
                 <li>
-                  <Link href="/como-funciona" class="hover:text-brand-gold transition-colors">
+                  <Link href="/como-funciona" class="hover:text-brand-green transition-colors font-bold">
                     Cómo Funciona
                   </Link>
                 </li>
                 <li>
-                  <Link href="/sorteos" class="hover:text-brand-gold transition-colors">
+                  <Link href="/sorteos" class="hover:text-brand-green transition-colors font-bold">
                     Sorteos
                   </Link>
                 </li>
                 <li>
-                  <Link href="/sugerencias" class="hover:text-brand-gold transition-colors">
+                  <Link href="/sugerencias" class="hover:text-brand-green transition-colors font-bold">
                     Sugerencias
                   </Link>
                 </li>
@@ -397,25 +397,25 @@ export default component$(() => {
 
             {/* Contact Details Column */}
             <div class="col-span-1 space-y-4">
-              <h3 class="text-white font-display font-semibold text-sm uppercase tracking-wider border-l-2 border-brand-gold pl-2">
+              <h3 class="text-slate-850 font-display font-black text-sm uppercase tracking-wider border-l-2 border-brand-gold pl-2">
                 Contacto
               </h3>
-              <ul class="space-y-3 text-sm text-slate-400">
+              <ul class="space-y-3 text-sm text-slate-500 font-medium">
                 <li class="flex items-start space-x-2.5">
-                  <svg class="w-4 h-4 mt-0.5 text-brand-gold flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 mt-0.5 text-brand-green flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <span>Calle 6 Nro. 1118 entre 55 y 56,<br />La Plata, Prov. de Buenos Aires.</span>
                 </li>
                 <li class="flex items-center space-x-2.5">
-                  <svg class="w-4 h-4 text-brand-gold flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 text-brand-green flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.98-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
                   <span>+54 (221) 439-1300</span>
                 </li>
                 <li class="flex items-center space-x-2.5">
-                  <svg class="w-4 h-4 text-brand-gold flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 text-brand-green flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   <span>info@amepla.org.ar</span>
@@ -424,12 +424,12 @@ export default component$(() => {
             </div>
           </div>
 
-          <div class="mt-12 pt-8 border-t border-brand-green/30 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="mt-12 pt-8 border-t border-slate-200 text-center text-xs text-slate-450 font-semibold flex flex-col sm:flex-row items-center justify-between gap-4">
             <p>&copy; {new Date().getFullYear()} Agremiación Médica Platense. Todos los derechos reservados.</p>
             <div class="flex items-center space-x-4">
-              <a href="https://amepla.org.ar" target="_blank" rel="noopener" class="hover:text-brand-gold transition-colors">Web Oficial AMP</a>
+              <a href="https://amepla.org.ar" target="_blank" rel="noopener" class="hover:text-brand-green transition-colors">Web Oficial AMP</a>
               <span>&bull;</span>
-              <a href="https://ampmas.amepla.org.ar" target="_blank" rel="noopener" class="hover:text-brand-gold transition-colors">AMP+ App</a>
+              <a href="https://ampmas.amepla.org.ar" target="_blank" rel="noopener" class="hover:text-brand-green transition-colors">AMP+ App</a>
             </div>
           </div>
         </div>

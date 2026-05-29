@@ -138,7 +138,7 @@ export default component$(() => {
 
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-xs font-bold text-slate-400 uppercase block">Beneficios CRUD</span>
+              <span class="text-xs font-bold text-slate-400 uppercase block">Beneficios</span>
               <span class="text-3xl font-display font-black text-slate-800">{customBenefits.value.length}</span>
             </div>
             <LuTicket class="w-8 h-8 text-purple-500" />
@@ -235,7 +235,7 @@ export default component$(() => {
               >
                 <div class="flex items-center gap-2">
                   <LuTicket class="w-4 h-4 text-purple-500" />
-                  <span>Reporte de Beneficios CRUD</span>
+                  <span>Reporte de Beneficios</span>
                 </div>
                 <div class="flex items-center gap-1.5 text-slate-400">
                   <LuDownload class="w-3.5 h-3.5" />

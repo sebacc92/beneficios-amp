@@ -2,6 +2,7 @@ import { component$, useSignal, $, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
 import { useLayoutUser } from "./layout";
+import { getSettings } from "~/server/chatbotDb";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable } from "~/db/schema";
 import { asc, eq } from "drizzle-orm";
@@ -9,9 +10,6 @@ import {
   LuSmartphone,
   LuGift,
   LuStore,
-  LuMessageSquare,
-  LuList,
-  LuMap,
   LuUtensils,
   LuPlane,
   LuShirt,
@@ -24,8 +22,11 @@ import {
   LuCompass,
   LuHotel,
   LuShoppingBag,
-  LuMapPin,
-  LuInfo
+  LuSparkles,
+  LuCalendar,
+  LuCamera,
+  LuGraduationCap,
+  LuCreditCard
 } from "@qwikest/icons/lucide";
 
 // Loader to fetch sponsors grid layout
@@ -47,6 +48,9 @@ export const useBenefitsData = routeLoader$(async (event) => {
   const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
   const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
   const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
+  const isGoldOnly = url.searchParams.get("gold") === "1";
+
+  const isMap = url.searchParams.get("vista") === "mapa";
 
   const searchResult = await searchBenefits({
     query,
@@ -54,14 +58,15 @@ export const useBenefitsData = routeLoader$(async (event) => {
     locationId,
     offerId,
     page,
-    limit: 12,
-    requestEvent: event
+    limit: isMap ? 1000 : 12,
+    requestEvent: event,
+    isPremiumOnly: isGoldOnly
   });
 
   const filters = await getFilters();
 
   let curatedRows = null;
-  if (!query && !categoryId && !locationId && !offerId && page === 1) {
+  if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
     try {
       // Fetch a wider set of benefits to populate curated rows
       const all = await searchBenefits({
@@ -80,12 +85,12 @@ export const useBenefitsData = routeLoader$(async (event) => {
       ).slice(0, 4);
 
       // Curate themed rows with distinct slices of live data
-      const relevantes = items.slice(0, 6);
-      const destacados = items.slice(6, 12);
-      const nuevos = items.slice(12, 18);
+      const gold = items.filter(b => b.isPremiumOnly).slice(0, 6);
+      const destacados = items.filter(b => b.isFeatured && !b.isPremiumOnly).slice(0, 6);
+      const nuevos = items.filter(b => !b.isFeatured && !b.isPremiumOnly).slice(0, 6);
 
       curatedRows = {
-        relevantes,
+        gold,
         destacados,
         nuevos,
         cafecitos
@@ -109,11 +114,19 @@ export const useBenefitsData = routeLoader$(async (event) => {
     ];
   }
 
+  let settings = null;
+  try {
+    settings = await getSettings(event);
+  } catch (err) {
+    console.error("Failed to load settings in homepage loader:", err);
+  }
+
   return {
     searchResult,
     filters,
     curatedRows,
     slides,
+    settings,
     activeFilters: {
       query,
       categoryId,
@@ -126,170 +139,54 @@ export const useBenefitsData = routeLoader$(async (event) => {
 
 const getCategoryIcon = (desc: string) => {
   const d = desc.toLowerCase();
-  if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuPlane class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("salud") || d.includes("cuidado") || d.includes("estética") || d.includes("belleza")) return <LuHeartPulse class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("deporte") || d.includes("gimnasio") || d.includes("club") || d.includes("fitness")) return <LuDumbbell class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("entretenimiento") || d.includes("cine") || d.includes("teatro") || d.includes("espectáculo")) return <LuFilm class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("hogar") || d.includes("deco") || d.includes("mueble")) return <LuHome class="w-11 h-11 text-current stroke-[1.5]" />;
-  if (d.includes("servicio") || d.includes("auto") || d.includes("seguro")) return <LuCar class="w-11 h-11 text-current stroke-[1.5]" />;
-  return <LuTags class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuPlane class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("estética") || d.includes("belleza") || d.includes("peluquería")) return <LuSparkles class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("salud") || d.includes("cuidado") || d.includes("farmacia") || d.includes("ortopedia") || d.includes("médic")) return <LuHeartPulse class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("deporte") || d.includes("gimnasio") || d.includes("club") || d.includes("fitness")) return <LuDumbbell class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("entretenimiento") || d.includes("cine") || d.includes("teatro") || d.includes("espectáculo")) return <LuFilm class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("evento") || d.includes("fiesta") || d.includes("reunión")) return <LuCalendar class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("fotografía") || d.includes("foto")) return <LuCamera class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("educación") || d.includes("curso") || d.includes("colegio") || d.includes("universidad") || d.includes("librería")) return <LuGraduationCap class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("banco") || d.includes("financiero") || d.includes("seguro") || d.includes("crédito")) return <LuCreditCard class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("compras") || d.includes("supermercado") || d.includes("regalo") || d.includes("mayorista")) return <LuShoppingBag class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("hogar") || d.includes("deco") || d.includes("mueble") || d.includes("inmobiliari") || d.includes("construc")) return <LuHome class="w-14 h-14 text-current stroke-[1.5]" />;
+  if (d.includes("servicio") || d.includes("auto") || d.includes("taller") || d.includes("mecánica")) return <LuCar class="w-14 h-14 text-current stroke-[1.5]" />;
+  return <LuTags class="w-14 h-14 text-current stroke-[1.5]" />;
 };
-
 export default component$(() => {
   const location = useLocation();
   const data = useBenefitsData();
   const currentSlide = useSignal(0);
   const user = useLayoutUser();
-  const isMapView = location.url.searchParams.get("vista") === "mapa";
 
-  const isMapLoaded = useSignal(false);
-  const mapRef = useSignal<any>(null);
-  const markersGroupRef = useSignal<any>(null);
+  const showPopup = useSignal(false);
 
-  // Client-side initialization of Leaflet Map assets
+  const scrollContainer = $((id: string, direction: "left" | "right") => {
+    const container = document.getElementById(id);
+    if (container) {
+      const scrollAmount = 340;
+      container.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  });
+
   useVisibleTask$(() => {
-    const loadMap = () => {
-      isMapLoaded.value = true;
-    };
-
-    if (document.getElementById("leaflet-css")) {
-      loadMap();
-    } else {
-      const link = document.createElement("link");
-      link.id = "leaflet-css";
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.onload = loadMap;
-      document.head.appendChild(script);
+    const isClosed = (window as any).__popupClosed;
+    if (!isClosed && location.url.pathname === "/" && data.value.settings?.popupActive) {
+      showPopup.value = true;
     }
   });
 
-  // Reactive tracker to plot/update Leaflet markers when active filters or benefits change
-  useVisibleTask$(({ track }) => {
-    const activeBenefits = track(() => data.value.searchResult.data);
-    const view = track(() => location.url.searchParams.get("vista") === "mapa");
-    const loaded = track(() => isMapLoaded.value);
 
-    if (typeof window === "undefined" || !(window as any).L) return;
 
-    const L = (window as any).L;
 
-    // Proactive cleanup when unmounting/leaving Map View
-    if (!view || !loaded) {
-      const map = mapRef.value;
-      if (map) {
-        try {
-          map.remove();
-        } catch (e) {
-          console.error("Error cleaning up map:", e);
-        }
-        mapRef.value = null;
-        markersGroupRef.value = null;
-      }
-      return;
-    }
 
-    const initMap = () => {
-      const mapElement = document.getElementById("leaflet-map");
-      if (!mapElement) return false;
-
-      let map = mapRef.value;
-
-      // If the map object exists but its DOM container is gone or different, destroy the stale map instance
-      if (map && map.getContainer() !== mapElement) {
-        try {
-          map.remove();
-        } catch (e) {
-          console.error("Error removing stale Leaflet map instance:", e);
-        }
-        map = null;
-        mapRef.value = null;
-        markersGroupRef.value = null;
-      }
-
-      // 1. Initialize Map if not already created
-      if (!map) {
-        map = L.map(mapElement, {
-          center: [-34.9205, -57.9536], // La Plata central coordinates
-          zoom: 13,
-          zoomControl: true,
-        });
-
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
-
-        mapRef.value = map;
-        markersGroupRef.value = L.layerGroup().addTo(map);
-      }
-
-      // 2. Clear previous markers
-      const markersGroup = markersGroupRef.value;
-      if (markersGroup) {
-        markersGroup.clearLayers();
-      }
-
-      // 3. Filter benefits containing lat/lng values
-      const mapBenefits = activeBenefits.filter(b => b.latitud && b.longitud);
-
-      if (mapBenefits.length > 0) {
-        const latLngs: any[] = [];
-
-        mapBenefits.forEach((b) => {
-          const lat = parseFloat(b.latitud!);
-          const lng = parseFloat(b.longitud!);
-
-          if (!isNaN(lat) && !isNaN(lng)) {
-            latLngs.push([lat, lng]);
-
-            const popupContent = `
-              <div style="font-family: system-ui, sans-serif; max-width: 220px; text-align: left; padding: 2px;">
-                 ${b.imagen ? `<img src="${b.imagen.startsWith('http') || b.imagen.startsWith('/') ? b.imagen : `https://beneficios.amepla.org.ar/files/${b.imagen}`}" style="width: 100%; height: 90px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />` : ''}
-                <span style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #12633f; background: rgba(18,99,63,0.06); padding: 2px 6px; border-radius: 99px;">
-                  ${b.categorias[0]?.descripcion || 'Descuento'}
-                </span>
-                <h4 style="font-size: 13px; font-weight: 800; color: #072f1d; margin: 6px 0 4px 0; line-height: 1.25;">
-                  ${b.titulo}
-                </h4>
-                <p style="font-size: 11px; font-weight: 700; color: #d4a317; margin: 0 0 10px 0;">
-                  ${b.resumen}
-                </p>
-                <a href="/beneficio/${b.url}" style="display: block; text-align: center; background: #0a442a; color: white; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-size: 10px; font-weight: bold; transition: all 0.2s;">
-                  Ver Detalles &rarr;
-                </a>
-              </div>
-            `;
-
-            L.marker([lat, lng])
-              .bindPopup(popupContent, { maxWidth: 240 })
-              .addTo(markersGroup);
-          }
-        });
-
-        // Fit bounds to show markers automatically
-        if (latLngs.length > 0) {
-          map.fitBounds(latLngs, { padding: [40, 40] });
-        }
-      }
-      return true;
-    };
-
-    // Try immediately; if DOM not fully updated yet, schedule a deferred attempt
-    if (!initMap()) {
-      setTimeout(() => {
-        initMap();
-      }, 100);
-    }
-  });
-
-  const { searchResult, filters, activeFilters, curatedRows, slides } = data.value;
-  const { data: benefits, total, totalPages, page } = searchResult;
+  const { searchResult, filters, curatedRows, slides, settings } = data.value;
+  const { data: benefits } = searchResult;
 
   // Navigation handlers
   const handlePrevSlide = $(() => {
@@ -300,46 +197,12 @@ export default component$(() => {
     currentSlide.value = (currentSlide.value + 1) % slides.length;
   });
 
-  // Construct URL string helper
-  const getFilterUrl = (params: {
-    buscar?: string;
-    categoria?: number | null;
-    ubicacion?: number | null;
-    oferta?: number | null;
-    page?: number;
-    vista?: string | null;
-  }) => {
-    const searchParams = new URLSearchParams();
 
-    // Copy existing active filters unless overridden
-    const q = params.buscar !== undefined ? params.buscar : activeFilters.query;
-    if (q) searchParams.set("buscar", q);
-
-    const cat = params.categoria !== undefined ? params.categoria : activeFilters.categoryId;
-    if (cat) searchParams.set("categoria", String(cat));
-
-    const loc = params.ubicacion !== undefined ? params.ubicacion : activeFilters.locationId;
-    if (loc) searchParams.set("ubicacion", String(loc));
-
-    const off = params.oferta !== undefined ? params.oferta : activeFilters.offerId;
-    if (off) searchParams.set("oferta", String(off));
-
-    const p = params.page !== undefined ? params.page : 1;
-    if (p > 1 && !params.vista) searchParams.set("page", String(p));
-
-    const v = params.vista !== undefined ? params.vista : location.url.searchParams.get("vista");
-    if (v && v !== "listado") searchParams.set("vista", v);
-
-    return `/?${searchParams.toString()}`;
-  };
-
-  // Check if any filter is active
-  const hasActiveFilters = activeFilters.query || activeFilters.categoryId || activeFilters.locationId || activeFilters.offerId;
 
   return (
     <div class="relative min-h-screen bg-slate-50">
-      {/* Main Curated Showcase for Page 1 Home (When not in map mode and no filters are active) */}
-      {!isMapView && !hasActiveFilters && page === 1 && curatedRows && (
+      {/* Main Curated Showcase for Page 1 Home (When not in map mode, no filters are active, and not showing all) */}
+      {curatedRows && (
         <>
           {/* 1. Optimized Hero Slider (Carousel) - Full Bleed Width */}
           <section class="relative w-full h-[340px] md:h-[480px] lg:h-auto lg:aspect-[1600/646] bg-[#020617] overflow-hidden print:hidden group">
@@ -440,28 +303,19 @@ export default component$(() => {
             <p class="text-[13px] font-black tracking-widest text-slate-450 uppercase mb-5 pl-1">Explorá por Categoría</p>
             <div class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none">
               {filters.categorias
-                .filter(c => (c.beneficios_count || 0) > 0)
-                .map((cat) => {
+                .filter((c: any) => (c.beneficios_count || 0) > 0)
+                .map((cat: any) => {
                   const icon = getCategoryIcon(cat.descripcion);
-                  const isSelected = activeFilters.categoryId === cat.id;
                   return (
                     <Link
                       key={cat.id}
-                      href={getFilterUrl({ categoria: isSelected ? null : cat.id, page: 1 })}
-                      class={[
-                        "flex flex-col items-center justify-center text-center p-4 rounded-[2.5rem] border transition-all duration-300 w-[140px] h-[140px] flex-shrink-0 select-none cursor-pointer group",
-                        isSelected
-                          ? "bg-brand-green border-brand-green text-white shadow-lg shadow-brand-green/20 scale-95"
-                          : "bg-white border-slate-200 text-slate-700 hover:border-brand-green/45 hover:shadow-md hover:scale-105"
-                      ]}
+                      href={`/beneficios?categoria=${cat.id}`}
+                      class="flex flex-col items-center justify-center text-center p-4 rounded-[2.5rem] border transition-all duration-300 w-[164px] h-[164px] flex-shrink-0 select-none cursor-pointer group bg-white border-slate-200 text-slate-700 hover:border-brand-green/45 hover:shadow-md hover:scale-105"
                     >
-                      <span class={[
-                        "flex items-center justify-center transition-transform duration-300",
-                        isSelected ? "text-brand-gold scale-110" : "text-slate-400 group-hover:text-brand-green group-hover:scale-110"
-                      ]}>
+                      <span class="flex items-center justify-center transition-transform duration-300 text-slate-400 group-hover:text-brand-green group-hover:scale-110">
                         {icon}
                       </span>
-                      <span class="text-[12px] font-black uppercase tracking-wider mt-4 truncate max-w-[124px]">
+                      <span class="text-[12px] font-black uppercase tracking-wider mt-4 truncate max-w-[148px]">
                         {cat.descripcion}
                       </span>
                     </Link>
@@ -470,153 +324,195 @@ export default component$(() => {
             </div>
           </div>
 
-          {/* 3. Themed Curated Rows (Inspired by Club LA NACION) */}
-          {/* Row 1: Beneficios Relevantes */}
-          <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left">
-            <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
-              <div class="space-y-1">
-                <div class="flex items-center space-x-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span class="text-[11px] font-black tracking-widest text-emerald-650 uppercase">Tendencias de la semana</span>
+          {/* Row Gold: Beneficios Gold (Premium Exclusivos) */}
+          {curatedRows.gold && curatedRows.gold.length > 0 && (
+            <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left">
+              <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
+                <div class="space-y-1">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
+                    <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">Selección Exclusiva Gold</span>
+                  </div>
+                  <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+                    Beneficios Gold
+                  </h2>
                 </div>
-                <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-                  Beneficios Relevantes
-                </h2>
-              </div>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Deslizá &rarr;</p>
-            </div>
-
-            <div class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-              {curatedRows.relevantes.map((benefit: Benefit) => (
-                <div key={`rel-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-                  <Link
-                    href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
+                {/* Arrow navigation buttons */}
+                <div class="flex items-center space-x-2 pb-0.5">
+                  <button
+                    type="button"
+                    onClick$={() => scrollContainer("gold-container", "left")}
+                    class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                    aria-label="Anterior"
                   >
-                    <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                      {benefit.imagen ? (
-                        <img
-                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                          alt={benefit.titulo}
-                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          width={320}
-                          height={176}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
-                          <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
-                        </div>
-                      )}
-                      <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
-                          {benefit.categorias[0]?.descripcion || "Especial"}
-                        </span>
-                      </div>
-                      {benefit.isPremiumOnly && (
-                        <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
-                          <span class="text-2xl">🔒</span>
-                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
-                        </div>
-                      )}
-                    </div>
-                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
-                      <div class="space-y-1">
-                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
-                          {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                        </h3>
-                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
-                          {benefit.titulo}
-                        </h4>
-                      </div>
-                      <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">AMP+ Premium</span>
-                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
-                          {benefit.resumen.replace("Descuento del", "").trim()}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Row 2: Beneficios Destacados */}
-          <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left">
-            <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
-              <div class="space-y-1">
-                <div class="flex items-center space-x-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
-                  <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">Destacados de la semana</span>
-                </div>
-                <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-                  Beneficios Destacados
-                </h2>
-              </div>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Deslizá &rarr;</p>
-            </div>
-
-            <div class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-              {curatedRows.destacados.map((benefit: Benefit) => (
-                <div key={`dest-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-                  <Link
-                    href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
+                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick$={() => scrollContainer("gold-container", "right")}
+                    class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                    aria-label="Siguiente"
                   >
-                    <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                      {benefit.imagen ? (
-                        <img
-                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                          alt={benefit.titulo}
-                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          width={320}
-                          height={176}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
-                          <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
-                        </div>
-                      )}
-                      <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
-                          {benefit.categorias[0]?.descripcion || "Especial"}
-                        </span>
-                      </div>
-                      {benefit.isPremiumOnly && (
-                        <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
-                          <span class="text-2xl">🔒</span>
-                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
-                        </div>
-                      )}
-                    </div>
-                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
-                      <div class="space-y-1">
-                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
-                          {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                        </h3>
-                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
-                          {benefit.titulo}
-                        </h4>
-                      </div>
-                      <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">Destacado AMP+</span>
-                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
-                          {benefit.resumen.replace("Descuento del", "").trim()}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
+                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </div>
-              ))}
-            </div>
-          </section>
+              </div>
+
+              <div id="gold-container" class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
+                {curatedRows.gold.map((benefit: Benefit) => (
+                  <div key={`gold-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
+                    <Link
+                      href={`/beneficio/${benefit.url}`}
+                      class="group block bg-[#091522] border border-[#d4af37]/35 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-[#d4af37]/10 hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
+                    >
+                      <div class="relative h-44 bg-slate-900 overflow-hidden flex items-center justify-center">
+                        {benefit.imagen ? (
+                          <img
+                            src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                            alt={benefit.titulo}
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
+                            width={320}
+                            height={176}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-950 to-slate-900">
+                            <span class="text-brand-gold font-display font-black text-2xl">AMP+ GOLD</span>
+                            <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
+                          </div>
+                        )}
+                        <div class="absolute top-3.5 left-3.5 z-10">
+                          <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-brand-gold text-slate-950 uppercase tracking-widest shadow-sm">
+                            {benefit.categorias[0]?.descripcion || "Premium"}
+                          </span>
+                        </div>
+                        <div class="absolute top-3.5 right-3.5 z-10">
+                          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-950/80 text-brand-gold backdrop-blur-sm tracking-wider">
+                            ★ GOLD
+                          </span>
+                        </div>
+                      </div>
+                      <div class="p-6 flex flex-col justify-between h-[172px] bg-[#091522] text-left">
+                        <div class="space-y-1">
+                          <h3 class="text-[13px] font-black text-brand-gold/80 uppercase tracking-wider truncate">
+                            {benefit.ubicacion[0]?.descripcion || "La Plata"}
+                          </h3>
+                          <h4 class="text-[17px] font-display font-extrabold text-white line-clamp-2 leading-snug group-hover:text-brand-gold transition-colors duration-200">
+                            {benefit.titulo}
+                          </h4>
+                        </div>
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                          <span class="text-[12.5px] font-black text-brand-gold/70 uppercase tracking-wider">Membresía Gold</span>
+                          <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-brand-gold text-slate-950 shadow-md uppercase tracking-wide border border-[#d4af37]/30">
+                            {benefit.resumen.replace("Descuento del", "").trim()}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+
+
+          {/* Row 3: Nuevos Beneficios */}
+          {curatedRows.nuevos && curatedRows.nuevos.length > 0 && (
+            <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left">
+              <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
+                <div class="space-y-1">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-[11px] font-black tracking-widest text-emerald-650 uppercase">Recién incorporados</span>
+                  </div>
+                  <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+                    Nuevos Beneficios
+                  </h2>
+                </div>
+                {/* Arrow navigation buttons */}
+                <div class="flex items-center space-x-2 pb-0.5">
+                  <button
+                    type="button"
+                    onClick$={() => scrollContainer("nuevos-container", "left")}
+                    class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                    aria-label="Anterior"
+                  >
+                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick$={() => scrollContainer("nuevos-container", "right")}
+                    class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                    aria-label="Siguiente"
+                  >
+                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="nuevos-container" class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
+                {curatedRows.nuevos.map((benefit: Benefit) => (
+                  <div key={`new-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
+                    <Link
+                      href={`/beneficio/${benefit.url}`}
+                      class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
+                    >
+                      <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
+                        {benefit.imagen ? (
+                          <img
+                            src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                            alt={benefit.titulo}
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            width={320}
+                            height={176}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
+                            <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
+                            <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
+                          </div>
+                        )}
+                        <div class="absolute top-3.5 left-3.5 z-10">
+                          <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
+                            {benefit.categorias[0]?.descripcion || "Especial"}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
+                        <div class="space-y-1">
+                          <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
+                            {benefit.ubicacion[0]?.descripcion || "La Plata"}
+                          </h3>
+                          <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
+                            {benefit.titulo}
+                          </h4>
+                        </div>
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-50">
+                          <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">Nuevo Ingreso</span>
+                          <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
+                            {benefit.resumen.replace("Descuento del", "").trim()}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Curated Spotlight Section: Cafecitos & Desayunos */}
-          {curatedRows.cafecitos.length > 0 && (
+          {curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
             <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left">
               <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-xl grid grid-cols-1 lg:grid-cols-4 gap-8 items-center relative overflow-hidden">
                 <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
@@ -636,7 +532,7 @@ export default component$(() => {
                   </p>
                   <div class="pt-2">
                     <Link
-                      href={getFilterUrl({ categoria: 1, page: 1 })}
+                      href="/beneficios?categoria=1"
                       class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"
                     >
                       <span>Ver todos</span>
@@ -689,78 +585,6 @@ export default component$(() => {
             </section>
           )}
 
-          {/* Row 3: Nuevos Beneficios */}
-          <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left">
-            <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
-              <div class="space-y-1">
-                <div class="flex items-center space-x-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span class="text-[11px] font-black tracking-widest text-emerald-650 uppercase">Recién incorporados</span>
-                </div>
-                <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-                  Nuevos Beneficios
-                </h2>
-              </div>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Deslizá &rarr;</p>
-            </div>
-
-            <div class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-              {curatedRows.nuevos.map((benefit: Benefit) => (
-                <div key={`new-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-                  <Link
-                    href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
-                  >
-                    <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                      {benefit.imagen ? (
-                        <img
-                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                          alt={benefit.titulo}
-                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          width={320}
-                          height={176}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
-                          <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
-                        </div>
-                      )}
-                      <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
-                          {benefit.categorias[0]?.descripcion || "Especial"}
-                        </span>
-                      </div>
-                      {benefit.isPremiumOnly && (
-                        <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
-                          <span class="text-2xl">🔒</span>
-                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
-                        </div>
-                      )}
-                    </div>
-                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
-                      <div class="space-y-1">
-                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
-                          {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                        </h3>
-                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
-                          {benefit.titulo}
-                        </h4>
-                      </div>
-                      <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">Nuevo Ingreso</span>
-                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
-                          {benefit.resumen.replace("Descuento del", "").trim()}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </section>
-
           {/* 5. Editorial Space: Tu espacio Club AMP+ */}
           <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left">
             <div class="border-t border-slate-200/80 pt-10 mb-8 space-y-2">
@@ -792,14 +616,6 @@ export default component$(() => {
                 <h3 class="text-base font-display font-extrabold text-slate-800">Sugerí Comercios</h3>
                 <p class="text-[13px] text-slate-500 mt-2.5 leading-relaxed font-medium">
                   ¿Querés descuentos en tu negocio favorito? Envianos tu sugerencia y nos encargaremos del resto.
-                </p>
-              </div>
-
-              <div class="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300">
-                <LuMessageSquare class="w-8 h-8 text-brand-green mb-5 stroke-[1.5]" />
-                <h3 class="text-base font-display font-extrabold text-slate-800">Asistencia Médica IA</h3>
-                <p class="text-[13px] text-slate-500 mt-2.5 leading-relaxed font-medium">
-                  Conversá con nuestro chatbot inteligente para encontrar beneficios de forma guiada en segundos.
                 </p>
               </div>
             </div>
@@ -836,344 +652,213 @@ export default component$(() => {
         </>
       )}
 
-      {/* 2. Main Search & Filter Navigation Section */}
+      {/* 2. Main Preview Section */}
       <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Dynamic header / breadcrumb style */}
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-5 mb-8 gap-4">
-          <div class="text-left">
-            <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none flex items-center">
-              {isMapView ? (
-                <>
-                  <LuMapPin class="w-7 h-7 text-brand-green mr-2 stroke-[2]" />
-                  <span>Beneficios Cerca Mío</span>
-                </>
-              ) : hasActiveFilters || page > 1 ? (
-                "Resultados de Búsqueda"
-              ) : (
-                "Explorá toda la cartilla"
-              )}
-            </h1>
-            <p class="text-slate-500 text-sm mt-2 font-medium">
-              {isMapView
-                ? `${benefits.filter(b => b.latitud && b.longitud).length} sucursales ubicadas en el mapa`
-                : `${total} beneficios encontrados en total`
-              }
-            </p>
-          </div>
-
-          {/* List/Map View Mode Toggle Button */}
-          <div class="flex items-center bg-slate-200/60 p-1 rounded-2xl border border-slate-200/40 shadow-inner z-20 select-none">
-            <Link
-              href={getFilterUrl({ vista: "listado" })}
-              class={[
-                "px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
-                !isMapView
-                  ? "bg-white text-brand-green shadow-sm border border-slate-200/20"
-                  : "text-slate-500 hover:text-slate-800"
-              ]}
-            >
-              <LuList class="w-4 h-4 stroke-[2]" />
-              <span>Listado</span>
-            </Link>
-            <Link
-              href={getFilterUrl({ vista: "mapa" })}
-              class={[
-                "px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
-                isMapView
-                  ? "bg-white text-brand-green shadow-sm border border-slate-200/20"
-                  : "text-slate-500 hover:text-slate-800"
-              ]}
-            >
-              <LuMap class="w-4 h-4 stroke-[2]" />
-              <span>Mapa</span>
-            </Link>
-          </div>
-
-          {/* Active filters pill list */}
-          {hasActiveFilters && (
-            <div class="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
-              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
-                Filtros activos:
-              </span>
-
-              {activeFilters.query && (
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-green-light/10 text-brand-green border border-brand-green-light/20">
-                  Buscar: "{activeFilters.query}"
-                  <Link href={getFilterUrl({ buscar: "" })} class="ml-1.5 text-brand-green-light hover:text-brand-green-dark font-extrabold">&times;</Link>
-                </span>
-              )}
-
-              {activeFilters.categoryId && (
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-green-light/10 text-brand-green border border-brand-green-light/20">
-                  Cat: {filters.categorias.find(c => c.id === activeFilters.categoryId)?.descripcion}
-                  <Link href={getFilterUrl({ categoria: null })} class="ml-1.5 text-brand-green-light hover:text-brand-green-dark font-extrabold">&times;</Link>
-                </span>
-              )}
-
-              {activeFilters.locationId && (
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-green-light/10 text-brand-green border border-brand-green-light/20">
-                  Loc: {filters.ubicaciones.find(u => u.id === activeFilters.locationId)?.descripcion}
-                  <Link href={getFilterUrl({ ubicacion: null })} class="ml-1.5 text-brand-green-light hover:text-brand-green-dark font-extrabold">&times;</Link>
-                </span>
-              )}
-
-              {activeFilters.offerId && (
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-green-light/10 text-brand-green border border-brand-green-light/20">
-                  Desc: {filters.ofertas.find(o => o.id === activeFilters.offerId)?.descripcion}
-                  <Link href={getFilterUrl({ oferta: null })} class="ml-1.5 text-brand-green-light hover:text-brand-green-dark font-extrabold">&times;</Link>
-                </span>
-              )}
-
-              <Link
-                href="/"
-                class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors duration-200"
-              >
-                Limpiar todo
-              </Link>
-            </div>
-          )}
+        <div class="border-b border-slate-200 pb-5 mb-8 text-left">
+          <h2 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+            Ver todos los beneficios
+          </h2>
+          <p class="text-slate-500 text-sm mt-2 font-medium">
+            Explorá nuestra cartilla de descuentos exclusivos
+          </p>
         </div>
 
-        {/* 3. Grid Structure (Without Sidebar Filters) */}
-        <div class="w-full space-y-10">
-          {isMapView ? (
-            /* Interactive Map View Mode */
-            <div class="space-y-6 animate-in fade-in duration-300">
-              <div class="w-full h-[580px] border border-slate-200 rounded-3xl bg-slate-50 overflow-hidden relative shadow-sm z-10 flex flex-col justify-end">
-                <div id="leaflet-map" class="w-full h-full z-10" />
-                {!isMapLoaded.value && (
-                  <div class="absolute inset-0 bg-slate-50 flex flex-col items-center justify-center z-20 space-y-3">
-                    <LuMapPin class="w-10 h-10 text-brand-green animate-bounce stroke-[1.5]" />
-                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">Cargando Mapa de Cobertura...</span>
+        {/* Benefits Grid Preview - Single Row (4 cards) */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+          {benefits.slice(0, 4).map((benefit: Benefit) => {
+            const imageUrl = benefit.imagen
+              ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
+              : null;
+
+            const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
+            const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
+            const discountText = benefit.resumen?.trim() || "Beneficio Exclusivo";
+            const isPremiumOnly = benefit.isPremiumOnly;
+            const isLocked = isPremiumOnly && !user.value;
+
+            return (
+              <div
+                key={benefit.id}
+                class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none"
+              >
+                <div class="relative h-52 bg-slate-50 overflow-hidden flex items-center justify-center">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={benefit.titulo}
+                      loading="lazy"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      width={320}
+                      height={208}
+                    />
+                  ) : (
+                    <div class="flex flex-col items-center justify-center p-6 text-center">
+                      <span class="text-brand-green font-display font-black text-2xl">AMP+</span>
+                      <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{primaryCat}</span>
+                    </div>
+                  )}
+
+                  {isLocked && (
+                    <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white">
+                      <span class="text-3xl">🔒</span>
+                      <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
+                        Exclusivo Premium
+                      </span>
+                    </div>
+                  )}
+
+                  <div class="absolute top-3.5 right-3.5 z-10">
+                    <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
+                      {discountText.replace("Descuento del", "").trim()}
+                    </span>
+                  </div>
+
+                  <div class="absolute bottom-3 left-3 z-10">
+                    <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-black/55 backdrop-blur-sm border border-white/10 uppercase tracking-wide text-white">
+                      {primaryCat}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex-grow p-6 flex flex-col justify-between text-left">
+                  <div class="space-y-2.5">
+                    <div class="flex items-center text-brand-green-light space-x-1">
+                      <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                      </svg>
+                      <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-500">
+                        {primaryLoc}
+                      </span>
+                    </div>
+
+                    <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
+                      {benefit.titulo}
+                    </h3>
+
+                    <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">
+                      {benefit.descripcion
+                        ? benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+                        : "No hay descripción disponible para este beneficio."}
+                    </p>
+                  </div>
+
+                  <div class="pt-5 border-t border-slate-100 mt-4">
+                    {isLocked ? (
+                      <button
+                        type="button"
+                        class="w-full text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-slate-100 text-slate-450 hover:bg-slate-150 active:scale-95 transition-all shadow-inner border border-slate-200 cursor-pointer"
+                        onClick$={() => {
+                          alert("Este beneficio es exclusivo para socios de la Mutual. Iniciá sesión para acceder.");
+                        }}
+                      >
+                        🔑 Acceso Premium Exclusivo
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/beneficio/${benefit.url}`}
+                        class="block text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-brand-green text-white hover:bg-brand-green-light active:scale-95 transition-all shadow-md cursor-pointer"
+                      >
+                        Ver Descuento &rarr;
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* E. "Ver todos" button */}
+        <div class="flex justify-center pt-10 mt-8 border-t border-slate-200/60">
+          <Link
+            href="/beneficios"
+            class="inline-flex items-center justify-center space-x-2.5 py-4 px-12 rounded-[2rem] bg-brand-green text-white hover:bg-brand-green-light font-black text-base shadow-lg shadow-brand-green/20 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer border border-transparent"
+          >
+            <span>Ver todos</span>
+            <svg class="w-5 h-5 stroke-current fill-none stroke-[2.5] transition-transform duration-300 group-hover:translate-x-1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </Link>
+        </div>
+      </div>
+
+        {/* Real-time Configurable Popup Modal */}
+        {showPopup.value && settings && (
+          <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              class="absolute inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity duration-300"
+              onClick$={() => {
+                showPopup.value = false;
+                (window as any).__popupClosed = true;
+              }}
+            />
+
+            {/* Modal Container */}
+            <div class="relative w-full max-w-lg bg-white rounded-[2rem] overflow-hidden shadow-2xl border border-slate-100 flex flex-col transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95">
+              {/* Close button on top-right */}
+              <button
+                onClick$={() => {
+                  showPopup.value = false;
+                  (window as any).__popupClosed = true;
+                }}
+                class="absolute top-4 right-4 z-10 w-9 h-9 bg-white/85 hover:bg-white text-slate-700 rounded-full flex items-center justify-center shadow-md border border-slate-200/50 transition-all duration-200 active:scale-90 cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {/* Optional Image */}
+              {settings.popupImageUrl && (
+                <div class="relative h-52 sm:h-64 bg-slate-100 overflow-hidden">
+                  <img
+                    src={settings.popupImageUrl}
+                    alt={settings.popupTitle || "Anuncio"}
+                    class="w-full h-full object-cover"
+                    loading="eager"
+                    width={512}
+                    height={256}
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                </div>
+              )}
+
+              {/* Content */}
+              <div class="p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
+                <h3 class="text-xl sm:text-2xl font-display font-black text-brand-green-dark tracking-tight leading-tight">
+                  {settings.popupTitle || "Anuncio Importante"}
+                </h3>
+
+                {settings.popupDescription && (
+                  <p class="text-[13px] sm:text-[14.5px] text-slate-550 leading-relaxed font-medium max-h-40 overflow-y-auto pr-1">
+                    {settings.popupDescription}
+                  </p>
+                )}
+
+                {/* Primary Call to Action Button */}
+                {settings.popupButtonLink && (
+                  <div class="w-full pt-2">
+                    <a
+                      href={settings.popupButtonLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick$={() => {
+                        showPopup.value = false;
+                        (window as any).__popupClosed = true;
+                      }}
+                      class="inline-flex items-center justify-center w-full px-6 py-3.5 rounded-2xl bg-brand-green hover:bg-brand-green-dark text-white font-display font-black text-sm uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg active:scale-[0.98]"
+                    >
+                      {settings.popupButtonText || "Más Información"}
+                    </a>
                   </div>
                 )}
               </div>
-              <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4 text-left">
-                <LuInfo class="w-7 h-7 text-brand-gold stroke-[2] flex-shrink-0" />
-                <div class="text-xs font-semibold text-slate-600">
-                  <span class="block text-slate-800 font-extrabold uppercase text-[10px] tracking-wider mb-1">Buscar por Coordenadas</span>
-                  Acercá el mapa o filtrá por la categoría deseada usando el menú horizontal de categorías superior. Los marcadores te mostrarán las sucursales de descuentos en tiempo real en tu área de cercanía.
-                </div>
-              </div>
             </div>
-          ) : (
-            /* Standard Grid & List View Mode */
-            <>
-
-              {benefits.length === 0 ? (
-                // Empty State
-                <div class="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm">
-                  <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <h3 class="text-xl font-display font-bold text-slate-700">No se encontraron beneficios</h3>
-                  <p class="text-slate-400 text-sm mt-2 max-w-md mx-auto">
-                    Prueba cambiando las palabras clave de búsqueda o limpiando los filtros para ver todos los beneficios de la cartilla.
-                  </p>
-                  <Link
-                    href="/"
-                    class="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-brand-green text-white text-sm font-semibold mt-6 hover:bg-brand-green-light transition-all shadow-md"
-                  >
-                    Ver todos los beneficios
-                  </Link>
-                </div>
-              ) : (
-                // Benefits Grid
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {benefits.map((benefit: Benefit) => {
-                    const imageUrl = benefit.imagen
-                      ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
-                      : null;
-
-                    // Primary Category
-                    const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
-                    // Primary Location
-                    const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
-                    // Primary Discount badge text
-                    const discountText = benefit.resumen?.trim() || "Beneficio Exclusivo";
-
-                    const isPremiumOnly = benefit.isPremiumOnly || (benefit.id % 7 === 0);
-                    const isLocked = isPremiumOnly && user.value?.role !== "premium";
-
-                    return (
-                      <div
-                        key={benefit.id}
-                        class={`group flex flex-col glass-card border rounded-2xl overflow-hidden shadow-sm relative transition-all duration-300 ${isPremiumOnly
-                          ? "border-amber-200/60 hover:shadow-amber-100"
-                          : "border-slate-200"
-                          }`}
-                      >
-                        {/* Benefit Card Image Container */}
-                        <div class="relative h-48 bg-brand-green-dark flex items-center justify-center overflow-hidden border-b border-slate-100">
-                          {imageUrl ? (
-                            <img
-                              src={imageUrl}
-                              alt={benefit.titulo}
-                              loading="lazy"
-                              class={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out ${isLocked ? "blur-[3px] opacity-75" : ""
-                                }`}
-                              width={400}
-                              height={192}
-                            />
-                          ) : (
-                            // Premium dark fallback card
-                            <div class={`flex flex-col items-center justify-center p-6 text-center h-full select-none ${isLocked ? "blur-[3px] opacity-75" : ""}`}>
-                              <span class="text-brand-gold text-4xl font-display font-black tracking-tight leading-none">
-                                AMP<span class="text-white">+</span>
-                              </span>
-                              <span class="text-white text-sm font-bold uppercase tracking-wider mt-2">
-                                {primaryCat}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Lock Overlay for Standard Users on Premium Benefits */}
-                          {isLocked && (
-                            <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
-                              <span class="text-3xl">🔒</span>
-                              <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
-                                Exclusivo Premium
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Floating Offer Badge */}
-                          <div class="absolute top-3.5 right-3.5 z-10">
-                            <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
-                              {discountText.replace("Descuento del", "").trim()}
-                            </span>
-                          </div>
-
-                          {/* Floating Category Pill */}
-                          <div class="absolute bottom-3 left-3 z-10">
-                            <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-black/55 backdrop-blur-sm border border-white/10 uppercase tracking-wide">
-                              {primaryCat}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Benefit Card Body */}
-                        <div class="flex-grow p-6 flex flex-col justify-between">
-                          <div class="space-y-2.5">
-                            {/* Location pin badge */}
-                            <div class="flex items-center text-brand-green-light space-x-1">
-                              <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
-                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                              </svg>
-                              <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-500">
-                                {primaryLoc}
-                              </span>
-                            </div>
-
-                            <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
-                              {benefit.titulo}
-                            </h3>
-
-                            {/* Short descriptions using a safe text slicer snippet */}
-                            <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">
-                              {benefit.descripcion
-                                ? benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
-                                : "No hay descripción disponible para este beneficio."}
-                            </p>
-                          </div>
-
-                          {/* Action Link Button */}
-                          <div class="pt-5 border-t border-slate-100 mt-4">
-                            {isLocked ? (
-                              <Link
-                                href="/perfil"
-                                class="w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-brand-gold text-slate-900 font-black text-base shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer animate-pulse"
-                              >
-                                <span>👑 Desbloquear Premium</span>
-                              </Link>
-                            ) : (
-                              <Link
-                                href={`/beneficio/${benefit.url}`}
-                                class="w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-2xl bg-slate-50 group-hover:bg-brand-green hover:bg-brand-green text-slate-700 group-hover:text-white font-black text-base shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-brand-green"
-                              >
-                                <span>Ver Detalles</span>
-                                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                </svg>
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* D. Centered Pagination Controls */}
-              {totalPages > 1 && (
-                <nav class="flex items-center justify-center space-x-1.5 pt-8 border-t border-slate-200">
-                  {/* Prev Button */}
-                  <Link
-                    href={page > 1 ? getFilterUrl({ page: page - 1 }) : undefined}
-                    class={`p-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${page > 1
-                      ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 cursor-pointer"
-                      : "border-slate-100 bg-slate-50 text-slate-300 pointer-events-none"
-                      }`}
-                    aria-label="Página anterior"
-                  >
-                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </Link>
-
-                  {/* Page indicators */}
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const pageNum = idx + 1;
-                    // Show current page, previous, next, first and last page, plus ellipsis if needed
-                    const isCurrent = pageNum === page;
-                    const isNear = Math.abs(pageNum - page) <= 1;
-                    const isEdge = pageNum === 1 || pageNum === totalPages;
-
-                    if (!isNear && !isEdge) {
-                      // Render ellipsis only once
-                      if (pageNum === 2 || pageNum === totalPages - 1) {
-                        return <span key={pageNum} class="text-slate-400 text-xs px-1">...</span>;
-                      }
-                      return null;
-                    }
-
-                    return (
-                      <Link
-                        key={pageNum}
-                        href={getFilterUrl({ page: pageNum })}
-                        class={`w-10 h-10 flex items-center justify-center text-xs font-bold rounded-xl transition-all shadow-sm ${isCurrent
-                          ? "bg-brand-green text-white border border-brand-green"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 active:scale-95 cursor-pointer"
-                          }`}
-                      >
-                        {pageNum}
-                      </Link>
-                    );
-                  })}
-
-                  {/* Next Button */}
-                  <Link
-                    href={page < totalPages ? getFilterUrl({ page: page + 1 }) : undefined}
-                    class={`p-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${page < totalPages
-                      ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 cursor-pointer"
-                      : "border-slate-100 bg-slate-50 text-slate-300 pointer-events-none"
-                      }`}
-                    aria-label="Próxima página"
-                  >
-                    <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
-                </nav>
-              )}
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </div>
   );
 });
 

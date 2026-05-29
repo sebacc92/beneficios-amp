@@ -11,6 +11,12 @@ export const siteSettings = sqliteTable("site_settings", {
   aiCallToAction: text("ai_call_to_action"),
   whatsappNumber: text("whatsapp_number"),
   aiAvatarUrl: text("ai_avatar_url"),
+  popupActive: integer("popup_active", { mode: "boolean" }).default(false),
+  popupTitle: text("popup_title"),
+  popupDescription: text("popup_description"),
+  popupImageUrl: text("popup_image_url"),
+  popupButtonText: text("popup_button_text"),
+  popupButtonLink: text("popup_button_link"),
   updatedAt: text("updated_at"), // Store ISO timestamps as string for full edge-compatibility
 });
 
@@ -62,6 +68,8 @@ export const customBenefits = sqliteTable("custom_benefits", {
   validUntil: text("valid_until"),
   terms: text("terms"),
   pdfUrl: text("pdf_url"),
+  latitud: text("latitud"),
+  longitud: text("longitud"),
   createdAt: text("created_at").notNull(),
 });
 

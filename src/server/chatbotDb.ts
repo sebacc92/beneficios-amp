@@ -13,6 +13,12 @@ export interface ChatbotSettings {
   aiCallToAction: string;
   whatsappNumber: string;
   aiAvatarUrl: string | null;
+  popupActive: boolean;
+  popupTitle: string | null;
+  popupDescription: string | null;
+  popupImageUrl: string | null;
+  popupButtonText: string | null;
+  popupButtonLink: string | null;
   updatedAt: string | null;
 }
 
@@ -37,13 +43,19 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   aiInstructions:
     "1. TRATO NEUTRO Y RESPETUOSO: Dirígete cordialmente como colega o prestador (médicos agremiados).\n2. CERO ALUCINACIONES: Si un usuario consulta por un beneficio que no está en la base de datos o por información confidencial de la AMP, invítalo amablemente a comunicarse con soporte o revisar las secciones oficiales de la web.",
   aiKnowledge:
-    "- Identidad: Somos el Portal de Beneficios de la Agremiación Médica Platense (AMP). Nuestro portal ofrece beneficios exclusivos a los médicos agremiados en más de 250 comercios de La Plata y la región.\n- Credencial Digital: Para usar los beneficios se debe presentar la credencial digital médica a través de la app oficial de la AMP.",
+    "- Identidad: Somos el Portal de Beneficios de la Agremiación Médica Platense (AMP). Our portal offers benefits exclusively to the members of the AMP.\n- Credencial Digital: Para usar los beneficios se debe presentar la credencial digital médica a través de la app oficial de la AMP.",
   aiInitialGreeting:
     "¡Hola! Soy el asistente virtual del Club de Beneficios de la Agremiación Médica Platense. ¿En qué puedo ayudarte hoy?",
   aiCallToAction:
     "Para más consultas sobre tu credencial digital AMP+ o el estado de tu agremiación, recordá que podés escribirnos al WhatsApp oficial:",
   whatsappNumber: "542214391300",
   aiAvatarUrl: null,
+  popupActive: false,
+  popupTitle: null,
+  popupDescription: null,
+  popupImageUrl: null,
+  popupButtonText: null,
+  popupButtonLink: null,
   updatedAt: null,
 };
 
@@ -67,6 +79,12 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       aiCallToAction: settings.aiCallToAction || "",
       whatsappNumber: settings.whatsappNumber || "542214391300",
       aiAvatarUrl: settings.aiAvatarUrl,
+      popupActive: settings.popupActive ?? false,
+      popupTitle: settings.popupTitle,
+      popupDescription: settings.popupDescription,
+      popupImageUrl: settings.popupImageUrl,
+      popupButtonText: settings.popupButtonText,
+      popupButtonLink: settings.popupButtonLink,
       updatedAt: settings.updatedAt,
     };
   } catch (err) {
@@ -87,6 +105,12 @@ export async function saveSettings(requestEvent: RequestEventBase, settings: Cha
     aiCallToAction: settings.aiCallToAction,
     whatsappNumber: settings.whatsappNumber,
     aiAvatarUrl: settings.aiAvatarUrl,
+    popupActive: settings.popupActive,
+    popupTitle: settings.popupTitle,
+    popupDescription: settings.popupDescription,
+    popupImageUrl: settings.popupImageUrl,
+    popupButtonText: settings.popupButtonText,
+    popupButtonLink: settings.popupButtonLink,
     updatedAt: new Date().toISOString(),
   };
 
