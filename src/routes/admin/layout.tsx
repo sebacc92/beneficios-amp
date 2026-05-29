@@ -110,11 +110,11 @@ export default component$(() => {
         {/* Brand Header */}
         <div class="px-6 py-7 border-b border-slate-800 flex items-center space-x-3.5 bg-[#080E1C]">
           <img
-            src="/path446.png"
+            src="/logo-beneficios_amp2.webp"
             alt="AMP Logo"
-            width={100}
-            height={40}
-            class="h-9 w-auto object-contain"
+            width={120}
+            height={48}
+            class="h-[44px] w-auto object-contain"
           />
         </div>
 

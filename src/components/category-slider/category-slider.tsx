@@ -16,14 +16,16 @@ import {
   LuCalendar,
   LuCamera,
   LuGraduationCap,
-  LuCreditCard
+  LuCreditCard,
+  LuPlane
 } from "@qwikest/icons/lucide";
 
 // central category icon selector
 export const getCategoryIcon = (desc: string) => {
   const d = desc.toLowerCase();
   if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-12 h-12 text-current stroke-[1.5]" />;
-  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuHotel class="w-12 h-12 text-current stroke-[1.5]" />;
+  if (d.includes("turismo") || d.includes("viaje")) return <LuPlane class="w-12 h-12 text-current stroke-[1.5]" />;
+  if (d.includes("hotel") || d.includes("alojamiento")) return <LuHotel class="w-12 h-12 text-current stroke-[1.5]" />;
   if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-12 h-12 text-current stroke-[1.5]" />;
   if (d.includes("estética") || d.includes("belleza") || d.includes("peluquería") || d.includes("spa")) return <LuSparkles class="w-12 h-12 text-current stroke-[1.5]" />;
   if (d.includes("salud") || d.includes("cuidado") || d.includes("farmacia") || d.includes("ortopedia") || d.includes("médic")) return <LuHeartPulse class="w-12 h-12 text-current stroke-[1.5]" />;

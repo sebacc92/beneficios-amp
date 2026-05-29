@@ -68,7 +68,7 @@ export default component$(() => {
 
   return (
     <div class="mx-auto max-w-4xl space-y-6 px-4 py-12 pb-24 font-sans">
-      
+
       {/* Navigation and Actions Row */}
       <div class="flex items-center justify-between border-b border-slate-200 pb-4">
         <Link
@@ -78,7 +78,7 @@ export default component$(() => {
           <span>&larr;</span>
           <span>Volver a la Auditoría</span>
         </Link>
-        
+
         {/* Delete directly from details */}
         <Form action={deleteAction}>
           <input type="hidden" name="id" value={s.id} />
@@ -115,7 +115,7 @@ export default component$(() => {
         </div>
       ) : (
         <div class="space-y-6">
-          
+
           {/* Metadata Info Panel */}
           <div class="glass-card border border-slate-200 rounded-2xl p-6 bg-white shadow-sm space-y-4">
             <h2 class="text-xs font-extrabold tracking-widest text-brand-gold uppercase">Detalles del Registro</h2>
@@ -143,12 +143,12 @@ export default component$(() => {
           <div class="rounded-2xl border border-slate-200 bg-slate-100/50 shadow-sm flex flex-col overflow-hidden">
             {/* Header Mockup */}
             <div class="bg-brand-green-dark border-b border-brand-gold/15 p-4 flex items-center space-x-3.5 text-white">
-              <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 border border-brand-gold">
+              <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 border border-brand-gold">
                 <img
-                  src="/path446.png"
+                  src="/logo-beneficios_amp2.webp"
                   alt="AMP Logo"
-                  width={28}
-                  height={28}
+                  width={34}
+                  height={34}
                   class="object-contain"
                 />
               </div>
@@ -174,7 +174,7 @@ export default component$(() => {
                   <span class="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
                     {msg.role === "user" ? "Médico Agremiado (Usuario)" : "Asistente Virtual (IA)"}
                   </span>
-                  
+
                   {/* Bubble content */}
                   <div
                     class={[
@@ -186,14 +186,14 @@ export default component$(() => {
                   >
                     {msg.content}
                   </div>
-                  
+
                   {/* Time */}
                   <span class="text-[8px] text-slate-400 font-semibold">
                     {msg.createdAt ? new Date(msg.createdAt).toLocaleString("es-AR") : ""}
                   </span>
                 </div>
               ))}
-              
+
               {s.messages.length === 0 && (
                 <div class="text-center py-12 text-slate-400 text-xs uppercase tracking-wider font-extrabold">
                   Esta sesión se inició pero no cuenta con mensajes registrados.

@@ -39,16 +39,16 @@ export default component$(() => {
       {/* Main Sticky Header */}
       <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300 print:hidden">
         <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between h-20">
+          <div class="flex items-center justify-between h-24">
             {/* Brand Logo & Title */}
             <div class="flex items-center flex-shrink-0">
               <Link href="/" class="flex items-center group">
                 <img
-                  src="/path446.png"
+                  src="/logo-beneficios_amp2.webp"
                   alt="Logo AMP"
-                  width={160}
-                  height={60}
-                  class="h-15 w-auto object-contain transition-all duration-300 group-hover:scale-105"
+                  width={230}
+                  height={86}
+                  class="h-[86px] w-auto object-contain transition-all duration-300 group-hover:scale-105"
                 />
               </Link>
             </div>
@@ -92,31 +92,28 @@ export default component$(() => {
             <nav class="hidden lg:flex items-center space-x-6 flex-shrink-0">
               <Link
                 href="/como-funciona"
-                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
-                  isActive("/como-funciona") 
-                    ? "text-brand-green border-brand-green" 
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/como-funciona")
+                    ? "text-brand-green border-brand-green"
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
-                }`}
+                  }`}
               >
                 Cómo Funciona
               </Link>
               <Link
                 href="/sorteos"
-                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
-                  isActive("/sorteos") 
-                    ? "text-brand-green border-brand-green" 
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/sorteos")
+                    ? "text-brand-green border-brand-green"
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
-                }`}
+                  }`}
               >
                 Sorteos
               </Link>
               <Link
                 href="/sugerencias"
-                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
-                  isActive("/sugerencias") 
-                    ? "text-brand-green border-brand-green" 
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/sugerencias")
+                    ? "text-brand-green border-brand-green"
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
-                }`}
+                  }`}
               >
                 Sugerencias
               </Link>
@@ -191,9 +188,8 @@ export default component$(() => {
 
         {/* Mobile Navigation Drawer */}
         <div
-          class={`lg:hidden transition-all duration-300 overflow-hidden ${
-            isMobileMenuOpen.value ? "max-h-96 opacity-100 border-t border-slate-200" : "max-h-0 opacity-0"
-          }`}
+          class={`lg:hidden transition-all duration-300 overflow-hidden ${isMobileMenuOpen.value ? "max-h-96 opacity-100 border-t border-slate-200" : "max-h-0 opacity-0"
+            }`}
           id="mobile-menu"
         >
           <div class="px-4 pt-2 pb-4 space-y-2 bg-white">
@@ -220,13 +216,12 @@ export default component$(() => {
               </div>
             </form>
 
-             {user.value ? (
+            {user.value ? (
               <Link
                 href="/perfil"
                 onClick$={() => (isMobileMenuOpen.value = false)}
-                class={`inline-flex items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold transition-colors ${
-                  isActive("/perfil") ? "text-brand-green bg-emerald-50" : "text-brand-green hover:bg-slate-50"
-                }`}
+                class={`inline-flex items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold transition-colors ${isActive("/perfil") ? "text-brand-green bg-emerald-50" : "text-brand-green hover:bg-slate-50"
+                  }`}
               >
                 <LuUser class="w-4 h-4 text-brand-green" />
                 <span>Mi Perfil</span>
@@ -246,9 +241,8 @@ export default component$(() => {
             <Link
               href="/"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${
-                isActive("/") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-              }`}
+              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
+                }`}
             >
               Inicio
             </Link>
@@ -263,36 +257,32 @@ export default component$(() => {
             <Link
               href="/eventos"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${
-                isActive("/eventos") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-              }`}
+              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/eventos") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
+                }`}
             >
               Agenda
             </Link>
             <Link
               href="/como-funciona"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${
-                isActive("/como-funciona") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-              }`}
+              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/como-funciona") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
+                }`}
             >
               Cómo Funciona
             </Link>
             <Link
               href="/sorteos"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${
-                isActive("/sorteos") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-              }`}
+              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/sorteos") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
+                }`}
             >
               Sorteos
             </Link>
             <Link
               href="/sugerencias"
               onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${
-                isActive("/sugerencias") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-              }`}
+              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/sugerencias") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
+                }`}
             >
               Sugerencias
             </Link>
@@ -313,11 +303,11 @@ export default component$(() => {
             <div class="col-span-1 md:col-span-2 space-y-4">
               <div class="flex items-center space-x-3.5">
                 <img
-                  src="/path446.png"
+                  src="/logo-beneficios_amp2.webp"
                   alt="Logo AMP"
-                  width={130}
-                  height={50}
-                  class="h-11 w-auto object-contain brightness-95"
+                  width={156}
+                  height={60}
+                  class="h-[54px] w-auto object-contain brightness-95"
                 />
                 <span class="text-slate-850 font-display font-black text-lg">
                   Agremiación Médica Platense

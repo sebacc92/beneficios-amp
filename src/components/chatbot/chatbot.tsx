@@ -193,13 +193,13 @@ export const Chatbot = component$(() => {
           <div class="flex items-center justify-between bg-brand-green-dark border-b border-brand-gold/20 p-4 text-white">
             <div class="flex items-center gap-3">
               <div class="relative">
-                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
                   <img
-                    src={state.avatarUrl || "/path446.png"}
+                    src={state.avatarUrl || "/logo-beneficios_amp2.webp"}
                     alt="Asistente AMP"
                     class="h-full w-full object-contain"
-                    width={32}
-                    height={32}
+                    width={38}
+                    height={38}
                   />
                 </div>
                 <div class="absolute right-0 bottom-0 h-3 w-3 animate-pulse rounded-full border-2 border-brand-green-dark bg-emerald-400"></div>

@@ -248,7 +248,7 @@ export default component$(() => {
   return (
     <div class="relative min-h-screen py-10 bg-slate-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* A. Breadcrumb */}
         <nav class="flex items-center space-x-2 text-[13px] font-bold text-slate-400 uppercase tracking-wider mb-8">
           <Link href="/" class="hover:text-brand-green transition-colors">Inicio</Link>
@@ -260,7 +260,7 @@ export default component$(() => {
 
         {/* B. Main Details Grid */}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* LEFT: Benefit Main Description Card (2 Columns wide) */}
           <div class="lg:col-span-2 space-y-8">
             <div class="glass-card border rounded-2xl overflow-hidden shadow-md bg-white">
@@ -284,7 +284,7 @@ export default component$(() => {
                     </span>
                   </div>
                 )}
-                
+
                 {/* Floating Gold Discount Badge */}
                 <div class="absolute top-6 right-6 z-10 animate-float">
                   <span class="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full bg-brand-gold text-brand-green-dark border-4 border-white shadow-xl">
@@ -320,7 +320,7 @@ export default component$(() => {
                       {primaryLoc}
                     </span>
                   </div>
-                  
+
                   {benefit.ofertas.map((o) => (
                     <div
                       key={o.id}
@@ -331,7 +331,7 @@ export default component$(() => {
                   ))}
                 </div>
 
-                 {/* Main Title */}
+                {/* Main Title */}
                 <div>
                   <h1 class="text-3xl sm:text-4xl font-display font-extrabold text-brand-green-dark leading-tight tracking-tight">
                     {benefit.titulo}
@@ -368,7 +368,7 @@ export default component$(() => {
                       Contacto Directo
                     </h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-                      
+
                       {contacts.phone && (
                         <a
                           href={getPhoneLink(contacts.phone)}
@@ -456,14 +456,14 @@ export default component$(() => {
                 {benefit.pdfUrl && (
                   <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all duration-300">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all duration-500 pointer-events-none" />
-                    
+
                     {/* Icon container */}
                     <div class="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300">
                       <svg class="w-9 h-9 text-red-500 fill-current" viewBox="0 0 24 24">
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z" />
                       </svg>
                     </div>
-                    
+
                     {/* Text content */}
                     <div class="flex-grow text-center sm:text-left space-y-1">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-750 border border-red-100 uppercase tracking-widest">
@@ -476,7 +476,7 @@ export default component$(() => {
                         Consultá la lista de precios, bases o información extra digital de este beneficio.
                       </p>
                     </div>
-                    
+
                     {/* Actions */}
                     <div class="flex flex-row sm:flex-col gap-2.5 w-full sm:w-auto">
                       <a
@@ -524,22 +524,22 @@ export default component$(() => {
 
           {/* RIGHT SIDEBAR: Credential & Interactive OSM Leaflet Map */}
           <div class="space-y-8">
-            
+
             {/* 1. Interactive Digital Credential mockup */}
             <div class="glass-card border rounded-2xl p-6 bg-gradient-to-br from-brand-green-dark to-brand-green text-white shadow-lg relative overflow-hidden select-none animate-float">
               {/* Backglow decoratives */}
               <div class="absolute -right-16 -top-16 w-36 h-36 bg-brand-gold/15 rounded-full blur-xl" />
               <div class="absolute -left-12 -bottom-12 w-28 h-28 bg-white/5 rounded-full blur-lg" />
-              
+
               <div class="flex items-center justify-between border-b border-white/20 pb-4 mb-6">
                 <div class="flex items-center space-x-2">
-                    <img
-                      src="/path446.png"
-                      alt="AMP"
-                      width={80}
-                      height={32}
-                      class="h-8 w-auto object-contain"
-                    />
+                  <img
+                    src="/logo-beneficios_amp2.webp"
+                    alt="AMP"
+                    width={96}
+                    height={38}
+                    class="h-[38px] w-auto object-contain"
+                  />
                   <span class="text-sm font-extrabold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
                 </div>
                 <span class="text-[11px] font-black text-brand-gold border border-brand-gold/45 px-2.5 py-1 rounded uppercase tracking-wider">
@@ -603,11 +603,11 @@ export default component$(() => {
                     Abrir en Google Maps &rarr;
                   </a>
                 </div>
-                
+
                 {/* Visual leafet map container */}
                 <div class="relative h-64 bg-slate-100 flex items-center justify-center">
                   <div id="leaflet-map" class="w-full h-full z-10" />
-                  
+
                   {!isMapLoaded.value && (
                     <div class="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center space-y-3 z-20">
                       <div class="w-7 h-7 border-2 border-brand-green-light border-t-transparent rounded-full animate-spin" />
@@ -615,7 +615,7 @@ export default component$(() => {
                     </div>
                   )}
                 </div>
-                
+
                 {contacts.address && (
                   <div class="p-4 text-xs text-slate-500 bg-slate-50 leading-relaxed border-t border-slate-100">
                     <span class="font-bold text-slate-700 block mb-0.5">Dirección:</span>
@@ -691,12 +691,12 @@ export default component$(() => {
       {/* Print-only coupon container styled beautifully as a professional voucher */}
       <div class="print-voucher-container font-sans bg-white border-2 border-dashed border-brand-green p-8 rounded-2xl max-w-lg mx-auto text-center space-y-6">
         <div class="flex flex-col items-center pb-4 border-b border-slate-200">
-          <div class="w-16 h-16 bg-brand-green rounded-full flex items-center justify-center p-2 mb-2 border border-brand-gold">
+          <div class="w-20 h-20 bg-brand-green rounded-full flex items-center justify-center p-2 mb-2 border border-brand-gold">
             <img
-              src="/path446.png"
+              src="/logo-beneficios_amp2.webp"
               alt="Logo AMP"
-              width={45}
-              height={45}
+              width={54}
+              height={54}
               class="object-contain"
             />
           </div>
