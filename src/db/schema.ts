@@ -17,6 +17,12 @@ export const siteSettings = sqliteTable("site_settings", {
   popupImageUrl: text("popup_image_url"),
   popupButtonText: text("popup_button_text"),
   popupButtonLink: text("popup_button_link"),
+  campaignActive: integer("campaign_active", { mode: "boolean" }).default(true),
+  campaignTitle: text("campaign_title"),
+  campaignSubtitle: text("campaign_subtitle"),
+  campaignEmoji: text("campaign_emoji"),
+  campaignTag: text("campaign_tag"),
+  campaignQuery: text("campaign_query"),
   updatedAt: text("updated_at"), // Store ISO timestamps as string for full edge-compatibility
 });
 

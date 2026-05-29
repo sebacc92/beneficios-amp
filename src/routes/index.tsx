@@ -65,6 +65,13 @@ export const useBenefitsData = routeLoader$(async (event) => {
 
   const filters = await getFilters();
 
+  let settings = null;
+  try {
+    settings = await getSettings(event);
+  } catch (err) {
+    console.error("Failed to load settings in homepage loader:", err);
+  }
+
   let curatedRows = null;
   if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
     try {
@@ -75,14 +82,23 @@ export const useBenefitsData = routeLoader$(async (event) => {
       });
       const items = all.data;
 
-      // Curate cafecitos (those belonging to gastronomy/cafes or containing "cafe" or "factura" in description/title)
-      const cafecitos = items.filter(b =>
-        b.titulo.toLowerCase().includes("café") ||
-        b.titulo.toLowerCase().includes("cafe") ||
-        b.descripcion.toLowerCase().includes("café") ||
-        b.resumen.toLowerCase().includes("café") ||
-        b.categorias.some(c => c.descripcion.toLowerCase().includes("gastro") || c.descripcion.toLowerCase().includes("café"))
-      ).slice(0, 4);
+      // Curate themed campaign benefits based on dynamic settings query
+      const queryTerms = (settings?.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro")
+        .split(",")
+        .map(term => term.trim().toLowerCase())
+        .filter(Boolean);
+
+      const cafecitos = items.filter(b => {
+        const titleLower = b.titulo.toLowerCase();
+        const descLower = b.descripcion.toLowerCase();
+        const resLower = b.resumen.toLowerCase();
+        return queryTerms.some(term =>
+          titleLower.includes(term) ||
+          descLower.includes(term) ||
+          resLower.includes(term) ||
+          b.categorias.some(c => c.descripcion.toLowerCase().includes(term))
+        );
+      }).slice(0, 4);
 
       // Curate themed rows with distinct slices of live data
       const gold = items.filter(b => b.isPremiumOnly).slice(0, 6);
@@ -112,13 +128,6 @@ export const useBenefitsData = routeLoader$(async (event) => {
       { id: "s2", imageUrl: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg", title: "Salud & Cuidado", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
       { id: "s3", imageUrl: "https://beneficios.amepla.org.ar/images/slider/-DAZZLER SLIDE.jpg", title: "Hotelería Dazzler", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
     ];
-  }
-
-  let settings = null;
-  try {
-    settings = await getSettings(event);
-  } catch (err) {
-    console.error("Failed to load settings in homepage loader:", err);
   }
 
   return {
@@ -511,8 +520,8 @@ export default component$(() => {
             </section>
           )}
 
-          {/* Curated Spotlight Section: Cafecitos & Desayunos */}
-          {curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
+          {/* Curated Spotlight Section: Dynamic Campaigns & Specials */}
+          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
             <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left">
               <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-xl grid grid-cols-1 lg:grid-cols-4 gap-8 items-center relative overflow-hidden">
                 <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
@@ -522,17 +531,19 @@ export default component$(() => {
                 <div class="lg:col-span-1 space-y-5 relative z-10 text-white flex flex-col justify-center h-full">
                   <div class="inline-flex items-center space-x-2">
                     <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
-                    <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">Selección Gourmet</span>
+                    <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">
+                      {settings?.campaignTag || "Selección Especial"}
+                    </span>
                   </div>
                   <h2 class="text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight">
-                    ☕ Cafecitos & Desayunos
+                    {settings?.campaignEmoji || "🎁"} {settings?.campaignTitle || "Especial de Temporada"}
                   </h2>
                   <p class="text-sm text-slate-450 font-medium leading-relaxed">
-                    Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.
+                    {settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}
                   </p>
                   <div class="pt-2">
                     <Link
-                      href="/beneficios?categoria=1"
+                      href={`/beneficios?buscar=${encodeURIComponent((settings?.campaignQuery || "café").split(",")[0])}`}
                       class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"
                     >
                       <span>Ver todos</span>

@@ -1,5 +1,5 @@
 import type { RequestEventBase } from "@builder.io/qwik-city";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, sql } from "drizzle-orm";
 import { getDB } from "~/db";
 import { siteSettings, chatSessions, chatMessages } from "~/db/schema";
 
@@ -19,6 +19,12 @@ export interface ChatbotSettings {
   popupImageUrl: string | null;
   popupButtonText: string | null;
   popupButtonLink: string | null;
+  campaignActive: boolean;
+  campaignTitle: string | null;
+  campaignSubtitle: string | null;
+  campaignEmoji: string | null;
+  campaignTag: string | null;
+  campaignQuery: string | null;
   updatedAt: string | null;
 }
 
@@ -56,11 +62,38 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   popupImageUrl: null,
   popupButtonText: null,
   popupButtonLink: null,
+  campaignActive: true,
+  campaignTitle: "Cafecitos & Desayunos",
+  campaignSubtitle: "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.",
+  campaignEmoji: "☕",
+  campaignTag: "SELECCIÓN GOURMET",
+  campaignQuery: "cafe,café,desayuno,factura,gastronomia,gastro",
   updatedAt: null,
 };
 
 export async function getSettings(requestEvent: RequestEventBase): Promise<ChatbotSettings> {
   const db = getDB(requestEvent);
+  
+  // Try to alter table dynamically to ensure campaign columns exist in production Turso
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_active INTEGER DEFAULT 1`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_title TEXT DEFAULT 'Cafecitos & Desayunos'`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_subtitle TEXT DEFAULT 'Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.'`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_emoji TEXT DEFAULT '☕'`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_tag TEXT DEFAULT 'SELECCIÓN GOURMET'`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_query TEXT DEFAULT 'cafe,café,desayuno,factura,gastronomia,gastro'`);
+  } catch (e) {}
+
   try {
     const [settings] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
     if (!settings) {
@@ -85,6 +118,12 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       popupImageUrl: settings.popupImageUrl,
       popupButtonText: settings.popupButtonText,
       popupButtonLink: settings.popupButtonLink,
+      campaignActive: settings.campaignActive ?? true,
+      campaignTitle: settings.campaignTitle || "Cafecitos & Desayunos",
+      campaignSubtitle: settings.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.",
+      campaignEmoji: settings.campaignEmoji || "☕",
+      campaignTag: settings.campaignTag || "SELECCIÓN GOURMET",
+      campaignQuery: settings.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro",
       updatedAt: settings.updatedAt,
     };
   } catch (err) {
@@ -111,6 +150,12 @@ export async function saveSettings(requestEvent: RequestEventBase, settings: Cha
     popupImageUrl: settings.popupImageUrl,
     popupButtonText: settings.popupButtonText,
     popupButtonLink: settings.popupButtonLink,
+    campaignActive: settings.campaignActive,
+    campaignTitle: settings.campaignTitle,
+    campaignSubtitle: settings.campaignSubtitle,
+    campaignEmoji: settings.campaignEmoji,
+    campaignTag: settings.campaignTag,
+    campaignQuery: settings.campaignQuery,
     updatedAt: new Date().toISOString(),
   };
 
