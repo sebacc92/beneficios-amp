@@ -24,7 +24,7 @@
 }
 
 html {
-  font-size: 108.5%; /* Elegant global scaling of all rem-based typography */
+  font-size: 116%; /* Elegant global scaling of all rem-based typography */
   scroll-behavior: smooth;
   font-family: var(--font-sans);
   background-color: #f8fafc;

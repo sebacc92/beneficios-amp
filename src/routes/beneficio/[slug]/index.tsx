@@ -239,7 +239,7 @@ export default component$(() => {
   });
 
   const imageUrl = benefit.imagen
-    ? `https://beneficios.amepla.org.ar/files/${benefit.imagen}`
+    ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
     : null;
 
   const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
@@ -250,7 +250,7 @@ export default component$(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* A. Breadcrumb */}
-        <nav class="flex items-center space-x-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
+        <nav class="flex items-center space-x-2 text-[13px] font-bold text-slate-400 uppercase tracking-wider mb-8">
           <Link href="/" class="hover:text-brand-green transition-colors">Inicio</Link>
           <span>/</span>
           <span class="text-slate-500">{primaryCat}</span>
@@ -287,11 +287,11 @@ export default component$(() => {
                 
                 {/* Floating Gold Discount Badge */}
                 <div class="absolute top-6 right-6 z-10 animate-float">
-                  <span class="inline-flex flex-col items-center justify-center w-24 h-24 rounded-full bg-brand-gold text-brand-green-dark border-4 border-white shadow-xl">
-                    <span class="text-2xl font-black font-display leading-none">
+                  <span class="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full bg-brand-gold text-brand-green-dark border-4 border-white shadow-xl">
+                    <span class="text-3xl font-black font-display leading-none">
                       {benefit.resumen.replace("Descuento del", "").trim() || "Exclusivo"}
                     </span>
-                    <span class="text-[9px] uppercase font-extrabold tracking-wider mt-1">Beneficio</span>
+                    <span class="text-[11px] uppercase font-extrabold tracking-wider mt-1">Beneficio</span>
                   </span>
                 </div>
 
@@ -300,7 +300,7 @@ export default component$(() => {
                   {benefit.categorias.map((c) => (
                     <span
                       key={c.id}
-                      class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-extrabold bg-black/60 text-white backdrop-blur-md border border-white/20 uppercase tracking-widest"
+                      class="inline-flex items-center px-4.5 py-2.5 rounded-2xl text-sm font-black bg-black/60 text-white backdrop-blur-md border border-white/20 uppercase tracking-widest"
                     >
                       {c.descripcion}
                     </span>
@@ -311,8 +311,8 @@ export default component$(() => {
               {/* Card Body */}
               <div class="p-6 sm:p-10 space-y-8">
                 {/* Location and Info */}
-                <div class="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-400">
-                  <div class="flex items-center text-brand-green-light space-x-1.5 bg-brand-green-light/5 px-3.5 py-1.5 rounded-full border border-brand-green-light/10">
+                <div class="flex flex-wrap items-center gap-4 text-sm font-bold text-slate-400">
+                  <div class="flex items-center text-brand-green-light space-x-1.5 bg-brand-green-light/5 px-4.5 py-2 rounded-full border border-brand-green-light/10">
                     <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
                       <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                     </svg>
@@ -372,12 +372,12 @@ export default component$(() => {
                       {contacts.phone && (
                         <a
                           href={getPhoneLink(contacts.phone)}
-                          class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:border-brand-green hover:text-brand-green text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-brand-green hover:text-brand-green text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
                         >
                           <svg class="w-5 h-5 text-slate-400 group-hover:text-brand-green mb-1.5 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.98-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
-                          <span class="text-[10px] font-bold uppercase tracking-wider">Llamar</span>
+                          <span class="text-[12px] font-black uppercase tracking-wide">Llamar</span>
                         </a>
                       )}
 
@@ -386,24 +386,24 @@ export default component$(() => {
                           href={getWhatsAppLink(contacts.whatsapp)}
                           target="_blank"
                           rel="noopener"
-                          class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
                         >
                           <svg class="w-5 h-5 text-slate-400 group-hover:text-emerald-500 mb-1.5 transition-colors fill-current" viewBox="0 0 24 24">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                           </svg>
-                          <span class="text-[10px] font-bold uppercase tracking-wider">WhatsApp</span>
+                          <span class="text-[12px] font-black uppercase tracking-wide">WhatsApp</span>
                         </a>
                       )}
 
                       {contacts.email && (
                         <a
                           href={`mailto:${contacts.email}`}
-                          class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:border-brand-green hover:text-brand-green text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-brand-green hover:text-brand-green text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
                         >
                           <svg class="w-5 h-5 text-slate-400 group-hover:text-brand-green mb-1.5 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
-                          <span class="text-[10px] font-bold uppercase tracking-wider">E-Mail</span>
+                          <span class="text-[12px] font-black uppercase tracking-wide">E-Mail</span>
                         </a>
                       )}
 
@@ -412,12 +412,12 @@ export default component$(() => {
                           href={contacts.website}
                           target="_blank"
                           rel="noopener"
-                          class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:border-brand-gold-dark hover:text-brand-gold-dark text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-brand-gold-dark hover:text-brand-gold-dark text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
                         >
                           <svg class="w-5 h-5 text-slate-400 group-hover:text-brand-gold-dark mb-1.5 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                           </svg>
-                          <span class="text-[10px] font-bold uppercase tracking-wider">Web</span>
+                          <span class="text-[12px] font-black uppercase tracking-wide">Web</span>
                         </a>
                       )}
 
@@ -426,14 +426,14 @@ export default component$(() => {
                           href={contacts.instagram}
                           target="_blank"
                           rel="noopener"
-                          class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
                         >
                           <svg class="w-5 h-5 text-slate-400 group-hover:text-pink-500 mb-1.5 transition-colors fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                             <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
                             <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
                             <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                           </svg>
-                          <span class="text-[10px] font-bold uppercase tracking-wider">Instagram</span>
+                          <span class="text-[12px] font-black uppercase tracking-wide">Instagram</span>
                         </a>
                       )}
 
@@ -473,7 +473,7 @@ export default component$(() => {
           <div class="space-y-8">
             
             {/* 1. Interactive Digital Credential mockup */}
-            <div class="glass-card border rounded-2xl p-6 bg-gradient-to-br from-brand-green-dark to-brand-green text-white shadow-lg relative overflow-hidden select-none">
+            <div class="glass-card border rounded-2xl p-6 bg-gradient-to-br from-brand-green-dark to-brand-green text-white shadow-lg relative overflow-hidden select-none animate-float">
               {/* Backglow decoratives */}
               <div class="absolute -right-16 -top-16 w-36 h-36 bg-brand-gold/15 rounded-full blur-xl" />
               <div class="absolute -left-12 -bottom-12 w-28 h-28 bg-white/5 rounded-full blur-lg" />
@@ -487,9 +487,9 @@ export default component$(() => {
                       height={32}
                       class="h-8 w-auto object-contain"
                     />
-                  <span class="text-xs font-bold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
+                  <span class="text-sm font-extrabold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
                 </div>
-                <span class="text-[9px] font-black text-brand-gold border border-brand-gold/45 px-2 py-0.5 rounded uppercase tracking-wider">
+                <span class="text-[11px] font-black text-brand-gold border border-brand-gold/45 px-2.5 py-1 rounded uppercase tracking-wider">
                   Activa
                 </span>
               </div>
@@ -500,19 +500,19 @@ export default component$(() => {
                     DR
                   </div>
                   <div>
-                    <h4 class="text-sm font-extrabold font-display leading-none text-white tracking-wide">Dr. Manuel Rodriguez</h4>
-                    <p class="text-[10px] text-slate-300 font-bold uppercase tracking-wider mt-1.5">Matrícula: 115243</p>
+                    <h4 class="text-base font-black font-display leading-none text-white tracking-wide">Dr. Manuel Rodriguez</h4>
+                    <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">Matrícula: 115243</p>
                   </div>
                 </div>
 
-                <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center mt-3 text-xs">
+                <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 flex justify-between items-center mt-3 text-xs">
                   <div>
-                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Afiliado Nro.</span>
-                    <span class="font-mono font-bold text-white text-xs mt-0.5 block">00-34988/1-09</span>
+                    <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Afiliado Nro.</span>
+                    <span class="font-mono font-black text-white text-sm mt-0.5 block">00-34988/1-09</span>
                   </div>
                   <div class="text-right">
-                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Vence</span>
-                    <span class="font-bold text-white text-xs mt-0.5 block">12 / 2027</span>
+                    <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Vence</span>
+                    <span class="font-black text-white text-sm mt-0.5 block">12 / 2027</span>
                   </div>
                 </div>
 
@@ -526,7 +526,7 @@ export default component$(() => {
                       return <div key={i} class={`h-full bg-slate-900 ${width}`} />;
                     })}
                   </div>
-                  <span class="text-[8px] font-mono tracking-widest text-slate-300 mt-1">1152430034988109</span>
+                  <span class="text-[10px] font-mono tracking-widest text-slate-300 mt-1.5 font-bold">1152430034988109</span>
                 </div>
               </div>
             </div>
@@ -575,13 +575,13 @@ export default component$(() => {
             {/* 3. Similar Benefits Recommendations Column */}
             {similar.length > 0 && (
               <div class="glass-card border rounded-2xl p-6 bg-white shadow-md space-y-5">
-                <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-700 border-l-2 border-brand-gold pl-2">
+                <h3 class="text-sm font-black uppercase tracking-wider text-slate-700 border-l-2 border-brand-gold pl-2">
                   Beneficios Recomendados
                 </h3>
                 <div class="divide-y divide-slate-100 space-y-4">
                   {similar.map((b: Benefit) => {
                     const simImg = b.imagen
-                      ? `https://beneficios.amepla.org.ar/files/${b.imagen}`
+                      ? (b.imagen.startsWith('http') || b.imagen.startsWith('/') ? b.imagen : `https://beneficios.amepla.org.ar/files/${b.imagen}`)
                       : null;
                     return (
                       <Link
@@ -604,13 +604,13 @@ export default component$(() => {
                             )}
                           </div>
                           <div class="flex-grow space-y-1">
-                            <span class="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-brand-green/5 text-brand-green border border-brand-green/10 uppercase tracking-wide">
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-black bg-brand-green/5 text-brand-green border border-brand-green/10 uppercase tracking-wide">
                               {b.categorias[0]?.descripcion || "Beneficio"}
                             </span>
-                            <h4 class="text-xs font-extrabold text-slate-800 line-clamp-1 group-hover:text-brand-green-light transition-colors">
+                            <h4 class="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-brand-green-light transition-colors">
                               {b.titulo}
                             </h4>
-                            <p class="text-[10px] text-brand-gold font-bold">
+                            <p class="text-xs font-extrabold text-brand-gold">
                               {b.resumen.trim()}
                             </p>
                           </div>

@@ -32,7 +32,7 @@ export default component$(() => {
   return (
     <div class="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800">
       {/* Top Banner (Optional Premium Touch) */}
-      <div class="bg-brand-green-dark text-brand-gold text-xs py-1.5 px-4 text-center font-medium border-b border-brand-gold/25 tracking-wide shadow-sm z-50">
+      <div class="bg-brand-green-dark text-brand-gold text-sm py-2 px-4 text-center font-semibold border-b border-brand-gold/25 tracking-wide shadow-sm z-50">
         Portal de Beneficios Oficial de la Agremiación Médica Platense
       </div>
 
@@ -92,7 +92,7 @@ export default component$(() => {
             <nav class="hidden lg:flex items-center space-x-6 flex-shrink-0">
               <Link
                 href="/como-funciona"
-                class={`font-semibold text-xs uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
                   isActive("/como-funciona") 
                     ? "text-brand-green border-brand-green" 
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
@@ -102,7 +102,7 @@ export default component$(() => {
               </Link>
               <Link
                 href="/sorteos"
-                class={`font-semibold text-xs uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
                   isActive("/sorteos") 
                     ? "text-brand-green border-brand-green" 
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
@@ -112,7 +112,7 @@ export default component$(() => {
               </Link>
               <Link
                 href="/sugerencias"
-                class={`font-semibold text-xs uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
+                class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${
                   isActive("/sugerencias") 
                     ? "text-brand-green border-brand-green" 
                     : "text-slate-500 border-transparent hover:border-brand-green/30"
@@ -127,39 +127,39 @@ export default component$(() => {
               {/* "Cerca Mío" Map View Button */}
               <Link
                 href="/?vista=mapa"
-                class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-extrabold text-xs shadow-sm hover:shadow transition-all uppercase tracking-wider cursor-pointer"
+                class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-black text-sm shadow-sm hover:shadow-md transition-all uppercase tracking-wider cursor-pointer"
               >
-                <LuMapPin class="w-3.5 h-3.5 text-brand-green" />
+                <LuMapPin class="w-4 h-4 text-brand-green" />
                 <span>Cerca Mío</span>
               </Link>
 
               {/* User Session Action Button */}
               {user.value ? (
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2.5">
                   {user.value.role === "admin" && (
                     <Link
                       href="/admin"
-                      class="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-full border border-brand-gold bg-amber-50 hover:bg-amber-100 text-brand-gold-dark font-extrabold text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                      class="inline-flex items-center space-x-1.5 px-4.5 py-2.5 rounded-full border border-brand-gold bg-amber-50 hover:bg-amber-100 text-brand-gold-dark font-extrabold text-[11.5px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
                     >
-                      <LuSettings class="w-3 h-3 text-brand-gold-dark" />
+                      <LuSettings class="w-3.5 h-3.5 text-brand-gold-dark" />
                       <span>Panel Admin</span>
                     </Link>
                   )}
                   <Link
                     href="/perfil"
-                    class="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-brand-green bg-emerald-50 hover:bg-emerald-100 text-brand-green font-bold text-xs shadow-sm transition-all"
+                    class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-brand-green bg-emerald-50 hover:bg-emerald-100 text-brand-green font-extrabold text-sm shadow-sm transition-all"
                   >
-                    <LuUser class="w-3.5 h-3.5 text-brand-green" />
+                    <LuUser class="w-4 h-4 text-brand-green" />
                     <span class="truncate max-w-[120px]">{user.value.name}</span>
-                    {user.value.role === "premium" && <LuCrown class="w-3.5 h-3.5 text-brand-gold fill-brand-gold" />}
+                    {user.value.role === "premium" && <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold" />}
                   </Link>
                 </div>
               ) : (
                 <Link
                   href="/login"
-                  class="inline-flex items-center space-x-2 px-5 py-2 rounded-full bg-brand-green hover:bg-brand-green-light text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-brand-green hover:bg-brand-green-light text-white font-extrabold text-sm shadow-md transition-all cursor-pointer"
                 >
-                  <LuLock class="w-3.5 h-3.5 text-white" />
+                  <LuLock class="w-4 h-4 text-white" />
                   <span>Ingresar</span>
                 </Link>
               )}

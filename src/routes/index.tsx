@@ -126,15 +126,15 @@ export const useBenefitsData = routeLoader$(async (event) => {
 
 const getCategoryIcon = (desc: string) => {
   const d = desc.toLowerCase();
-  if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuPlane class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("salud") || d.includes("cuidado") || d.includes("estética") || d.includes("belleza")) return <LuHeartPulse class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("deporte") || d.includes("gimnasio") || d.includes("club") || d.includes("fitness")) return <LuDumbbell class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("entretenimiento") || d.includes("cine") || d.includes("teatro") || d.includes("espectáculo")) return <LuFilm class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("hogar") || d.includes("deco") || d.includes("mueble")) return <LuHome class="w-9 h-9 text-current stroke-[1.5]" />;
-  if (d.includes("servicio") || d.includes("auto") || d.includes("seguro")) return <LuCar class="w-9 h-9 text-current stroke-[1.5]" />;
-  return <LuTags class="w-9 h-9 text-current stroke-[1.5]" />;
+  if (d.includes("gastro") || d.includes("restaurante") || d.includes("comida") || d.includes("café")) return <LuUtensils class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("turismo") || d.includes("viaje") || d.includes("hotel") || d.includes("alojamiento")) return <LuPlane class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("moda") || d.includes("ropa") || d.includes("indumentaria") || d.includes("calzado")) return <LuShirt class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("salud") || d.includes("cuidado") || d.includes("estética") || d.includes("belleza")) return <LuHeartPulse class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("deporte") || d.includes("gimnasio") || d.includes("club") || d.includes("fitness")) return <LuDumbbell class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("entretenimiento") || d.includes("cine") || d.includes("teatro") || d.includes("espectáculo")) return <LuFilm class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("hogar") || d.includes("deco") || d.includes("mueble")) return <LuHome class="w-11 h-11 text-current stroke-[1.5]" />;
+  if (d.includes("servicio") || d.includes("auto") || d.includes("seguro")) return <LuCar class="w-11 h-11 text-current stroke-[1.5]" />;
+  return <LuTags class="w-11 h-11 text-current stroke-[1.5]" />;
 };
 
 export default component$(() => {
@@ -250,7 +250,7 @@ export default component$(() => {
 
             const popupContent = `
               <div style="font-family: system-ui, sans-serif; max-width: 220px; text-align: left; padding: 2px;">
-                ${b.imagen ? `<img src="https://beneficios.amepla.org.ar/files/${b.imagen}" style="width: 100%; height: 90px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+                 ${b.imagen ? `<img src="${b.imagen.startsWith('http') || b.imagen.startsWith('/') ? b.imagen : `https://beneficios.amepla.org.ar/files/${b.imagen}`}" style="width: 100%; height: 90px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />` : ''}
                 <span style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #12633f; background: rgba(18,99,63,0.06); padding: 2px 6px; border-radius: 99px;">
                   ${b.categorias[0]?.descripcion || 'Descuento'}
                 </span>
@@ -373,19 +373,19 @@ export default component$(() => {
                     height={600}
                   />
                   <div class="absolute bottom-12 left-6 md:left-14 lg:left-20 z-20 max-w-2xl text-white text-left">
-                    <span class="inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black bg-brand-gold text-brand-green-dark mb-4 shadow-lg tracking-widest uppercase border border-white/10">
+                    <span class="inline-flex items-center px-5 py-2 rounded-full text-[12px] font-black bg-brand-gold text-brand-green-dark mb-4 shadow-lg tracking-widest uppercase border border-white/10">
                       {slide.preTitle || "Exclusivo AMP+"}
                     </span>
-                    <h2 class="text-4xl md:text-5xl font-display font-extrabold tracking-tight drop-shadow-md text-white mb-2 leading-none">
+                    <h2 class="text-5xl md:text-6xl font-display font-black tracking-tight drop-shadow-md text-white mb-3 leading-none">
                       {slide.title}
                     </h2>
-                    <p class="text-slate-200 text-sm md:text-base drop-shadow font-medium max-w-lg leading-relaxed">
+                    <p class="text-slate-100 text-base md:text-lg drop-shadow font-medium max-w-xl leading-relaxed">
                       {slide.subtitle || "Presentá tu credencial digital y disfrutá de los mejores descuentos."}
                     </p>
                     {slide.buttonText && (
                       <a
                         href={slide.buttonLink || "/"}
-                        class="inline-flex items-center justify-center mt-4 px-6 py-2.5 rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                        class="inline-flex items-center justify-center mt-5 px-8 py-3.5 rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-sm font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                       >
                         {slide.buttonText}
                       </a>
@@ -400,19 +400,19 @@ export default component$(() => {
               <>
                 <button
                   onClick$={handlePrevSlide}
-                  class="absolute left-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 flex items-center justify-center rounded-full bg-black/35 hover:bg-brand-gold/90 text-white hover:text-brand-green-dark border border-white/20 hover:border-transparent transition-all duration-300 backdrop-blur-sm cursor-pointer shadow-md"
+                  class="absolute left-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 flex items-center justify-center rounded-full bg-black/35 hover:bg-brand-gold/90 text-white hover:text-brand-green-dark border border-white/20 hover:border-transparent transition-all duration-300 backdrop-blur-sm cursor-pointer shadow-md"
                   aria-label="Slide anterior"
                 >
-                  <svg class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
+                  <svg class="w-7 h-7 stroke-current" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
                 <button
                   onClick$={handleNextSlide}
-                  class="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 flex items-center justify-center rounded-full bg-black/35 hover:bg-brand-gold/90 text-white hover:text-brand-green-dark border border-white/20 hover:border-transparent transition-all duration-300 backdrop-blur-sm cursor-pointer shadow-md"
+                  class="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 flex items-center justify-center rounded-full bg-black/35 hover:bg-brand-gold/90 text-white hover:text-brand-green-dark border border-white/20 hover:border-transparent transition-all duration-300 backdrop-blur-sm cursor-pointer shadow-md"
                   aria-label="Próximo slide"
                 >
-                  <svg class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
+                  <svg class="w-7 h-7 stroke-current" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
@@ -437,7 +437,7 @@ export default component$(() => {
 
           {/* Beautiful Horizontal Category Slider Bar */}
           <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden text-left">
-            <p class="text-[11px] font-black tracking-widest text-slate-400 uppercase mb-5 pl-1">Explorá por Categoría</p>
+            <p class="text-[13px] font-black tracking-widest text-slate-450 uppercase mb-5 pl-1">Explorá por Categoría</p>
             <div class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none">
               {filters.categorias
                 .filter(c => (c.beneficios_count || 0) > 0)
@@ -449,7 +449,7 @@ export default component$(() => {
                       key={cat.id}
                       href={getFilterUrl({ categoria: isSelected ? null : cat.id, page: 1 })}
                       class={[
-                        "flex flex-col items-center justify-center text-center p-4 rounded-[2.5rem] border transition-all duration-300 w-[124px] h-[124px] flex-shrink-0 select-none cursor-pointer group",
+                        "flex flex-col items-center justify-center text-center p-4 rounded-[2.5rem] border transition-all duration-300 w-[140px] h-[140px] flex-shrink-0 select-none cursor-pointer group",
                         isSelected
                           ? "bg-brand-green border-brand-green text-white shadow-lg shadow-brand-green/20 scale-95"
                           : "bg-white border-slate-200 text-slate-700 hover:border-brand-green/45 hover:shadow-md hover:scale-105"
@@ -461,7 +461,7 @@ export default component$(() => {
                       ]}>
                         {icon}
                       </span>
-                      <span class="text-[11px] font-black uppercase tracking-wider mt-3.5 truncate max-w-[108px]">
+                      <span class="text-[12px] font-black uppercase tracking-wider mt-4 truncate max-w-[124px]">
                         {cat.descripcion}
                       </span>
                     </Link>
@@ -477,7 +477,7 @@ export default component$(() => {
               <div class="space-y-1">
                 <div class="flex items-center space-x-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span class="text-[9px] font-black tracking-widest text-emerald-600 uppercase">Tendencias de la semana</span>
+                  <span class="text-[11px] font-black tracking-widest text-emerald-650 uppercase">Tendencias de la semana</span>
                 </div>
                 <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
                   Beneficios Relevantes
@@ -491,12 +491,12 @@ export default component$(() => {
                 <div key={`rel-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
                   <Link
                     href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[316px]"
+                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
                   >
                     <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
                       {benefit.imagen ? (
                         <img
-                          src={`https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
                           alt={benefit.titulo}
                           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           width={320}
@@ -506,33 +506,33 @@ export default component$(() => {
                       ) : (
                         <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
                           <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
+                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
                         </div>
                       )}
                       <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black bg-black/45 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
+                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
                           {benefit.categorias[0]?.descripcion || "Especial"}
                         </span>
                       </div>
                       {benefit.isPremiumOnly && (
                         <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
                           <span class="text-2xl">🔒</span>
-                          <span class="text-[9px] font-black tracking-widest uppercase text-brand-gold mt-1">Exclusivo Premium</span>
+                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
                         </div>
                       )}
                     </div>
-                    <div class="p-6 flex flex-col justify-between h-[140px] bg-white text-left">
+                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
                       <div class="space-y-1">
-                        <h3 class="text-[11px] font-black text-slate-450 uppercase tracking-wider truncate">
+                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
                           {benefit.ubicacion[0]?.descripcion || "La Plata"}
                         </h3>
-                        <h4 class="text-[15px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
+                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
                           {benefit.titulo}
                         </h4>
                       </div>
                       <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[11px] font-black text-slate-500 uppercase tracking-wider">AMP+ Premium</span>
-                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-[13px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100/50 shadow-sm uppercase tracking-wide">
+                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">AMP+ Premium</span>
+                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
                           {benefit.resumen.replace("Descuento del", "").trim()}
                         </span>
                       </div>
@@ -549,7 +549,7 @@ export default component$(() => {
               <div class="space-y-1">
                 <div class="flex items-center space-x-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
-                  <span class="text-[9px] font-black tracking-widest text-brand-gold uppercase">Destacados de la semana</span>
+                  <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">Destacados de la semana</span>
                 </div>
                 <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
                   Beneficios Destacados
@@ -563,12 +563,12 @@ export default component$(() => {
                 <div key={`dest-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
                   <Link
                     href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[316px]"
+                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
                   >
                     <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
                       {benefit.imagen ? (
                         <img
-                          src={`https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
                           alt={benefit.titulo}
                           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           width={320}
@@ -578,33 +578,33 @@ export default component$(() => {
                       ) : (
                         <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
                           <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
+                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
                         </div>
                       )}
                       <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black bg-black/45 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
+                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
                           {benefit.categorias[0]?.descripcion || "Especial"}
                         </span>
                       </div>
                       {benefit.isPremiumOnly && (
                         <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
                           <span class="text-2xl">🔒</span>
-                          <span class="text-[9px] font-black tracking-widest uppercase text-brand-gold mt-1">Exclusivo Premium</span>
+                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
                         </div>
                       )}
                     </div>
-                    <div class="p-6 flex flex-col justify-between h-[140px] bg-white text-left">
+                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
                       <div class="space-y-1">
-                        <h3 class="text-[11px] font-black text-slate-450 uppercase tracking-wider truncate">
+                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
                           {benefit.ubicacion[0]?.descripcion || "La Plata"}
                         </h3>
-                        <h4 class="text-[15px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
+                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
                           {benefit.titulo}
                         </h4>
                       </div>
                       <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[11px] font-black text-slate-500 uppercase tracking-wider">Destacado AMP+</span>
-                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-[13px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100/50 shadow-sm uppercase tracking-wide">
+                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">Destacado AMP+</span>
+                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
                           {benefit.resumen.replace("Descuento del", "").trim()}
                         </span>
                       </div>
@@ -626,18 +626,18 @@ export default component$(() => {
                 <div class="lg:col-span-1 space-y-5 relative z-10 text-white flex flex-col justify-center h-full">
                   <div class="inline-flex items-center space-x-2">
                     <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
-                    <span class="text-[9px] font-black tracking-widest text-brand-gold uppercase">Selección Gourmet</span>
+                    <span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">Selección Gourmet</span>
                   </div>
-                  <h2 class="text-3xl md:text-4xl font-display font-extrabold text-white tracking-tight leading-tight">
+                  <h2 class="text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight">
                     ☕ Cafecitos & Desayunos
                   </h2>
-                  <p class="text-xs text-slate-400 font-medium leading-relaxed">
+                  <p class="text-sm text-slate-450 font-medium leading-relaxed">
                     Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.
                   </p>
                   <div class="pt-2">
                     <Link
                       href={getFilterUrl({ categoria: 1, page: 1 })}
-                      class="inline-flex items-center space-x-1 px-4 py-2 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"
+                      class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"
                     >
                       <span>Ver todos</span>
                       <span class="text-sm">&rarr;</span>
@@ -657,7 +657,7 @@ export default component$(() => {
                         <div class="relative h-28 rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
                           {benefit.imagen ? (
                             <img
-                              src={`https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                              src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
                               alt={benefit.titulo}
                               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               width={200}
@@ -668,16 +668,16 @@ export default component$(() => {
                             <span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>
                           )}
                           <div class="absolute bottom-2 right-2 z-10">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black bg-brand-gold text-slate-900 shadow-md tracking-tight">
+                            <span class="inline-flex items-center px-3 py-1 rounded-xl text-[11px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">
                               {benefit.resumen.replace("Descuento del", "").trim()}
                             </span>
                           </div>
                         </div>
                         <div class="mt-3.5 text-left">
-                          <h4 class="text-[9px] font-bold text-brand-gold uppercase tracking-wider truncate">
+                          <h4 class="text-[11px] font-bold text-brand-gold uppercase tracking-wider truncate">
                             {benefit.ubicacion[0]?.descripcion || "La Plata"}
                           </h4>
-                          <h3 class="text-xs font-display font-extrabold text-slate-100 group-hover:text-white line-clamp-2 mt-1 leading-snug">
+                          <h3 class="text-sm font-display font-black text-slate-100 group-hover:text-white line-clamp-2 mt-1 leading-snug">
                             {benefit.titulo}
                           </h3>
                         </div>
@@ -695,7 +695,7 @@ export default component$(() => {
               <div class="space-y-1">
                 <div class="flex items-center space-x-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span class="text-[9px] font-black tracking-widest text-emerald-600 uppercase">Recién incorporados</span>
+                  <span class="text-[11px] font-black tracking-widest text-emerald-650 uppercase">Recién incorporados</span>
                 </div>
                 <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
                   Nuevos Beneficios
@@ -709,12 +709,12 @@ export default component$(() => {
                 <div key={`new-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
                   <Link
                     href={`/beneficio/${benefit.url}`}
-                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[316px]"
+                    class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
                   >
                     <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
                       {benefit.imagen ? (
                         <img
-                          src={`https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                          src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
                           alt={benefit.titulo}
                           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           width={320}
@@ -724,33 +724,33 @@ export default component$(() => {
                       ) : (
                         <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
                           <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                          <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
+                          <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
                         </div>
                       )}
                       <div class="absolute top-3.5 left-3.5 z-10">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black bg-black/45 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
+                        <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-black/55 text-white backdrop-blur-sm border border-white/10 uppercase tracking-widest">
                           {benefit.categorias[0]?.descripcion || "Especial"}
                         </span>
                       </div>
                       {benefit.isPremiumOnly && (
                         <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex flex-col justify-center items-center z-15 text-white">
                           <span class="text-2xl">🔒</span>
-                          <span class="text-[9px] font-black tracking-widest uppercase text-brand-gold mt-1">Exclusivo Premium</span>
+                          <span class="text-[11px] font-black tracking-widest uppercase text-brand-gold mt-1.5">Exclusivo Premium</span>
                         </div>
                       )}
                     </div>
-                    <div class="p-6 flex flex-col justify-between h-[140px] bg-white text-left">
+                    <div class="p-6 flex flex-col justify-between h-[172px] bg-white text-left">
                       <div class="space-y-1">
-                        <h3 class="text-[11px] font-black text-slate-450 uppercase tracking-wider truncate">
+                        <h3 class="text-[13px] font-black text-slate-450 uppercase tracking-wider truncate">
                           {benefit.ubicacion[0]?.descripcion || "La Plata"}
                         </h3>
-                        <h4 class="text-[15px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
+                        <h4 class="text-[17px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
                           {benefit.titulo}
                         </h4>
                       </div>
                       <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[11px] font-black text-slate-500 uppercase tracking-wider">Nuevo Ingreso</span>
-                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-[13px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100/50 shadow-sm uppercase tracking-wide">
+                        <span class="text-[12.5px] font-black text-slate-650 uppercase tracking-wider">Nuevo Ingreso</span>
+                        <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-emerald-50 text-emerald-755 border border-emerald-100 shadow uppercase tracking-wide">
                           {benefit.resumen.replace("Descuento del", "").trim()}
                         </span>
                       </div>
@@ -983,9 +983,8 @@ export default component$(() => {
                 // Benefits Grid
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {benefits.map((benefit: Benefit) => {
-                    const hasImage = benefit.imagen;
-                    const imageUrl = hasImage
-                      ? `https://beneficios.amepla.org.ar/files/${benefit.imagen}`
+                    const imageUrl = benefit.imagen
+                      ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
                       : null;
 
                     // Primary Category
@@ -1024,7 +1023,7 @@ export default component$(() => {
                               <span class="text-brand-gold text-4xl font-display font-black tracking-tight leading-none">
                                 AMP<span class="text-white">+</span>
                               </span>
-                              <span class="text-white text-xs font-bold uppercase tracking-wider mt-2">
+                              <span class="text-white text-sm font-bold uppercase tracking-wider mt-2">
                                 {primaryCat}
                               </span>
                             </div>
@@ -1034,7 +1033,7 @@ export default component$(() => {
                           {isLocked && (
                             <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
                               <span class="text-3xl">🔒</span>
-                              <span class="text-[10px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
+                              <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
                                 Exclusivo Premium
                               </span>
                             </div>
@@ -1042,14 +1041,14 @@ export default component$(() => {
 
                           {/* Floating Offer Badge */}
                           <div class="absolute top-3.5 right-3.5 z-10">
-                            <span class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-[13px] font-black bg-brand-gold text-brand-green-dark border border-brand-gold shadow-md uppercase tracking-wider">
+                            <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
                               {discountText.replace("Descuento del", "").trim()}
                             </span>
                           </div>
 
                           {/* Floating Category Pill */}
                           <div class="absolute bottom-3 left-3 z-10">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-black/45 text-white backdrop-blur-sm border border-white/10 uppercase tracking-wide">
+                            <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-black/55 backdrop-blur-sm border border-white/10 uppercase tracking-wide">
                               {primaryCat}
                             </span>
                           </div>
@@ -1063,17 +1062,17 @@ export default component$(() => {
                               <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
                                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                               </svg>
-                              <span class="text-[12px] font-black uppercase tracking-wider text-slate-500">
+                              <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-500">
                                 {primaryLoc}
                               </span>
                             </div>
 
-                            <h3 class="text-[17px] font-display font-extrabold text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
+                            <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
                               {benefit.titulo}
                             </h3>
 
                             {/* Short descriptions using a safe text slicer snippet */}
-                            <p class="text-[13px] text-slate-500 leading-relaxed font-medium line-clamp-3">
+                            <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">
                               {benefit.descripcion
                                 ? benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
                                 : "No hay descripción disponible para este beneficio."}
@@ -1085,14 +1084,14 @@ export default component$(() => {
                             {isLocked ? (
                               <Link
                                 href="/perfil"
-                                class="w-full flex items-center justify-center space-x-2 py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-brand-gold text-slate-900 font-black text-sm shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer animate-pulse"
+                                class="w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-brand-gold text-slate-900 font-black text-base shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer animate-pulse"
                               >
                                 <span>👑 Desbloquear Premium</span>
                               </Link>
                             ) : (
                               <Link
                                 href={`/beneficio/${benefit.url}`}
-                                class="w-full flex items-center justify-center space-x-2 py-3 px-5 rounded-2xl bg-slate-50 group-hover:bg-brand-green hover:bg-brand-green text-slate-700 group-hover:text-white font-black text-sm shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer"
+                                class="w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-2xl bg-slate-50 group-hover:bg-brand-green hover:bg-brand-green text-slate-700 group-hover:text-white font-black text-base shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-brand-green"
                               >
                                 <span>Ver Detalles</span>
                                 <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
