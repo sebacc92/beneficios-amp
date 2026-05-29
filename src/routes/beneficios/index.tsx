@@ -322,7 +322,9 @@ export default component$(() => {
                 class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-655 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
                 aria-label="Anterior"
               >
-                &larr;
+                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
               <button
                 type="button"
@@ -330,7 +332,9 @@ export default component$(() => {
                 class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-655 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
                 aria-label="Siguiente"
               >
-                &rarr;
+                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
           </div>

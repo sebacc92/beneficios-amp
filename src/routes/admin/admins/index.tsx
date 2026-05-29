@@ -1,9 +1,10 @@
-import { component$ } from "@builder.io/qwik";
+import { component$, useSignal } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users as usersTable } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { LuPlus, LuLock } from "@qwikest/icons/lucide";
 
 // --- SECURITY & LOADERS ---
 
@@ -29,35 +30,105 @@ export const useAdminUsersLoader = routeLoader$(async (event) => {
   }
 });
 
+export const useCurrentUserLoader = routeLoader$((event) => {
+  return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
+});
+
 // --- ACTIONS ---
 
-export const useChangeUserRoleAction = routeAction$(
+export const useChangePasswordAction = routeAction$(
   async (data, requestEvent) => {
-    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
-    if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
+    const currentUser = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!currentUser || currentUser.role !== "admin") {
+      return requestEvent.fail(403, { message: "No autorizado." });
+    }
+    // Security: Only allow changing own password
+    if (currentUser.id !== data.userId) {
+      return requestEvent.fail(403, { message: "Solo tenés autorización para cambiar tu propia contraseña." });
+    }
 
     try {
       const db = getDB(requestEvent);
+      const { hashPassword } = await import("~/utils/crypto");
+      const passwordHash = await hashPassword(data.newPassword);
+
       await db
         .update(usersTable)
-        .set({ role: data.role as any })
+        .set({ passwordHash })
         .where(eq(usersTable.id, data.userId));
 
       return { success: true };
     } catch (err: any) {
-      console.error(err);
-      return requestEvent.fail(500, { message: "Failed to update role." });
+      console.error("Error changing password:", err);
+      return requestEvent.fail(500, { message: "Error al actualizar la contraseña." });
     }
   },
   zod$({
     userId: z.string(),
-    role: z.enum(["admin", "member", "premium"]),
+    newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
+  })
+);
+
+export const useRegisterAdminAction = routeAction$(
+  async (data, requestEvent) => {
+    const adminUser = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!adminUser || adminUser.role !== "admin") {
+      return requestEvent.fail(403, { message: "No autorizado." });
+    }
+
+    try {
+      const db = getDB(requestEvent);
+      const email = data.email.toLowerCase().trim();
+
+      // Check if email already exists
+      const [existingUser] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.email, email))
+        .limit(1);
+
+      if (existingUser) {
+        return requestEvent.fail(409, {
+          message: "El correo electrónico ingresado ya se encuentra registrado.",
+        });
+      }
+
+      const { hashPassword } = await import("~/utils/crypto");
+      const passwordHash = await hashPassword(data.password);
+      const userId = "usr-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
+
+      await db.insert(usersTable).values({
+        id: userId,
+        email,
+        passwordHash,
+        name: data.name.trim(),
+        role: "admin", // Enforce role admin
+        createdAt: new Date().toISOString(),
+      });
+
+      return { success: true };
+    } catch (e: any) {
+      console.error("Admin register admin error:", e);
+      return requestEvent.fail(500, {
+        message: e.message || "Error al registrar el administrador.",
+      });
+    }
+  },
+  zod$({
+    name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
+    email: z.string().email("Ingresá un correo electrónico válido."),
+    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
   })
 );
 
 export default component$(() => {
   const adminUsers = useAdminUsersLoader();
-  const changeUserRoleAction = useChangeUserRoleAction();
+  const currentUser = useCurrentUserLoader();
+  const changePasswordAction = useChangePasswordAction();
+  const registerAdminAction = useRegisterAdminAction();
+
+  const isCreateAdminOpen = useSignal(false);
+  const isChangingMyPassword = useSignal(false);
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
@@ -74,12 +145,121 @@ export default component$(() => {
             Administradores
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
-            Gestioná los accesos y roles de los administradores del sistema.
+            Gestioná los accesos y credenciales de los administradores con privilegios del sistema.
           </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            onClick$={() => {
+              isCreateAdminOpen.value = !isCreateAdminOpen.value;
+            }}
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer animate-none"
+          >
+            <LuPlus class="w-4 h-4" />
+            <span>{isCreateAdminOpen.value ? "Cerrar Panel" : "Agregar Administrador"}</span>
+          </button>
         </div>
       </div>
 
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
+        {/* Form Actions Feedbacks */}
+        {registerAdminAction.value?.failed && (
+          <div class="rounded-2xl border border-red-150 bg-red-50 px-4 py-3.5 text-xs font-bold text-red-800 shadow-sm">
+            Error al registrar administrador: {registerAdminAction.value.message || "Por favor, verifica los campos."}
+          </div>
+        )}
+        {registerAdminAction.value?.success && (
+          <div class="rounded-2xl border border-emerald-150 bg-emerald-50 px-4 py-3.5 text-xs font-bold text-emerald-800 shadow-sm">
+            ¡Administrador registrado exitosamente y dado de alta en el sistema!
+          </div>
+        )}
+
+        {changePasswordAction.value?.failed && (
+          <div class="rounded-2xl border border-red-150 bg-red-50 px-4 py-3.5 text-xs font-bold text-red-800 shadow-sm">
+            Error al cambiar contraseña: {changePasswordAction.value.message || "Intentalo nuevamente."}
+          </div>
+        )}
+        {changePasswordAction.value?.success && (
+          <div class="rounded-2xl border border-emerald-150 bg-emerald-50 px-4 py-3.5 text-xs font-bold text-emerald-800 shadow-sm">
+            ¡Contraseña actualizada exitosamente!
+          </div>
+        )}
+
+        {/* Register Admin Form Panel */}
+        {isCreateAdminOpen.value && (
+          <Form
+            action={registerAdminAction}
+            onSubmit$={() => {
+              isCreateAdminOpen.value = false;
+            }}
+            class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300"
+          >
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Registrar Nuevo Administrador</h4>
+              <button
+                type="button"
+                onClick$={() => (isCreateAdminOpen.value = false)}
+                class="text-xs text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre Completo</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  placeholder="Ej: Marcelo Admin"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Correo Electrónico</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  placeholder="Ej: marcelo@amepla.org.ar"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Contraseña Inicial</label>
+                <input
+                  type="password"
+                  name="password"
+                  required
+                  placeholder="Mínimo 6 caracteres"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-3">
+              <button
+                type="button"
+                onClick$={() => (isCreateAdminOpen.value = false)}
+                class="px-5 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={registerAdminAction.isRunning}
+                class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+              >
+                {registerAdminAction.isRunning ? "Registrando..." : "Dar de Alta"}
+              </button>
+            </div>
+          </Form>
+        )}
+
         {/* Admins Table */}
         <div class="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
@@ -87,42 +267,79 @@ export default component$(() => {
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <th class="px-6 py-4">Nombre</th>
                 <th class="px-6 py-4">Correo</th>
-                <th class="px-6 py-4">Matrícula</th>
-                <th class="px-6 py-4">Rol Actual</th>
-                <th class="px-6 py-4 text-center">Modificar Nivel</th>
+                <th class="px-6 py-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               {adminUsers.value
                 .filter((u) => u.role === "admin")
-                .map((userItem) => (
-                  <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 font-bold text-slate-800">{userItem.name}</td>
-                    <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
-                    <td class="px-6 py-4 text-slate-500 font-mono">{userItem.matricula || "S/M"}</td>
-                    <td class="px-6 py-4">
-                      <span class="px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider bg-purple-50 text-purple-700 border-purple-100">
-                        {userItem.role}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 text-center">
-                      <Form action={changeUserRoleAction} class="flex items-center justify-center gap-1.5">
-                        <input type="hidden" name="userId" value={userItem.id} />
-                        <select
-                          name="role"
-                          onChange$={(e, el) => {
-                            el.form?.requestSubmit();
-                          }}
-                          class="bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs p-1"
-                        >
-                          <option value="admin" selected>Admin</option>
-                          <option value="member">Miembro</option>
-                          <option value="premium">Premium</option>
-                        </select>
-                      </Form>
-                    </td>
-                  </tr>
-                ))}
+                .map((userItem) => {
+                  const isMe = userItem.id === currentUser.value?.id;
+                  return (
+                    <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
+                      <td class="px-6 py-4 font-bold text-slate-800 flex items-center gap-2.5">
+                        <div class={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black uppercase text-white shadow-sm ${isMe ? "bg-brand-green" : "bg-slate-450"}`}>
+                          {userItem.name.charAt(0)}
+                        </div>
+                        <span class="flex items-center gap-1.5">
+                          {userItem.name}
+                          {isMe && (
+                            <span class="text-[9px] bg-brand-green/10 text-brand-green px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-brand-green-light/10">
+                              Tú
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
+                      <td class="px-6 py-4 text-center">
+                        {isMe ? (
+                          isChangingMyPassword.value ? (
+                            <Form
+                              action={changePasswordAction}
+                              onSubmit$={() => {
+                                isChangingMyPassword.value = false;
+                              }}
+                              class="flex items-center justify-center gap-2"
+                            >
+                              <input type="hidden" name="userId" value={userItem.id} />
+                              <input
+                                type="password"
+                                name="newPassword"
+                                required
+                                placeholder="Nueva clave"
+                                class="bg-slate-50 border border-slate-200 rounded-lg text-xs px-2.5 py-1.5 focus:border-brand-green focus:bg-white focus:outline-none w-36 font-semibold"
+                              />
+                              <button
+                                type="submit"
+                                class="bg-brand-green hover:bg-brand-green-light text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-transform active:scale-95 cursor-pointer"
+                              >
+                                Guardar
+                              </button>
+                              <button
+                                type="button"
+                                onClick$={() => (isChangingMyPassword.value = false)}
+                                class="text-[10px] font-bold text-slate-400 hover:text-slate-655 px-2 py-1.5 cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </Form>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick$={() => (isChangingMyPassword.value = true)}
+                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+                            >
+                              <LuLock class="w-3.5 h-3.5" />
+                              <span>Cambiar Contraseña</span>
+                            </button>
+                          )
+                        ) : (
+                          <span class="text-xs text-slate-350 italic">Sin acciones permitidas</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

@@ -425,8 +425,37 @@ export default component$(() => {
 
           {/* Beautiful Horizontal Category Slider Bar */}
           <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden text-left">
-            <p class="text-[13px] font-black tracking-widest text-slate-450 uppercase mb-5 pl-1">Explorá por Categoría</p>
-            <div class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none">
+            <div class="flex items-center justify-between mb-5 border-b border-slate-200/60 pb-3">
+              <p class="text-[13px] font-black tracking-widest text-slate-450 uppercase pl-1 m-0">Explorá por Categoría</p>
+              {/* Category scroll controllers */}
+              <div class="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick$={() => scrollContainer("home-category-container", "left")}
+                  class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                  aria-label="Anterior"
+                >
+                  <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick$={() => scrollContainer("home-category-container", "right")}
+                  class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+                  aria-label="Siguiente"
+                >
+                  <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="home-category-container"
+              class="flex items-center space-x-4 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory"
+            >
               {filters.categorias
                 .filter((c: any) => (c.beneficios_count || 0) > 0)
                 .map((cat: any) => {

@@ -202,7 +202,35 @@ export async function getBenefits(): Promise<Benefit[]> {
 
 export async function getFilters(): Promise<Filters> {
   await initCache();
-  return globalCached.__benefitsCache.filters || { categorias: [], ubicaciones: [], ofertas: [] };
+  const cache = globalCached.__benefitsCache;
+  if (!cache || !cache.filters) {
+    return { categorias: [], ubicaciones: [], ofertas: [] };
+  }
+
+  const benefits = cache.benefits || [];
+  const categoryCounts: Record<number, number> = {};
+
+  for (const b of benefits) {
+    if (b.categorias) {
+      for (const cat of b.categorias) {
+        if (cat && cat.id) {
+          categoryCounts[cat.id] = (categoryCounts[cat.id] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const sortedCategorias = [...(cache.filters.categorias || [])]
+    .map((cat: any) => ({
+      ...cat,
+      beneficios_count: categoryCounts[cat.id] || 0,
+    }))
+    .sort((a: any, b: any) => (b.beneficios_count || 0) - (a.beneficios_count || 0));
+
+  return {
+    ...cache.filters,
+    categorias: sortedCategorias,
+  };
 }
 
 // Helper to automatically seed DB if it's empty
