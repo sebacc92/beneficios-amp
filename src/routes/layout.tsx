@@ -93,8 +93,8 @@ export default component$(() => {
               <Link
                 href="/como-funciona"
                 class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/como-funciona")
-                    ? "text-brand-green border-brand-green"
-                    : "text-slate-500 border-transparent hover:border-brand-green/30"
+                  ? "text-brand-green border-brand-green"
+                  : "text-slate-500 border-transparent hover:border-brand-green/30"
                   }`}
               >
                 Cómo Funciona
@@ -102,8 +102,8 @@ export default component$(() => {
               <Link
                 href="/sorteos"
                 class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/sorteos")
-                    ? "text-brand-green border-brand-green"
-                    : "text-slate-500 border-transparent hover:border-brand-green/30"
+                  ? "text-brand-green border-brand-green"
+                  : "text-slate-500 border-transparent hover:border-brand-green/30"
                   }`}
               >
                 Sorteos
@@ -111,8 +111,8 @@ export default component$(() => {
               <Link
                 href="/sugerencias"
                 class={`font-extrabold text-[14px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-brand-green ${isActive("/sugerencias")
-                    ? "text-brand-green border-brand-green"
-                    : "text-slate-500 border-transparent hover:border-brand-green/30"
+                  ? "text-brand-green border-brand-green"
+                  : "text-slate-500 border-transparent hover:border-brand-green/30"
                   }`}
               >
                 Sugerencias
@@ -309,9 +309,6 @@ export default component$(() => {
                   height={60}
                   class="h-[54px] w-auto object-contain brightness-95"
                 />
-                <span class="text-slate-850 font-display font-black text-lg">
-                  Agremiación Médica Platense
-                </span>
               </div>
               <p class="text-sm text-slate-500 max-w-sm font-medium">
                 Comprometidos con el bienestar de la comunidad médica. Disfrutá de una exclusiva cartilla de más de 250 comercios adheridos, descuentos, y sorteos exclusivos en toda la provincia y el país.

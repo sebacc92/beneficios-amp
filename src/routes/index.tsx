@@ -19,11 +19,11 @@ import {
   LuCreditCard
 } from "@qwikest/icons/lucide";
 
-// Loader to fetch sponsors grid layout
+// Loader to fetch sponsors sorted by display order (y)
 export const useSponsorsData = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
-    return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y, sponsorsTable.x);
+    return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y);
   } catch (err) {
     console.error("Failed to load sponsors on home:", err);
     return [];
@@ -698,35 +698,53 @@ export default component$(() => {
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
               <div 
                 onClick$={() => isCredentialModalOpen.value = true}
-                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
-                <LuSmartphone class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
-                <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Credencial Digital</h3>
-                <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
-                  Tu credencial digital médica integrada. Presentala en los comercios para validar tus descuentos al instante.
-                </p>
+                <div>
+                  <LuSmartphone class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
+                  <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Credencial Digital</h3>
+                  <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
+                    Tu credencial digital médica integrada. Presentala en los comercios para validar tus descuentos al instante.
+                  </p>
+                </div>
+                <div class="mt-6 inline-flex items-center justify-center w-fit px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 group-hover:border-brand-green/30 group-hover:bg-brand-green/5 group-hover:text-brand-green text-slate-600 text-xs font-black uppercase tracking-wider transition-all duration-300">
+                  <span>Ver Credencial</span>
+                  <span class="ml-1.5 transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
+                </div>
               </div>
 
               <div 
                 onClick$={() => isRaffleModalOpen.value = true}
-                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
-                <LuGift class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
-                <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Sorteos de Fin de Mes</h3>
-                <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
-                  Visualizá los sorteos activos, el mecanismo oficial de participación y conocé a los ganadores previos.
-                </p>
+                <div>
+                  <LuGift class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
+                  <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Sorteos de Fin de Mes</h3>
+                  <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
+                    Visualizá los sorteos activos, el mecanismo oficial de participación y conocé a los ganadores previos.
+                  </p>
+                </div>
+                <div class="mt-6 inline-flex items-center justify-center w-fit px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 group-hover:border-brand-green/30 group-hover:bg-brand-green/5 group-hover:text-brand-green text-slate-600 text-xs font-black uppercase tracking-wider transition-all duration-300">
+                  <span>Ver Sorteos</span>
+                  <span class="ml-1.5 transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
+                </div>
               </div>
 
               <div 
                 onClick$={() => isMerchantModalOpen.value = true}
-                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
-                <LuStore class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
-                <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Sumate al Club</h3>
-                <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
-                  ¿Querés sumar tu comercio o empresa al Club AMP+? Envianos tu solicitud y propuesta comercial al instante.
-                </p>
+                <div>
+                  <LuStore class="w-12 h-12 text-brand-green mb-6 stroke-[1.75] group-hover:scale-110 transition-transform duration-300" />
+                  <h3 class="text-xl sm:text-[22px] font-display font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors duration-200">Sumate al Club</h3>
+                  <p class="text-[15px] text-slate-500 mt-3.5 leading-relaxed font-medium">
+                    ¿Querés sumar tu comercio o empresa al Club AMP+? Envianos tu solicitud y propuesta comercial al instante.
+                  </p>
+                </div>
+                <div class="mt-6 inline-flex items-center justify-center w-fit px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 group-hover:border-brand-green/30 group-hover:bg-brand-green/5 group-hover:text-brand-green text-slate-600 text-xs font-black uppercase tracking-wider transition-all duration-300">
+                  <span>Sumar mi Comercio</span>
+                  <span class="ml-1.5 transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
+                </div>
               </div>
             </div>
 
@@ -1145,68 +1163,105 @@ export default component$(() => {
             )}
           </section>
 
-          {/* Brands row */}
-          <section class="bg-white border-y border-slate-100 py-10 print:hidden my-6">
-            <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-              <p class="text-center text-[12px] font-black tracking-widest text-slate-500 uppercase mb-6">Nuestras Marcas Asociadas</p>
-              <div class="flex flex-wrap items-center justify-center gap-6 sm:gap-8 md:gap-10">
+          {/* Brands row - Infinite Scrolling Marquee */}
+          <section class="relative w-full overflow-hidden py-10 select-none bg-white border-y border-slate-100/80 my-6 print:hidden">
+            {/* Glassy edge fades for a premium look */}
+            <div class="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-white via-white/80 to-transparent z-20 pointer-events-none"></div>
+            <div class="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-white via-white/80 to-transparent z-20 pointer-events-none"></div>
+
+            <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+              <p class="text-center text-[12px] font-black tracking-widest text-slate-500 uppercase">Nuestras Marcas Asociadas</p>
+            </div>
+
+            {/* Marquee Track */}
+            <div class="flex w-full overflow-hidden relative">
+              <div class="animate-marquee flex items-center gap-12 py-2 hover:[animation-play-state:paused]">
                 {sponsorsData.value && sponsorsData.value.length > 0 ? (
-                  sponsorsData.value.map((sp) => (
-                    <a 
-                      key={sp.id}
-                      href={sp.linkUrl || "#"}
-                      target={sp.linkUrl ? "_blank" : undefined}
-                      rel={sp.linkUrl ? "noopener noreferrer" : undefined}
-                      class="flex items-center justify-center bg-slate-50 border border-slate-200/60 px-6 py-3 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 hover:border-slate-300 transition-all duration-300 group relative cursor-pointer min-w-[140px] h-[58px]"
-                    >
-                      <img 
-                        src={sp.imageUrl} 
-                        alt={sp.name} 
-                        class="h-8 max-w-[120px] object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300"
-                      />
-                      {/* Tooltip con título de la marca */}
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        {sp.name}
-                      </span>
-                    </a>
-                  ))
+                  <>
+                    {/* First Loop */}
+                    {sponsorsData.value.map((sp) => (
+                      <a 
+                        key={`sp-a-${sp.id}`}
+                        href={sp.linkUrl || "#"}
+                        target={sp.linkUrl ? "_blank" : undefined}
+                        rel={sp.linkUrl ? "noopener noreferrer" : undefined}
+                        class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
+                      >
+                        <img 
+                          src={sp.imageUrl} 
+                          alt={sp.name} 
+                          class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
+                        />
+                        {/* Tooltip con título de la marca */}
+                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
+                          {sp.name}
+                        </span>
+                      </a>
+                    ))}
+                    {/* Second Loop (Seamless Loop Duplicate) */}
+                    {sponsorsData.value.map((sp) => (
+                      <a 
+                        key={`sp-b-${sp.id}`}
+                        href={sp.linkUrl || "#"}
+                        target={sp.linkUrl ? "_blank" : undefined}
+                        rel={sp.linkUrl ? "noopener noreferrer" : undefined}
+                        class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
+                        aria-hidden="true"
+                      >
+                        <img 
+                          src={sp.imageUrl} 
+                          alt={sp.name} 
+                          class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
+                        />
+                        {/* Tooltip con título de la marca */}
+                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
+                          {sp.name}
+                        </span>
+                      </a>
+                    ))}
+                  </>
                 ) : (
                   <>
-                    <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200/60 px-6 py-3.5 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 transition-all duration-300 cursor-default group relative">
-                      <LuHotel class="w-4 h-4 text-brand-green stroke-[2]" />
-                      <span class="text-brand-green font-display font-black text-sm tracking-wider">DAZZLER HOTELES</span>
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        Dazzler Hoteles
-                      </span>
-                    </div>
-                    <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200/60 px-6 py-3.5 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 transition-all duration-300 cursor-default group relative">
-                      <LuDumbbell class="w-4 h-4 text-brand-green stroke-[2]" />
-                      <span class="text-brand-green font-display font-black text-sm tracking-wider">TRED GIMNASIO</span>
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        Tred Gimnasio
-                      </span>
-                    </div>
-                    <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200/60 px-6 py-3.5 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 transition-all duration-300 cursor-default group relative">
-                      <LuUtensils class="w-4 h-4 text-brand-green stroke-[2]" />
-                      <span class="text-brand-green font-display font-black text-sm tracking-wider">MERCADO 55</span>
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        Mercado 55
-                      </span>
-                    </div>
-                    <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200/60 px-6 py-3.5 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 transition-all duration-300 cursor-default group relative">
-                      <LuShoppingBag class="w-4 h-4 text-brand-green stroke-[2]" />
-                      <span class="text-brand-green font-display font-black text-sm tracking-wider">NINI SUPERMERCADO</span>
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        Nini Supermercado
-                      </span>
-                    </div>
-                    <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200/60 px-6 py-3.5 rounded-2xl shadow-sm hover:scale-105 hover:bg-slate-100 transition-all duration-300 cursor-default group relative">
-                      <LuCompass class="w-4 h-4 text-brand-green stroke-[2]" />
-                      <span class="text-brand-green font-display font-black text-sm tracking-wider">FINCA LOS CAUQUENES</span>
-                      <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                        Finca Los Cauquenes
-                      </span>
-                    </div>
+                    {/* Mock loop 1 */}
+                    {[
+                      { name: "Dazzler Hoteles", label: "DAZZLER HOTELES", icon: "hotel" },
+                      { name: "Tred Gimnasio", label: "TRED GIMNASIO", icon: "dumbbell" },
+                      { name: "Mercado 55", label: "MERCADO 55", icon: "utensils" },
+                      { name: "Nini Supermercado", label: "NINI SUPERMERCADO", icon: "shop" },
+                      { name: "Finca Los Cauquenes", label: "FINCA LOS CAUQUENES", icon: "compass" }
+                    ].map((mock, idx) => (
+                      <div key={`mock-a-${idx}`} class="flex items-center space-x-3 p-2 hover:scale-110 transition-all duration-300 cursor-default group relative min-w-[220px] h-[110px] justify-center">
+                        {mock.icon === "hotel" && <LuHotel class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "dumbbell" && <LuDumbbell class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "utensils" && <LuUtensils class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "shop" && <LuShoppingBag class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "compass" && <LuCompass class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
+                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
+                          {mock.name}
+                        </span>
+                      </div>
+                    ))}
+                    {/* Mock loop 2 */}
+                    {[
+                      { name: "Dazzler Hoteles", label: "DAZZLER HOTELES", icon: "hotel" },
+                      { name: "Tred Gimnasio", label: "TRED GIMNASIO", icon: "dumbbell" },
+                      { name: "Mercado 55", label: "MERCADO 55", icon: "utensils" },
+                      { name: "Nini Supermercado", label: "NINI SUPERMERCADO", icon: "shop" },
+                      { name: "Finca Los Cauquenes", label: "FINCA LOS CAUQUENES", icon: "compass" }
+                    ].map((mock, idx) => (
+                      <div key={`mock-b-${idx}`} class="flex items-center space-x-3 p-2 hover:scale-110 transition-all duration-300 cursor-default group relative min-w-[220px] h-[110px] justify-center" aria-hidden="true">
+                        {mock.icon === "hotel" && <LuHotel class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "dumbbell" && <LuDumbbell class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "utensils" && <LuUtensils class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "shop" && <LuShoppingBag class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        {mock.icon === "compass" && <LuCompass class="w-10 h-10 text-brand-green stroke-[2]" />}
+                        <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
+                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
+                          {mock.name}
+                        </span>
+                      </div>
+                    ))}
                   </>
                 )}
               </div>

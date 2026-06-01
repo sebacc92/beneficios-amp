@@ -1,6 +1,6 @@
-import { component$, useSignal, $ } from "@builder.io/qwik";
+import { component$, useSignal, $, useTask$ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuImage, LuBuilding, LuTrash2 } from "@qwikest/icons/lucide";
+import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight } from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable } from "~/db/schema";
@@ -15,7 +15,8 @@ export const useAdminSponsorsLoader = routeLoader$(async (event) => {
   }
   try {
     const db = getDB(event);
-    return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y, sponsorsTable.x);
+    // Sort sponsors by the custom display order field (y)
+    return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y);
   } catch (err) {
     console.error("Failed to load sponsors:", err);
     return [];
@@ -33,9 +34,22 @@ export const useCreateSponsorAction = routeAction$(
       const db = getDB(requestEvent);
       const uuid = "sp-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
-      let uploadedImageUrl = data.imageUrl || "";
+      let uploadedImageUrl = "";
 
-      if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
+      if (data.optimizedImage && data.optimizedImage.startsWith("data:image")) {
+        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+
+        const uploadsDir = `${process.cwd()}/public/uploads`;
+        const fsModule = await import("fs/promises");
+        await fsModule.mkdir(uploadsDir, { recursive: true });
+
+        const fileName = `sponsor-${Date.now()}.webp`;
+        const filePath = `${uploadsDir}/${fileName}`;
+        await fsModule.writeFile(filePath, buffer);
+
+        uploadedImageUrl = `/uploads/${fileName}`;
+      } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
@@ -53,18 +67,22 @@ export const useCreateSponsorAction = routeAction$(
       }
 
       if (!uploadedImageUrl) {
-        return requestEvent.fail(400, { message: "Debe proporcionar una imagen o subir un archivo." });
+        return requestEvent.fail(400, { message: "Debe proporcionar una imagen válida." });
       }
+
+      // Calculate next display order (y) by counting existing sponsors
+      const existingSponsors = await db.select().from(sponsorsTable);
+      const nextOrder = existingSponsors.length;
 
       await db.insert(sponsorsTable).values({
         id: uuid,
         name: data.name,
         imageUrl: uploadedImageUrl,
         linkUrl: data.linkUrl || null,
-        x: Number(data.x || 0),
-        y: Number(data.y || 0),
-        w: Number(data.w || 2),
-        h: Number(data.h || 2),
+        x: 0,
+        y: nextOrder,
+        w: 2,
+        h: 2,
         createdAt: new Date().toISOString(),
       });
 
@@ -76,52 +94,73 @@ export const useCreateSponsorAction = routeAction$(
   },
   zod$({
     name: z.string().min(2, "El nombre del sponsor debe tener al menos 2 caracteres."),
-    imageUrl: z.string().optional(),
     linkUrl: z.string().optional(),
-    x: z.string().optional(),
-    y: z.string().optional(),
-    w: z.string().optional(),
-    h: z.string().optional(),
+    optimizedImage: z.string().optional(),
     image: z.any().optional(),
   })
 );
 
-export const useUpdateSponsorPositionAction = routeAction$(
+export const useUpdateSponsorAction = routeAction$(
   async (data, requestEvent) => {
     const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
     if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
 
     try {
       const db = getDB(requestEvent);
-      const x = Number(data.x);
-      const y = Number(data.y);
-      const w = Number(data.w);
-      const h = Number(data.h);
+      let uploadedImageUrl = data.imageUrl;
 
-      if (x < 0 || x > 5 || w < 1 || w > 6 || x + w > 6) {
-        return requestEvent.fail(400, { message: "Dimensiones de columna inválidas. Máximo 6 de ancho." });
-      }
-      if (y < 0 || h < 1) {
-        return requestEvent.fail(400, { message: "Dimensiones de fila inválidas." });
+      if (data.optimizedImage && data.optimizedImage.startsWith("data:image")) {
+        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+
+        const uploadsDir = `${process.cwd()}/public/uploads`;
+        const fsModule = await import("fs/promises");
+        await fsModule.mkdir(uploadsDir, { recursive: true });
+
+        const fileName = `sponsor-${Date.now()}.webp`;
+        const filePath = `${uploadsDir}/${fileName}`;
+        await fsModule.writeFile(filePath, buffer);
+
+        uploadedImageUrl = `/uploads/${fileName}`;
+      } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
+        const file = data.image as File;
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const uploadsDir = `${process.cwd()}/public/uploads`;
+        const fsModule = await import("fs/promises");
+        await fsModule.mkdir(uploadsDir, { recursive: true });
+
+        const extension = file.name.split(".").pop() || "png";
+        const fileName = `sponsor-${Date.now()}.${extension}`;
+        const filePath = `${uploadsDir}/${fileName}`;
+        await fsModule.writeFile(filePath, buffer);
+
+        uploadedImageUrl = `/uploads/${fileName}`;
       }
 
       await db
         .update(sponsorsTable)
-        .set({ x, y, w, h })
+        .set({
+          name: data.name,
+          imageUrl: uploadedImageUrl,
+          linkUrl: data.linkUrl || null,
+        })
         .where(eq(sponsorsTable.id, data.id));
 
       return { success: true };
     } catch (err: any) {
       console.error("Update sponsor error:", err);
-      return requestEvent.fail(500, { message: "Error al actualizar coordenadas." });
+      return requestEvent.fail(500, { message: err.message || "Error al actualizar el sponsor." });
     }
   },
   zod$({
     id: z.string(),
-    x: z.string(),
-    y: z.string(),
-    w: z.string(),
-    h: z.string(),
+    name: z.string().min(2, "El nombre del sponsor debe tener al menos 2 caracteres."),
+    imageUrl: z.string(),
+    linkUrl: z.string().optional(),
+    optimizedImage: z.string().optional(),
+    image: z.any().optional(),
   })
 );
 
@@ -144,22 +183,99 @@ export const useDeleteSponsorAction = routeAction$(
   })
 );
 
+export const useReorderSponsorsAction = routeAction$(
+  async (data, requestEvent) => {
+    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
+
+    try {
+      const db = getDB(requestEvent);
+      const ids = JSON.parse(data.idsJson) as string[];
+
+      for (let i = 0; i < ids.length; i++) {
+        await db
+          .update(sponsorsTable)
+          .set({ y: i }) // Store sorting rank index in the y coordinate
+          .where(eq(sponsorsTable.id, ids[i]));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Reorder sponsors error:", err);
+      return requestEvent.fail(500, { message: "Error al ordenar." });
+    }
+  },
+  zod$({
+    idsJson: z.string(),
+  })
+);
+
 export default component$(() => {
   const sponsorsLoader = useAdminSponsorsLoader();
   const createSponsorAction = useCreateSponsorAction();
-  const updateSponsorPositionAction = useUpdateSponsorPositionAction();
+  const updateSponsorAction = useUpdateSponsorAction();
   const deleteSponsorAction = useDeleteSponsorAction();
+  const reorderAction = useReorderSponsorsAction();
 
-  const isCreateSponsorOpen = useSignal(false);
+  const isFormOpen = useSignal(false);
+  const editingSponsor = useSignal<any | null>(null);
+
+  // Form Fields signals
+  const formName = useSignal("");
+  const formLinkUrl = useSignal("");
   const sponsorPreviewUrl = useSignal<string | null>(null);
+  const optimizedImageBase64 = useSignal<string>("");
 
-  const sponsors = sponsorsLoader.value;
-  const maxRow = sponsors.reduce((max, sp) => Math.max(max, sp.y + sp.h), 0);
-  const totalRows = Math.max(6, maxRow + 1);
+  // Reorder local signals mirroring database loader
+  const orderedSponsors = useSignal<any[]>([]);
+
+  useTask$(({ track }) => {
+    track(() => sponsorsLoader.value);
+    orderedSponsors.value = [...sponsorsLoader.value];
+  });
+
+  const handleEditClick = $((sp: any) => {
+    editingSponsor.value = sp;
+    formName.value = sp.name;
+    formLinkUrl.value = sp.linkUrl || "";
+    sponsorPreviewUrl.value = sp.imageUrl;
+    optimizedImageBase64.value = "";
+    isFormOpen.value = true;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  const handleNewClick = $(() => {
+    editingSponsor.value = null;
+    formName.value = "";
+    formLinkUrl.value = "";
+    sponsorPreviewUrl.value = null;
+    optimizedImageBase64.value = "";
+    isFormOpen.value = !isFormOpen.value;
+  });
+
+  // Client-side instant reorder with autosave submit
+  const handleMove = $(async (index: number, direction: "left" | "right") => {
+    const arr = [...orderedSponsors.value];
+    const targetIndex = direction === "left" ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= arr.length) return;
+
+    // Swap locally for instant visual feedback
+    const temp = arr[index];
+    arr[index] = arr[targetIndex];
+    arr[targetIndex] = temp;
+    
+    orderedSponsors.value = arr;
+
+    // Autosave new order
+    await reorderAction.submit({
+      idsJson: JSON.stringify(arr.map(s => s.id))
+    });
+  });
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
-      {/* SaaS Dashboard layout header */}
+      {/* Header layout */}
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
@@ -169,38 +285,71 @@ export default component$(() => {
             </span>
           </div>
           <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-            Grilla de Sponsors
+            Sponsors
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
-            Organizá de manera visual e interactiva la disposición 2D de tus auspiciantes en la página de inicio.
+            Gestioná las marcas y auspiciantes asociados que se deslizan en el carrusel de la página de inicio.
           </p>
         </div>
 
         <div class="flex items-center gap-2">
           <button
-            onClick$={() => (isCreateSponsorOpen.value = !isCreateSponsorOpen.value)}
+            onClick$={handleNewClick}
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
-            <span>{isCreateSponsorOpen.value ? "Cerrar Panel" : "Añadir Sponsor"}</span>
+            <span>{isFormOpen.value && !editingSponsor.value ? "Cerrar Panel" : "Añadir Sponsor"}</span>
           </button>
         </div>
       </div>
 
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
-        {/* Create Sponsor Form Panel */}
-        {isCreateSponsorOpen.value && (
-          <Form action={createSponsorAction} enctype="multipart/form-data" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
-            <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Nuevo Sponsor Publicitario</h4>
+        {/* Dynamic Form Panel (Create or Edit) */}
+        {isFormOpen.value && (
+          <Form 
+            action={editingSponsor.value ? updateSponsorAction : createSponsorAction} 
+            enctype="multipart/form-data" 
+            onSubmit$={() => {
+              // Automatically closes form panel upon submission
+              setTimeout(() => {
+                isFormOpen.value = false;
+                editingSponsor.value = null;
+              }, 400);
+            }}
+            class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300"
+          >
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                {editingSponsor.value ? `Editar Sponsor: ${editingSponsor.value.name}` : "Nuevo Sponsor Publicitario"}
+              </h4>
+              {editingSponsor.value && (
+                <button
+                  type="button"
+                  onClick$={() => {
+                    isFormOpen.value = false;
+                    editingSponsor.value = null;
+                  }}
+                  class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+
+            {editingSponsor.value && <input type="hidden" name="id" value={editingSponsor.value.id} />}
+            {editingSponsor.value && <input type="hidden" name="imageUrl" value={editingSponsor.value.imageUrl} />}
+            <input type="hidden" name="optimizedImage" value={optimizedImageBase64.value} />
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre de la Marca</label>
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título / Nombre de la Marca (Tooltip)</label>
                 <input
                   type="text"
                   name="name"
                   required
-                  placeholder="Ej: Dazzler Hoteles"
+                  value={formName.value}
+                  onInput$={(e) => (formName.value = (e.target as HTMLInputElement).value)}
+                  placeholder="Ej: Swiss Medical"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
               </div>
@@ -210,27 +359,29 @@ export default component$(() => {
                 <input
                   type="url"
                   name="linkUrl"
-                  placeholder="Ej: https://dazzler.com"
+                  value={formLinkUrl.value}
+                  onInput$={(e) => (formLinkUrl.value = (e.target as HTMLInputElement).value)}
+                  placeholder="Ej: https://swissmedical.com"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
               </div>
             </div>
 
             {/* Uploader Image Options */}
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Logotipo del Sponsor</label>
-                <div class="flex items-center gap-4">
-                  <div class="w-16 h-16 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {sponsorPreviewUrl.value ? (
-                      <img src={sponsorPreviewUrl.value} alt="Preview" width={64} height={64} class="w-full h-full object-contain" />
-                    ) : (
-                      <LuBuilding class="w-7 h-7 text-slate-400" />
-                    )}
-                  </div>
-                  <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-extrabold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
-                    <LuImage class="w-4 h-4" />
-                    Subir Logo Local
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Logotipo del Sponsor</label>
+              <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-1">
+                <div class="w-24 h-24 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {sponsorPreviewUrl.value ? (
+                    <img src={sponsorPreviewUrl.value} alt="Preview" width={96} height={96} class="w-full h-full object-contain" />
+                  ) : (
+                    <LuBuilding class="w-8 h-8 text-slate-400" />
+                  )}
+                </div>
+                <div class="space-y-2">
+                  <label class="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-650 text-xs font-black rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <LuImage class="w-4 h-4 text-brand-green" />
+                    Subir Logotipo
                     <input
                       type="file"
                       name="image"
@@ -239,338 +390,192 @@ export default component$(() => {
                         const element = event.target as HTMLInputElement;
                         if (!element.files || element.files.length === 0) return;
                         const file = element.files[0];
-                        sponsorPreviewUrl.value = URL.createObjectURL(file);
+
+                        // Keep SVGs raw (as vector graphics are already fully optimized)
+                        if (file.type === "image/svg+xml") {
+                          optimizedImageBase64.value = "";
+                          sponsorPreviewUrl.value = URL.createObjectURL(file);
+                          return;
+                        }
+
+                        // Web Browser HTML5 Canvas Resizer Pipeline
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                          const img = new Image();
+                          img.onload = () => {
+                            const canvas = document.createElement("canvas");
+                            const maxW = 360;
+                            const maxH = 180;
+                            let w = img.width;
+                            let h = img.height;
+
+                            if (w > maxW || h > maxH) {
+                              const ratio = Math.min(maxW / w, maxH / h);
+                              w = Math.round(w * ratio);
+                              h = Math.round(h * ratio);
+                            }
+
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext("2d");
+                            if (ctx) {
+                              ctx.drawImage(img, 0, 0, w, h);
+                              // Export as lightweight transparent WebP format
+                              const dataUrl = canvas.toDataURL("image/webp", 0.85);
+                              optimizedImageBase64.value = dataUrl;
+                              sponsorPreviewUrl.value = dataUrl;
+                            }
+                          };
+                          img.src = e.target?.result as string;
+                        };
+                        reader.readAsDataURL(file);
                       })}
                       class="hidden"
                     />
                   </label>
+                  <p class="text-[10px] text-slate-400 font-medium">Recomendable: imágenes horizontales o cuadradas. Los archivos PNG, JPEG y WebP se optimizarán y convertirán a WebP de forma automática para máxima velocidad de carga.</p>
                 </div>
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Ó ingresar URL de Imagen Externa</label>
-                <input
-                  type="text"
-                  name="imageUrl"
-                  placeholder="https://ejemplo.com/logo.png"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-                />
-                <p class="text-[10px] text-slate-400 font-medium">Recomendable: imágenes horizontales o cuadradas en formato SVG o PNG transparente.</p>
-              </div>
-            </div>
-
-            {/* Initial coordinates */}
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Columna inicial (X)</label>
-                <select name="x" class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none">
-                  <option value="0">Columna 1 (Cero)</option>
-                  <option value="1">Columna 2</option>
-                  <option value="2">Columna 3</option>
-                  <option value="3">Columna 4</option>
-                  <option value="4">Columna 5</option>
-                  <option value="5">Columna 6</option>
-                </select>
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Fila inicial (Y)</label>
-                <input
-                  type="number"
-                  name="y"
-                  value="0"
-                  min="0"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Ancho inicial (Celdas)</label>
-                <select name="w" class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none">
-                  <option value="1">1 Columna</option>
-                  <option value="2" selected>2 Columnas (Mediano)</option>
-                  <option value="3">3 Columnas (Grande)</option>
-                  <option value="4">4 Columnas</option>
-                  <option value="6">6 Columnas (Completo)</option>
-                </select>
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Alto inicial (Celdas)</label>
-                <select name="h" class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none">
-                  <option value="1">1 Fila (Banda)</option>
-                  <option value="2" selected>2 Filas (Caja)</option>
-                  <option value="3">3 Filas (Caja Alta)</option>
-                </select>
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={createSponsorAction.isRunning}
-              class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
+              disabled={createSponsorAction.isRunning || updateSponsorAction.isRunning}
+              class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer active:scale-95"
             >
-              {createSponsorAction.isRunning ? "Registrando..." : "Cargar en Grilla"}
+              {createSponsorAction.isRunning || updateSponsorAction.isRunning ? "Procesando..." : "Guardar Cambios"}
             </button>
           </Form>
         )}
 
         {/* Action Feedbacks */}
         {createSponsorAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
-            ✓ Sponsor agregado exitosamente y posicionado en la grilla.
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-in fade-in duration-300">
+            ✓ Sponsor agregado y optimizado exitosamente.
           </div>
         )}
 
-        {/* VISUAL EDITOR GRIDS */}
-        <div>
-          <div class="flex items-center justify-between mb-4">
-            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tablero Organizador (Grilla Interactiva 6x)</h4>
-            <div class="flex items-center gap-3 text-[10px] font-bold text-slate-400">
-              <span class="inline-flex items-center gap-1">
-                <span class="w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300 inline-block"></span> Columnas (w)
-              </span>
-              <span class="inline-flex items-center gap-1">
-                <span class="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-300 inline-block"></span> Filas (h)
-              </span>
+        {updateSponsorAction.value?.success && (
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-in fade-in duration-300">
+            ✓ Sponsor actualizado y optimizado exitosamente.
+          </div>
+        )}
+
+        {/* Sponsors Cards List Grid */}
+        <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Sponsors Cargados ({orderedSponsors.value.length})</h3>
+              <p class="text-[10px] text-slate-400 font-bold mt-0.5">Ordená la fila usando las flechas. Los cambios se guardan automáticamente en tiempo real.</p>
             </div>
+            {reorderAction.isRunning && (
+              <span class="text-[10px] font-black text-brand-green animate-pulse uppercase tracking-wider bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                Guardando orden...
+              </span>
+            )}
           </div>
-
-          <div class="relative w-full rounded-3xl border border-slate-200 bg-slate-50/60 p-4 min-h-[500px] overflow-x-auto select-none shadow-inner">
-                {/* Grid Guides (Dashed Background Layer) */}
-                <div class="grid grid-cols-6 gap-3 w-full h-full absolute inset-0 p-4 pointer-events-none">
-                  {Array.from({ length: totalRows * 6 }).map((_, i) => {
-                    const col = i % 6;
-                    const row = Math.floor(i / 6);
-                    return (
-                      <div
-                        key={`guide-${i}`}
-                        style={{
-                          gridColumn: `${col + 1} / span 1`,
-                          gridRow: `${row + 1} / span 1`
-                        }}
-                        class="border border-dashed border-slate-250 bg-slate-100/30 rounded-2xl flex flex-col items-center justify-center text-[9px] font-bold text-slate-300 h-24 shadow-sm"
-                      >
-                        <span class="opacity-50">C{col + 1}, F{row + 1}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Active Sponsors Interactive Layer */}
-                <div class="grid grid-cols-6 gap-3 w-full h-full relative z-10">
-                  {sponsors.length === 0 ? (
-                    <div class="col-span-6 h-96 flex flex-col items-center justify-center text-slate-400 text-xs font-semibold gap-2">
-                      <span>La grilla de sponsors está vacía en este momento.</span>
-                      <span class="text-[10px] text-slate-350">Hacé clic en "Añadir Sponsor" para agregar logotipos publicitarios.</span>
-                    </div>
-                  ) : (
-                    sponsors.map((sp) => {
-                      const minHeightPx = sp.h * 96 + (sp.h - 1) * 12; // cell height is 96px, gap-3 is 12px
-                      return (
-                        <div
-                          key={sp.id}
-                          style={{
-                            gridColumn: `${sp.x + 1} / span ${sp.w}`,
-                            gridRow: `${sp.y + 1} / span ${sp.h}`,
-                            minHeight: `${minHeightPx}px`
-                          }}
-                          class="bg-white rounded-2xl border border-slate-200/90 shadow-md flex flex-col items-center justify-between p-3 relative group/card transition-all hover:shadow-xl hover:border-slate-350 hover:-translate-y-0.5 overflow-hidden animate-fade-in"
-                        >
-                          {/* Brand Header */}
-                          <div class="w-full flex justify-between items-start gap-1 text-left">
-                            <span class="text-[9px] font-black uppercase text-slate-400 tracking-wider bg-slate-100 rounded px-1.5 py-0.5 max-w-[70%] truncate">
-                              {sp.name}
-                            </span>
-                            <span class="text-[8px] font-mono font-bold text-[#0a442a] bg-emerald-50 rounded px-1 tracking-tighter">
-                              {sp.w}x{sp.h}
-                            </span>
-                          </div>
-
-                          {/* Logo Display */}
-                          <div class="flex-grow flex items-center justify-center p-2 max-h-[50%]">
-                            <img
-                              src={sp.imageUrl}
-                              alt={sp.name}
-                              class="max-h-16 max-w-full object-contain pointer-events-none"
-                              width={120}
-                              height={64}
-                            />
-                          </div>
-
-                          {/* Visual Dynamic Shifting & Resizing Panel */}
-                          <div class="w-full space-y-2 mt-2 pt-2 border-t border-slate-100">
-                            {/* Position Moving Arrows Row */}
-                            <div class="flex justify-between items-center bg-slate-50 p-1.5 rounded-lg border border-slate-150 gap-1.5">
-                              <span class="text-[8px] font-bold text-slate-400 uppercase tracking-widest pl-1">Posición</span>
-                              <div class="flex items-center gap-1">
-                                {/* Left */}
-                                <Form action={updateSponsorPositionAction} class="inline">
-                                  <input type="hidden" name="id" value={sp.id} />
-                                  <input type="hidden" name="x" value={String(Math.max(0, sp.x - 1))} />
-                                  <input type="hidden" name="y" value={String(sp.y)} />
-                                  <input type="hidden" name="w" value={String(sp.w)} />
-                                  <input type="hidden" name="h" value={String(sp.h)} />
-                                  <button
-                                    type="submit"
-                                    disabled={sp.x === 0}
-                                    class="w-6 h-6 flex items-center justify-center rounded bg-white hover:bg-emerald-50 hover:text-brand-green border border-slate-200 text-slate-600 disabled:opacity-30 disabled:pointer-events-none text-xs font-black shadow-sm transition-all cursor-pointer active:scale-90"
-                                    title="Mover Izquierda"
-                                  >
-                                    ←
-                                  </button>
-                                </Form>
-
-                                {/* Down */}
-                                <Form action={updateSponsorPositionAction} class="inline">
-                                  <input type="hidden" name="id" value={sp.id} />
-                                  <input type="hidden" name="x" value={String(sp.x)} />
-                                  <input type="hidden" name="y" value={String(sp.y + 1)} />
-                                  <input type="hidden" name="w" value={String(sp.w)} />
-                                  <input type="hidden" name="h" value={String(sp.h)} />
-                                  <button
-                                    type="submit"
-                                    class="w-6 h-6 flex items-center justify-center rounded bg-white hover:bg-emerald-50 hover:text-brand-green border border-slate-200 text-slate-600 text-xs font-black shadow-sm transition-all cursor-pointer active:scale-90"
-                                    title="Mover Abajo"
-                                  >
-                                    ↓
-                                  </button>
-                                </Form>
-
-                                {/* Up */}
-                                <Form action={updateSponsorPositionAction} class="inline">
-                                  <input type="hidden" name="id" value={sp.id} />
-                                  <input type="hidden" name="x" value={String(sp.x)} />
-                                  <input type="hidden" name="y" value={String(Math.max(0, sp.y - 1))} />
-                                  <input type="hidden" name="w" value={String(sp.w)} />
-                                  <input type="hidden" name="h" value={String(sp.h)} />
-                                  <button
-                                    type="submit"
-                                    disabled={sp.y === 0}
-                                    class="w-6 h-6 flex items-center justify-center rounded bg-white hover:bg-emerald-50 hover:text-brand-green border border-slate-200 text-slate-600 disabled:opacity-30 disabled:pointer-events-none text-xs font-black shadow-sm transition-all cursor-pointer active:scale-90"
-                                    title="Mover Arriba"
-                                  >
-                                    ↑
-                                  </button>
-                                </Form>
-
-                                {/* Right */}
-                                <Form action={updateSponsorPositionAction} class="inline">
-                                  <input type="hidden" name="id" value={sp.id} />
-                                  <input type="hidden" name="x" value={String(Math.min(6 - sp.w, sp.x + 1))} />
-                                  <input type="hidden" name="y" value={String(sp.y)} />
-                                  <input type="hidden" name="w" value={String(sp.w)} />
-                                  <input type="hidden" name="h" value={String(sp.h)} />
-                                  <button
-                                    type="submit"
-                                    disabled={sp.x + sp.w >= 6}
-                                    class="w-6 h-6 flex items-center justify-center rounded bg-white hover:bg-emerald-50 hover:text-brand-green border border-slate-200 text-slate-600 disabled:opacity-30 disabled:pointer-events-none text-xs font-black shadow-sm transition-all cursor-pointer active:scale-90"
-                                    title="Mover Derecha"
-                                  >
-                                    →
-                                  </button>
-                                </Form>
-                              </div>
-                            </div>
-
-                            {/* Size Stretching Row */}
-                            <div class="flex justify-between items-center bg-slate-50 p-1.5 rounded-lg border border-slate-150 gap-1.5">
-                              <span class="text-[8px] font-bold text-slate-400 uppercase tracking-widest pl-1">Tamaño</span>
-                              <div class="flex items-center gap-1.5">
-                                {/* Columns w */}
-                                <div class="flex border border-slate-200 rounded overflow-hidden shadow-sm">
-                                  {/* w- */}
-                                  <Form action={updateSponsorPositionAction} class="inline">
-                                    <input type="hidden" name="id" value={sp.id} />
-                                    <input type="hidden" name="x" value={String(sp.x)} />
-                                    <input type="hidden" name="y" value={String(sp.y)} />
-                                    <input type="hidden" name="w" value={String(Math.max(1, sp.w - 1))} />
-                                    <input type="hidden" name="h" value={String(sp.h)} />
-                                    <button
-                                      type="submit"
-                                      disabled={sp.w <= 1}
-                                      class="w-6 h-5 flex items-center justify-center bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-30 text-[9px] font-black cursor-pointer border-r border-slate-200"
-                                      title="Reducir Ancho"
-                                    >
-                                      -w
-                                    </button>
-                                  </Form>
-                                  {/* w+ */}
-                                  <Form action={updateSponsorPositionAction} class="inline">
-                                    <input type="hidden" name="id" value={sp.id} />
-                                    <input type="hidden" name="x" value={String(sp.x)} />
-                                    <input type="hidden" name="y" value={String(sp.y)} />
-                                    <input type="hidden" name="w" value={String(Math.min(6 - sp.x, sp.w + 1))} />
-                                    <input type="hidden" name="h" value={String(sp.h)} />
-                                    <button
-                                      type="submit"
-                                      disabled={sp.x + sp.w >= 6}
-                                      class="w-6 h-5 flex items-center justify-center bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-30 text-[9px] font-black cursor-pointer"
-                                      title="Aumentar Ancho"
-                                    >
-                                      +w
-                                    </button>
-                                  </Form>
-                                </div>
-
-                                {/* Rows h */}
-                                <div class="flex border border-slate-200 rounded overflow-hidden shadow-sm">
-                                  {/* h- */}
-                                  <Form action={updateSponsorPositionAction} class="inline">
-                                    <input type="hidden" name="id" value={sp.id} />
-                                    <input type="hidden" name="x" value={String(sp.x)} />
-                                    <input type="hidden" name="y" value={String(sp.y)} />
-                                    <input type="hidden" name="w" value={String(sp.w)} />
-                                    <input type="hidden" name="h" value={String(Math.max(1, sp.h - 1))} />
-                                    <button
-                                      type="submit"
-                                      disabled={sp.h <= 1}
-                                      class="w-6 h-5 flex items-center justify-center bg-white text-amber-800 hover:bg-amber-50 disabled:opacity-30 text-[9px] font-black cursor-pointer border-r border-slate-200"
-                                      title="Reducir Alto"
-                                    >
-                                      -h
-                                    </button>
-                                  </Form>
-                                  {/* h+ */}
-                                  <Form action={updateSponsorPositionAction} class="inline">
-                                    <input type="hidden" name="id" value={sp.id} />
-                                    <input type="hidden" name="x" value={String(sp.x)} />
-                                    <input type="hidden" name="y" value={String(sp.y)} />
-                                    <input type="hidden" name="w" value={String(sp.w)} />
-                                    <input type="hidden" name="h" value={String(sp.h + 1)} />
-                                    <button
-                                      type="submit"
-                                      class="w-6 h-5 flex items-center justify-center bg-white text-amber-800 hover:bg-amber-50 text-[9px] font-black cursor-pointer"
-                                      title="Aumentar Alto"
-                                    >
-                                      +h
-                                    </button>
-                                  </Form>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Floating Delete button */}
-                          <Form action={deleteSponsorAction} class="absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 transition-opacity z-20">
-                            <input type="hidden" name="id" value={sp.id} />
-                            <button
-                              type="submit"
-                              class="p-1 text-red-500 hover:text-red-700 bg-white hover:bg-red-50 rounded-full border border-slate-200 shadow-sm transition-all cursor-pointer"
-                              title="Eliminar Sponsor"
-                            >
-                              <LuTrash2 class="w-3 h-3" />
-                            </button>
-                          </Form>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+          
+          {orderedSponsors.value.length === 0 ? (
+            <div class="h-64 flex flex-col items-center justify-center text-slate-450 text-xs font-bold gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/40">
+              <LuBuilding class="w-10 h-10 text-slate-300" />
+              <div class="text-center space-y-1">
+                <p>No hay sponsors registrados aún.</p>
+                <p class="text-[10px] text-slate-400 font-medium max-w-xs">Hacé clic en "Añadir Sponsor" arriba para registrar tu primer auspiciante.</p>
               </div>
-          </div>
+            </div>
+          ) : (
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {orderedSponsors.value.map((sp, idx) => (
+                <div 
+                  key={sp.id} 
+                  class="relative bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-between group shadow-sm hover:shadow-md transition-all h-60 text-center"
+                >
+                  {/* Logo Preview */}
+                  <div class="h-24 w-full flex items-center justify-center bg-white rounded-xl border border-slate-100 p-3 overflow-hidden shadow-inner">
+                    <img 
+                      src={sp.imageUrl} 
+                      alt={sp.name} 
+                      class="max-h-full max-w-full object-contain" 
+                      width={140}
+                      height={80}
+                      loading="lazy"
+                    />
+                  </div>
+
+                  {/* Sponsor Info */}
+                  <div class="w-full mt-3 text-left px-1">
+                    <h4 class="text-xs font-extrabold text-slate-800 truncate" title={sp.name}>{sp.name}</h4>
+                    <p class="text-[10px] text-slate-400 truncate mt-1">
+                      {sp.linkUrl ? (
+                        <a href={sp.linkUrl} target="_blank" rel="noopener noreferrer" class="text-brand-green font-bold hover:underline">
+                          {sp.linkUrl.replace(/^https?:\/\/(www\.)?/, "")}
+                        </a>
+                      ) : (
+                        "Sin enlace de redirección"
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Move left / right sorting buttons */}
+                  <div class="flex items-center justify-between w-full border-t border-slate-200/60 pt-3 mt-3">
+                    <button
+                      type="button"
+                      disabled={idx === 0 || reorderAction.isRunning}
+                      onClick$={() => handleMove(idx, "left")}
+                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-green disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[10px] font-bold flex items-center gap-1 leading-none"
+                      title="Mover a la izquierda"
+                    >
+                      <LuArrowLeft class="w-3 h-3" />
+                      <span>Izq</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={idx === orderedSponsors.value.length - 1 || reorderAction.isRunning}
+                      onClick$={() => handleMove(idx, "right")}
+                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-green disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[10px] font-bold flex items-center gap-1 leading-none"
+                      title="Mover a la derecha"
+                    >
+                      <span>Der</span>
+                      <LuArrowRight class="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Floating Action Controls */}
+                  <div class="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick$={() => handleEditClick(sp)}
+                      class="p-1.5 text-slate-500 hover:text-brand-green bg-white hover:bg-slate-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      title="Editar Sponsor"
+                    >
+                      <LuPencil class="w-3.5 h-3.5" />
+                    </button>
+                    <Form 
+                      action={deleteSponsorAction} 
+                      onSubmit$={(ev) => {
+                        if (!window.confirm(`¿Estás seguro de que deseas eliminar el sponsor "${sp.name}"?`)) {
+                          ev.preventDefault();
+                        }
+                      }}
+                    >
+                      <input type="hidden" name="id" value={sp.id} />
+                      <button
+                        type="submit"
+                        class="p-1.5 text-red-500 hover:text-red-700 bg-white hover:bg-red-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        title="Eliminar Sponsor"
+                      >
+                        <LuTrash2 class="w-3.5 h-3.5" />
+                      </button>
+                    </Form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+    </div>
   );
 });
 
@@ -579,7 +584,7 @@ export const head: DocumentHead = {
   meta: [
     {
       name: "description",
-      content: "Administrar sponsors modular grid.",
+      content: "Administrar sponsors asociados.",
     },
   ],
 };
