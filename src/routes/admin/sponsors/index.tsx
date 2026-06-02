@@ -1,4 +1,5 @@
 import { component$, useSignal, $, useTask$ } from "@builder.io/qwik";
+import { put } from "@vercel/blob";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight } from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
@@ -35,6 +36,8 @@ export const useCreateSponsorAction = routeAction$(
       const uuid = "sp-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
       let uploadedImageUrl = "";
+      let isBlob = false;
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
         const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
@@ -44,31 +47,53 @@ export const useCreateSponsorAction = routeAction$(
         for (let i = 0; i < len; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
+        
         const fileName = `sponsor-${Date.now()}.webp`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, bytes);
 
-        uploadedImageUrl = `/uploads/${fileName}`;
+        if (token) {
+          try {
+            const blob = await put(fileName, bytes, { access: "public", token });
+            uploadedImageUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, bytes);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
+
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
         const arrayBuffer = await file.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
         const extension = file.name.split(".").pop() || "png";
         const fileName = `sponsor-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
 
-        uploadedImageUrl = `/uploads/${fileName}`;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedImageUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
       }
 
       if (!uploadedImageUrl) {
@@ -113,6 +138,8 @@ export const useUpdateSponsorAction = routeAction$(
     try {
       const db = getDB(requestEvent);
       let uploadedImageUrl = data.imageUrl;
+      let isBlob = false;
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
         const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
@@ -123,30 +150,52 @@ export const useUpdateSponsorAction = routeAction$(
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
         const fileName = `sponsor-${Date.now()}.webp`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, bytes);
 
-        uploadedImageUrl = `/uploads/${fileName}`;
+        if (token) {
+          try {
+            const blob = await put(fileName, bytes, { access: "public", token });
+            uploadedImageUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, bytes);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
         const arrayBuffer = await file.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
 
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
         const extension = file.name.split(".").pop() || "png";
         const fileName = `sponsor-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
 
-        uploadedImageUrl = `/uploads/${fileName}`;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedImageUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
       }
 
       await db

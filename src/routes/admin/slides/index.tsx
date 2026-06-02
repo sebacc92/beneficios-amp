@@ -1,4 +1,5 @@
 import { component$, useSignal, useStore, $, useTask$ } from "@builder.io/qwik";
+import { put } from "@vercel/blob";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { 
   LuPlus, 
@@ -51,32 +52,64 @@ export const useCreateSlideAction = routeAction$(
       let uploadedDesktopUrl = data.imageUrl || "";
       let uploadedMobileUrl = data.imageMobileUrl || "";
 
-      const uploadsDir = `${process.cwd()}/public/uploads`;
-      const fsModule = await import("fs/promises");
-      await fsModule.mkdir(uploadsDir, { recursive: true });
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       // Handle Desktop Image
       if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
         const file = data.imageDesktop as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-desk-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        uploadedDesktopUrl = `/uploads/${fileName}`;
+        
+        let isBlob = false;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedDesktopUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedDesktopUrl = `/uploads/${fileName}`;
+        }
       }
 
       // Handle Mobile Image
       if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
         const file = data.imageMobile as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-mob-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        uploadedMobileUrl = `/uploads/${fileName}`;
+        
+        let isBlob = false;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedMobileUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedMobileUrl = `/uploads/${fileName}`;
+        }
       }
 
       if (!uploadedDesktopUrl) {
@@ -132,32 +165,64 @@ export const useUpdateSlideAction = routeAction$(
       let uploadedDesktopUrl = data.imageUrl || existing[0].imageUrl;
       let uploadedMobileUrl = data.imageMobileUrl || existing[0].imageMobile || "";
 
-      const uploadsDir = `${process.cwd()}/public/uploads`;
-      const fsModule = await import("fs/promises");
-      await fsModule.mkdir(uploadsDir, { recursive: true });
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       // Handle Desktop Image
       if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
         const file = data.imageDesktop as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-desk-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        uploadedDesktopUrl = `/uploads/${fileName}`;
+
+        let isBlob = false;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedDesktopUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedDesktopUrl = `/uploads/${fileName}`;
+        }
       }
 
       // Handle Mobile Image
       if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
         const file = data.imageMobile as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-mob-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-        uploadedMobileUrl = `/uploads/${fileName}`;
+
+        let isBlob = false;
+        if (token) {
+          try {
+            const blob = await put(fileName, file, { access: "public", token });
+            uploadedMobileUrl = blob.url;
+            isBlob = true;
+          } catch (e) {
+            console.error("Vercel Blob failed, fallback to fs", e);
+          }
+        }
+
+        if (!isBlob) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedMobileUrl = `/uploads/${fileName}`;
+        }
       }
 
       await db.update(heroSlidesTable).set({
