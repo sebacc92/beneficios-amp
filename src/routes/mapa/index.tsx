@@ -1,0 +1,342 @@
+import { component$, useSignal, useVisibleTask$, useComputed$ } from "@builder.io/qwik";
+import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
+import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
+
+import { LuMapPin, LuCrown, LuList, LuSearch, LuFilter, LuRefreshCw } from "@qwikest/icons/lucide";
+
+// Server Loader to fetch all benefits that have coordinates and all filters
+export const useBenefitsMapData = routeLoader$(async (event) => {
+  const searchResult = await searchBenefits({
+    limit: 1000,
+    requestEvent: event
+  });
+  
+  const filters = await getFilters();
+
+  return {
+    benefits: searchResult.data.filter(b => b.latitud && b.longitud && !isNaN(Number(b.latitud)) && !isNaN(Number(b.longitud))),
+    filters
+  };
+});
+
+export default component$(() => {
+  const location = useLocation();
+  const data = useBenefitsMapData();
+
+
+  // Reactive state signals for client-side filtering
+  const searchQuery = useSignal(location.url.searchParams.get("buscar") || "");
+  const selectedCategory = useSignal<number | null>(
+    location.url.searchParams.get("categoria") ? Number(location.url.searchParams.get("categoria")) : null
+  );
+  const premiumOnly = useSignal(location.url.searchParams.get("gold") === "1");
+
+  const visibleCount = useSignal(0);
+  const isMapLoaded = useSignal(false);
+  const mapRef = useSignal<any>(null);
+  const markersGroupRef = useSignal<any>(null);
+
+  // Sync state signals to URL parameters without reloading
+  useVisibleTask$(({ track }) => {
+    track(() => searchQuery.value);
+    track(() => selectedCategory.value);
+    track(() => premiumOnly.value);
+
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    if (searchQuery.value.trim()) {
+      url.searchParams.set("buscar", searchQuery.value.trim());
+    } else {
+      url.searchParams.delete("buscar");
+    }
+
+    if (selectedCategory.value) {
+      url.searchParams.set("categoria", String(selectedCategory.value));
+    } else {
+      url.searchParams.delete("categoria");
+    }
+
+    if (premiumOnly.value) {
+      url.searchParams.set("gold", "1");
+    } else {
+      url.searchParams.delete("gold");
+    }
+
+    window.history.replaceState({}, "", url.toString());
+  });
+
+  // Calculate dynamic Listado URL
+  const listadoHref = useComputed$(() => {
+    const params = new URLSearchParams();
+    if (searchQuery.value.trim()) params.set("buscar", searchQuery.value.trim());
+    if (selectedCategory.value) params.set("categoria", String(selectedCategory.value));
+    if (premiumOnly.value) params.set("gold", "1");
+    return `/beneficios?${params.toString()}`;
+  });
+
+  // Loader for Leaflet JS and CSS stylesheets
+  useVisibleTask$(() => {
+    const checkAndLoad = () => {
+      if (typeof window !== "undefined" && (window as any).L) {
+        isMapLoaded.value = true;
+      } else {
+        setTimeout(checkAndLoad, 50);
+      }
+    };
+
+    if (document.getElementById("leaflet-css") && typeof window !== "undefined" && (window as any).L) {
+      isMapLoaded.value = true;
+    } else {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = () => {
+        checkAndLoad();
+      };
+      document.head.appendChild(script);
+    }
+  });
+
+  // Initialize the Leaflet map object
+  useVisibleTask$(({ track }) => {
+    track(() => isMapLoaded.value);
+
+    if (!isMapLoaded.value || typeof window === "undefined" || mapRef.value) return;
+
+    const L = (window as any).L;
+    if (!L) return;
+
+    // Center coordinates for La Plata, Argentina
+    const defaultCenter = [-34.9214, -57.9545];
+    const map = L.map("map-view-container", {
+      scrollWheelZoom: true,
+      zoomControl: false
+    }).setView(defaultCenter, 13);
+
+    // Place zoom controls on bottom-right to avoid overlap with floating panel
+    L.control.zoom({
+      position: "bottomright"
+    }).addTo(map);
+
+    mapRef.value = map;
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: "abcd",
+      maxZoom: 20
+    }).addTo(map);
+
+    const markersGroup = L.featureGroup().addTo(map);
+    markersGroupRef.value = markersGroup;
+  });
+
+  // Re-build markers dynamically based on filter values
+  useVisibleTask$(({ track }) => {
+    track(() => isMapLoaded.value);
+    track(() => searchQuery.value);
+    track(() => selectedCategory.value);
+    track(() => premiumOnly.value);
+
+    if (!isMapLoaded.value || !mapRef.value || !markersGroupRef.value) return;
+
+    const L = (window as any).L;
+    const markersGroup = markersGroupRef.value;
+    markersGroup.clearLayers();
+
+    const goldIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const greenIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const query = searchQuery.value.toLowerCase().trim();
+    const catId = selectedCategory.value;
+    const goldOnly = premiumOnly.value;
+
+    const filtered = data.value.benefits.filter((b: Benefit) => {
+      if (goldOnly && !b.isPremiumOnly) return false;
+      if (catId && !b.categorias.some(c => c.id === catId)) return false;
+      if (query) {
+        const titleMatch = b.titulo.toLowerCase().includes(query);
+        const descMatch = b.descripcion.toLowerCase().includes(query);
+        const catMatch = b.categorias.some(c => c.descripcion.toLowerCase().includes(query));
+        return titleMatch || descMatch || catMatch;
+      }
+      return true;
+    });
+
+    filtered.forEach((benefit) => {
+      const lat = Number(benefit.latitud);
+      const lng = Number(benefit.longitud);
+
+      const discountText = benefit.resumen || "Descuento Exclusivo";
+      const primaryCat = benefit.categorias[0]?.descripcion || "Beneficios";
+      const imageSrc = benefit.imagen
+        ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
+        : "";
+
+      const popupHTML = `
+        <div class="font-sans max-w-[240px] text-slate-800 text-left p-1">
+          ${imageSrc ? `<img src="${imageSrc}" alt="${benefit.titulo}" class="w-full h-24 object-cover rounded-xl mb-2.5 shadow-sm" />` : ""}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black ${benefit.isPremiumOnly ? "bg-brand-gold text-slate-950" : "bg-brand-green/10 text-brand-green"} uppercase tracking-wider mb-1">
+            ${primaryCat} ${benefit.isPremiumOnly ? "★ GOLD" : ""}
+          </span>
+          <h3 class="text-sm font-extrabold text-slate-900 leading-tight mb-1 line-clamp-2">${benefit.titulo}</h3>
+          <p class="text-xs font-black text-brand-green-dark bg-emerald-50 border border-emerald-100/50 rounded-lg py-1 px-2 mb-2 text-center uppercase tracking-wide">
+            ${discountText.replace("Descuento del", "").trim()}
+          </p>
+          <a href="/beneficio/${benefit.url}" class="block text-center text-xs font-bold text-white bg-brand-green hover:bg-brand-green-light py-2 rounded-xl transition-colors shadow-sm">
+            Ver beneficio &rarr;
+          </a>
+        </div>
+      `;
+
+      L.marker([lat, lng], { icon: benefit.isPremiumOnly ? goldIcon : greenIcon })
+        .bindPopup(popupHTML)
+        .addTo(markersGroup);
+    });
+
+    visibleCount.value = filtered.length;
+
+    if (filtered.length > 0) {
+      try {
+        setTimeout(() => {
+          mapRef.value.fitBounds(markersGroup.getBounds(), { padding: [40, 40] });
+        }, 50);
+      } catch (e) {
+        console.error("Error setting bounds:", e);
+      }
+    }
+  });
+
+  return (
+    <div class="relative w-full h-[calc(100vh-140px)] min-h-[500px] md:h-[650px] overflow-hidden flex flex-col">
+      {/* Map Container Element */}
+      <div id="map-view-container" class="absolute inset-0 w-full h-full z-0" />
+
+      {/* Floating Modern Glassmorphism Controls Card */}
+      <div class="absolute top-4 left-4 z-10 max-w-sm w-[90%] bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-3xl p-5 flex flex-col gap-4 text-slate-800 pointer-events-auto animate-slide-in-left">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full bg-brand-green/10 flex items-center justify-center">
+              <LuMapPin class="w-4 h-4 text-brand-green" />
+            </div>
+            <div>
+              <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 leading-none">Beneficios AMP+</h2>
+              <span class="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5 block">
+                {visibleCount.value} sucursales visibles
+              </span>
+            </div>
+          </div>
+          <Link
+            href={listadoHref.value}
+            class="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-brand-green bg-slate-50 hover:bg-brand-green/5 text-slate-600 hover:text-brand-green text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer"
+          >
+            <LuList class="w-3.5 h-3.5" />
+            <span>Listado</span>
+          </Link>
+        </div>
+
+        {/* Text Search Box */}
+        <div class="relative">
+          <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Buscar</label>
+          <div class="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Ej: Gimnasio, Helado, Cafetería..."
+              value={searchQuery.value}
+              onInput$={(ev, el) => {
+                searchQuery.value = el.value;
+              }}
+              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+            />
+            <LuSearch class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Category Select Input */}
+        <div>
+          <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Categoría</label>
+          <div class="relative flex items-center">
+            <select
+              value={selectedCategory.value || ""}
+              onChange$={(ev, el) => {
+                selectedCategory.value = el.value ? Number(el.value) : null;
+              }}
+              class="w-full bg-slate-50 text-slate-800 text-xs px-8 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all appearance-none cursor-pointer"
+            >
+              <option value="">Todas las categorías</option>
+              {data.value.filters.categorias.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.descripcion}</option>
+              ))}
+            </select>
+            <LuFilter class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+            <div class="absolute right-3 pointer-events-none text-slate-400 text-xs">▼</div>
+          </div>
+        </div>
+
+        {/* Premium Gold Toggle */}
+        <div class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="flex items-center space-x-2">
+            <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold/10" />
+            <span class="text-xs font-extrabold text-slate-700">Socios Premium (Gold)</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={premiumOnly.value}
+              onChange$={(ev, el) => {
+                premiumOnly.value = el.checked;
+              }}
+              class="sr-only peer"
+            />
+            <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-green"></div>
+          </label>
+        </div>
+
+        {/* Reset Filters button */}
+        {(searchQuery.value.trim() || selectedCategory.value || premiumOnly.value) && (
+          <button
+            onClick$={() => {
+              searchQuery.value = "";
+              selectedCategory.value = null;
+              premiumOnly.value = false;
+            }}
+            class="w-full flex items-center justify-center space-x-1.5 py-2.5 rounded-xl border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-slate-650 hover:text-red-700 text-xs font-bold transition-all cursor-pointer"
+          >
+            <LuRefreshCw class="w-3.5 h-3.5" />
+            <span>Restablecer Filtros</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
+export const head: DocumentHead = {
+  title: "Mapa de Beneficios - Club AMP+",
+  meta: [
+    {
+      name: "description",
+      content: "Explorá todos los beneficios y descuentos de la Agremiación Médica Platense cerca tuyo en el mapa.",
+    },
+  ],
+};

@@ -4,6 +4,7 @@ import {
   $,
   useVisibleTask$,
   useSignal,
+  useOnWindow,
 } from "@builder.io/qwik";
 
 interface Message {
@@ -30,6 +31,17 @@ export const Chatbot = component$(() => {
 
   const inputValue = useSignal("");
   const messagesContainerRef = useSignal<HTMLDivElement>();
+  const hasScrolled = useSignal(false);
+
+  // Monitor scroll height to slide chatbot launcher and window up/down
+  useOnWindow(
+    "scroll",
+    $(() => {
+      requestAnimationFrame(() => {
+        hasScrolled.value = window.scrollY > 300;
+      });
+    }),
+  );
 
   // Fetch settings from server on mount
   useVisibleTask$(async () => {
@@ -120,7 +132,7 @@ export const Chatbot = component$(() => {
 
   if (!state.enabled) return null;
 
-  const bottomPos = "bottom-6 sm:bottom-8";
+  const bottomPos = hasScrolled.value ? "bottom-24 sm:bottom-28" : "bottom-6 sm:bottom-8";
 
   return (
     <>
@@ -135,11 +147,11 @@ export const Chatbot = component$(() => {
       <button
         onClick$={() => (state.isOpen = !state.isOpen)}
         class={[
-          "fixed right-6 z-50 flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 shadow-2xl shadow-slate-900/40 transition-all duration-300 hover:scale-105 active:scale-95",
+          "fixed right-6 z-50 flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 shadow-2xl shadow-slate-900/40 transition-all duration-300 hover:scale-105 active:scale-95 h-14 w-14 sm:h-16 sm:w-16",
           bottomPos,
           state.isOpen
-            ? "h-14 w-14 border-slate-700 bg-slate-900 text-white p-3"
-            : "h-14 w-14 sm:h-16 sm:w-16 border-brand-gold bg-brand-green text-white p-3.5",
+            ? "border-slate-700 bg-slate-900 text-white p-3"
+            : "border-brand-gold bg-brand-green text-white p-3.5",
         ]}
         aria-label="Abrir asistente virtual"
       >
@@ -184,9 +196,7 @@ export const Chatbot = component$(() => {
         <div
           class={[
             "animate-in slide-in-from-bottom-5 fade-in fixed right-4 z-[100] flex h-[34rem] max-h-[85vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96",
-            bottomPos === "bottom-6 sm:bottom-8"
-              ? "bottom-24 sm:bottom-28"
-              : "bottom-24",
+            hasScrolled.value ? "bottom-44 sm:bottom-48" : "bottom-24 sm:bottom-28",
           ]}
         >
           {/* Header */}
