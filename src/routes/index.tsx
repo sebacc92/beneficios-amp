@@ -3,6 +3,7 @@ import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@bu
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
+import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import { getSettings } from "~/server/chatbotDb";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
@@ -136,7 +137,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   };
 });
 
-export const submitMerchantRequest = server$(async function(data: {
+export const submitMerchantRequest = server$(async function (data: {
   businessName: string;
   category: string;
   contactName: string;
@@ -184,58 +185,6 @@ export const submitMerchantRequest = server$(async function(data: {
     return { success: false, message: "Hubo un error al procesar tu solicitud." };
   }
 });
-
-
-const parseDate = (dateStr?: string) => {
-  if (!dateStr) return null;
-  const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
-  const date = new Date(normalized);
-  return isNaN(date.getTime()) ? null : date;
-};
-
-const formatDate = (dateStr?: string) => {
-  const date = parseDate(dateStr);
-  if (!date) return "Reciente";
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
-
-const getTimeAgo = (dateStr?: string) => {
-  const date = parseDate(dateStr);
-  if (!date) return "Nuevo";
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffWeeks = Math.floor(diffDays / 7);
-  const diffMonths = Math.floor(diffDays / 30);
-
-  if (diffDays < 1) {
-    if (diffHours < 1) {
-      return "Hace instantes";
-    }
-    return `Hace ${diffHours} h`;
-  }
-  if (diffDays === 1) {
-    return "Desde ayer";
-  }
-  if (diffDays < 7) {
-    return `Hace ${diffDays} días`;
-  }
-  if (diffWeeks === 1) {
-    return "Hace 1 sem";
-  }
-  if (diffWeeks < 4) {
-    return `Hace ${diffWeeks} sem`;
-  }
-  if (diffMonths === 1) {
-    return "Hace 1 mes";
-  }
-  return `Hace ${diffMonths} meses`;
-};
 
 export default component$(() => {
   const location = useLocation();
@@ -445,54 +394,7 @@ export default component$(() => {
               <div id="gold-container" class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
                 {curatedRows.gold.map((benefit: Benefit) => (
                   <div key={`gold-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-                    <Link
-                      href={`/beneficio/${benefit.url}`}
-                      class="group block bg-[#091522] border border-[#d4af37]/35 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-[#d4af37]/10 hover:-translate-y-1 transition-all duration-300 relative h-[348px]"
-                    >
-                      <div class="relative h-44 bg-slate-900 overflow-hidden flex items-center justify-center">
-                        {benefit.imagen ? (
-                          <img
-                            src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                            alt={benefit.titulo}
-                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                            width={320}
-                            height={176}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-950 to-slate-900">
-                            <span class="text-brand-gold font-display font-black text-2xl">AMP+ GOLD</span>
-                            <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
-                          </div>
-                        )}
-                        <div class="absolute top-3.5 left-3.5 z-10">
-                          <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[11px] font-black bg-brand-gold text-slate-950 uppercase tracking-widest shadow-sm">
-                            {benefit.categorias[0]?.descripcion || "Premium"}
-                          </span>
-                        </div>
-                        <div class="absolute top-3.5 right-3.5 z-10">
-                          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-950/80 text-brand-gold backdrop-blur-sm tracking-wider">
-                            ★ GOLD
-                          </span>
-                        </div>
-                      </div>
-                      <div class="p-6 flex flex-col justify-between h-[172px] bg-[#091522] text-left">
-                        <div class="space-y-1">
-                          <h3 class="text-[13px] font-black text-brand-gold/80 uppercase tracking-wider truncate">
-                            {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                          </h3>
-                          <h4 class="text-[17px] font-display font-extrabold text-white line-clamp-2 leading-snug group-hover:text-brand-gold transition-colors duration-200">
-                            {benefit.titulo}
-                          </h4>
-                        </div>
-                        <div class="flex items-center justify-between pt-3 border-t border-slate-800">
-                          <span class="text-[12.5px] font-black text-brand-gold/70 uppercase tracking-wider">Membresía Gold</span>
-                          <span class="inline-flex items-center px-4.5 py-2 rounded-xl text-[15px] font-black bg-brand-gold text-slate-950 shadow-md uppercase tracking-wide border border-[#d4af37]/30">
-                            {benefit.resumen.replace("Descuento del", "").trim()}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
+                    <BenefitCard benefit={benefit} variant="gold" />
                   </div>
                 ))}
               </div>
@@ -540,72 +442,11 @@ export default component$(() => {
               </div>
 
               <div id="nuevos-container" class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-                {curatedRows.nuevos.map((benefit: Benefit) => {
-                  const dateVal = benefit.created_at || (benefit as any).createdAt;
-                  const timeAgo = getTimeAgo(dateVal);
-                  const formattedDate = formatDate(dateVal);
-                  return (
-                    <div key={`new-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-                      <Link
-                        href={`/beneficio/${benefit.url}`}
-                        class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative h-[372px]"
-                      >
-                        <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                          {benefit.imagen ? (
-                            <img
-                              src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                              alt={benefit.titulo}
-                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              width={320}
-                              height={176}
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
-                              <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-                              <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{benefit.categorias[0]?.descripcion}</span>
-                            </div>
-                          )}
-                          <div class="absolute top-3 left-3 z-10 flex items-center justify-between w-[calc(100%-1.5rem)]">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-black bg-slate-950/60 text-slate-100 backdrop-blur-sm border border-slate-800/40 uppercase tracking-widest leading-none">
-                              {benefit.categorias[0]?.descripcion || "Especial"}
-                            </span>
-                            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[9px] font-black bg-slate-950/70 text-emerald-400 backdrop-blur-sm border border-emerald-500/25 tracking-widest uppercase leading-none">
-                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                              <span>{timeAgo}</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div class="p-6 flex flex-col justify-between h-[196px] bg-white text-left">
-                          <div class="space-y-1.5">
-                            <h3 class="text-[12px] font-black text-slate-400 uppercase tracking-widest truncate leading-none">
-                              {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                            </h3>
-                            <h4 class="text-[15.5px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
-                              {benefit.titulo}
-                            </h4>
-                          </div>
-                          <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-                            <div class="flex items-center space-x-2 text-left">
-                              <div class="w-7 h-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                              <div class="flex flex-col">
-                                <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">Inicio</span>
-                                <span class="text-[12px] font-bold text-slate-600 tracking-tight mt-0.5 leading-none">{formattedDate}</span>
-                              </div>
-                            </div>
-                            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100/70 shadow-sm uppercase tracking-wide">
-                              {benefit.resumen.replace("Descuento del", "").trim()}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                    </div>
-                  );
-                })}
+                {curatedRows.nuevos.map((benefit: Benefit) => (
+                  <div key={`new-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
+                    <BenefitCard benefit={benefit} variant="new" />
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -696,7 +537,7 @@ export default component$(() => {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-              <div 
+              <div
                 onClick$={() => isCredentialModalOpen.value = true}
                 class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
@@ -713,7 +554,7 @@ export default component$(() => {
                 </div>
               </div>
 
-              <div 
+              <div
                 onClick$={() => isRaffleModalOpen.value = true}
                 class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
@@ -730,7 +571,7 @@ export default component$(() => {
                 </div>
               </div>
 
-              <div 
+              <div
                 onClick$={() => isMerchantModalOpen.value = true}
                 class="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
               >
@@ -752,13 +593,13 @@ export default component$(() => {
             {isCredentialModalOpen.value && (
               <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
                 <div class="max-w-md w-full bg-white rounded-[2rem] p-8 shadow-2xl relative border border-slate-100 flex flex-col items-center text-center overflow-hidden">
-                  <button 
+                  <button
                     onClick$={() => isCredentialModalOpen.value = false}
                     class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all"
                   >
                     ✕
                   </button>
-                  
+
                   <div class="mb-6">
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-brand-green/10 text-brand-green border border-brand-green/20 uppercase tracking-widest leading-none">
                       AMP+ Wallet
@@ -771,7 +612,7 @@ export default component$(() => {
                       <div class="w-full h-52 bg-gradient-to-br from-brand-green-dark to-brand-green text-white rounded-2xl p-6 relative shadow-lg overflow-hidden flex flex-col justify-between text-left border border-emerald-400/25">
                         <div class="absolute right-0 top-0 w-36 h-36 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none"></div>
                         <div class="absolute left-1/3 bottom-0 w-44 h-44 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                        
+
                         <div class="flex items-center justify-between">
                           <div class="flex flex-col">
                             <span class="text-[9px] font-black text-brand-gold uppercase tracking-wider leading-none">Portal Oficial</span>
@@ -813,7 +654,7 @@ export default component$(() => {
                           <rect x="0" y="75" width="25" height="25" fill="currentColor" />
                           <rect x="3" y="78" width="19" height="19" fill="white" />
                           <rect x="7" y="82" width="11" height="11" fill="currentColor" />
-                          
+
                           <rect x="70" y="70" width="10" height="10" fill="currentColor" />
                           <rect x="72" y="72" width="6" height="6" fill="white" />
                           <rect x="74" y="74" width="2" height="2" fill="currentColor" />
@@ -823,21 +664,21 @@ export default component$(() => {
                           <rect x="60" y="10" width="10" height="5" />
                           <rect x="30" y="20" width="15" height="5" />
                           <rect x="50" y="20" width="5" height="15" />
-                          
+
                           <rect x="5" y="35" width="10" height="5" />
                           <rect x="20" y="30" width="5" height="10" />
                           <rect x="0" y="45" width="15" height="5" />
                           <rect x="25" y="45" width="10" height="10" />
-                          
+
                           <rect x="35" y="35" width="30" height="5" />
                           <rect x="40" y="45" width="5" height="15" />
                           <rect x="55" y="45" width="15" height="5" />
                           <rect x="35" y="60" width="15" height="5" />
-                          
+
                           <rect x="75" y="35" width="10" height="10" />
                           <rect x="90" y="40" width="5" height="15" />
                           <rect x="80" y="55" width="15" height="5" />
-                          
+
                           <rect x="35" y="75" width="5" height="15" />
                           <rect x="45" y="85" width="15" height="5" />
                           <rect x="60" y="75" width="5" height="20" />
@@ -858,7 +699,7 @@ export default component$(() => {
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
                       </div>
-                      
+
                       <div class="space-y-2">
                         <h4 class="text-lg font-display font-extrabold text-slate-800">Credencial Protegida</h4>
                         <p class="text-slate-500 text-[13.5px] leading-relaxed max-w-xs font-medium">
@@ -867,8 +708,8 @@ export default component$(() => {
                       </div>
 
                       <div class="pt-2 w-full">
-                        <Link 
-                          href="/login" 
+                        <Link
+                          href="/login"
                           class="w-full block bg-brand-green hover:bg-brand-green-dark text-white py-3.5 px-6 rounded-2xl font-extrabold text-sm uppercase tracking-wider transition-all shadow-md shadow-brand-green/20"
                         >
                           Iniciar Sesión
@@ -884,7 +725,7 @@ export default component$(() => {
             {isRaffleModalOpen.value && (
               <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
                 <div class="max-w-xl w-full bg-white rounded-[2rem] p-8 shadow-2xl relative border border-slate-100 flex flex-col overflow-y-auto max-h-[85vh] text-left text-slate-800">
-                  <button 
+                  <button
                     onClick$={() => isRaffleModalOpen.value = false}
                     class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all"
                   >
@@ -905,7 +746,7 @@ export default component$(() => {
                     {/* Premios */}
                     <div class="space-y-3 bg-slate-50 border border-slate-100 p-5 rounded-2xl">
                       <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest leading-none border-b border-slate-200/60 pb-2">Premios Activos - Sorteo de Junio</h4>
-                      
+
                       <div class="space-y-3 pt-1">
                         <div class="flex items-start space-x-3">
                           <span class="text-xl">🏆</span>
@@ -947,7 +788,7 @@ export default component$(() => {
                     {/* Ganadores Previos */}
                     <div class="space-y-3">
                       <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Médicos Ganadores Recientes</h4>
-                      
+
                       <div class="space-y-2">
                         <div class="flex justify-between items-center text-xs font-semibold bg-emerald-50/50 border border-emerald-100/50 px-4 py-2.5 rounded-xl">
                           <div class="flex items-center space-x-2">
@@ -983,7 +824,7 @@ export default component$(() => {
             {isMerchantModalOpen.value && (
               <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
                 <div class="max-w-lg w-full bg-white rounded-[2rem] p-8 shadow-2xl relative border border-slate-100 flex flex-col overflow-y-auto max-h-[90vh] text-left text-slate-800">
-                  <button 
+                  <button
                     onClick$={() => { isMerchantModalOpen.value = false; merchantSubmitSuccess.value = false; }}
                     class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all"
                   >
@@ -1004,13 +845,13 @@ export default component$(() => {
                       <p class="text-slate-400 text-xs max-w-xs leading-relaxed">
                         Nuestro equipo comercial analizará la oferta y se pondrá en contacto al correo <strong>{merchantEmail.value}</strong> dentro de las próximas 48 horas hábiles.
                       </p>
-                      
+
                       <div class="pt-4">
-                        <button 
-                          onClick$={() => { 
-                            isMerchantModalOpen.value = false; 
-                            merchantSubmitSuccess.value = false; 
-                          }} 
+                        <button
+                          onClick$={() => {
+                            isMerchantModalOpen.value = false;
+                            merchantSubmitSuccess.value = false;
+                          }}
                           class="px-8 py-3 bg-brand-green hover:bg-brand-green-dark text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md"
                         >
                           Entendido
@@ -1033,7 +874,7 @@ export default component$(() => {
                         Ofrecé descuentos y beneficios a una red exclusiva de más de 4.000 médicos agremiados en la región y potenciá la visibilidad de tu negocio.
                       </p>
 
-                      <form 
+                      <form
                         onSubmit$={async (e) => {
                           e.preventDefault();
                           if (!merchantBusinessName.value || !merchantCategory.value || !merchantContactName.value || !merchantEmail.value || !merchantPhone.value || !merchantProposal.value) {
@@ -1073,9 +914,9 @@ export default component$(() => {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div class="space-y-1">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nombre del Comercio / Empresa</label>
-                            <input 
-                              type="text" 
-                              required 
+                            <input
+                              type="text"
+                              required
                               placeholder="Ej: Café Plaza"
                               bind:value={merchantBusinessName}
                               class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold"
@@ -1084,8 +925,8 @@ export default component$(() => {
 
                           <div class="space-y-1">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rubro / Categoría</label>
-                            <select 
-                              required 
+                            <select
+                              required
                               bind:value={merchantCategory}
                               class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold"
                             >
@@ -1102,9 +943,9 @@ export default component$(() => {
 
                         <div class="space-y-1">
                           <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nombre del Contacto</label>
-                          <input 
-                            type="text" 
-                            required 
+                          <input
+                            type="text"
+                            required
                             placeholder="Ej: Juan Pérez"
                             bind:value={merchantContactName}
                             class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold"
@@ -1114,9 +955,9 @@ export default component$(() => {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div class="space-y-1">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Correo Electrónico</label>
-                            <input 
-                              type="email" 
-                              required 
+                            <input
+                              type="email"
+                              required
                               placeholder="Ej: contacto@empresa.com"
                               bind:value={merchantEmail}
                               class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold"
@@ -1125,9 +966,9 @@ export default component$(() => {
 
                           <div class="space-y-1">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Teléfono / WhatsApp</label>
-                            <input 
-                              type="tel" 
-                              required 
+                            <input
+                              type="tel"
+                              required
                               placeholder="Ej: 2215555555"
                               bind:value={merchantPhone}
                               class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold"
@@ -1137,9 +978,9 @@ export default component$(() => {
 
                         <div class="space-y-1">
                           <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Detalle del Beneficio Propuesto</label>
-                          <textarea 
-                            required 
-                            rows={3} 
+                          <textarea
+                            required
+                            rows={3}
                             placeholder="Ej: 15% de descuento los días lunes y martes abonando en efectivo o transferencia..."
                             bind:value={merchantProposal}
                             class="w-full bg-slate-50 border border-slate-200 focus:border-brand-green focus:bg-white text-slate-800 text-xs p-3 rounded-xl focus:outline-none transition-all font-semibold resize-none"
@@ -1147,8 +988,8 @@ export default component$(() => {
                         </div>
 
                         <div class="pt-2">
-                          <button 
-                            type="submit" 
+                          <button
+                            type="submit"
                             disabled={isMerchantSubmitting.value}
                             class="w-full bg-brand-green hover:bg-brand-green-dark text-white py-3.5 px-6 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all shadow-md disabled:opacity-55 flex items-center justify-center space-x-2"
                           >
@@ -1175,32 +1016,28 @@ export default component$(() => {
 
             {/* Marquee Track */}
             <div class="flex w-full overflow-hidden relative">
-              <div class="animate-marquee flex items-center gap-12 py-2 hover:[animation-play-state:paused]">
+              <div class={`flex items-center py-2 ${(sponsorsData.value && sponsorsData.value.length > 4) || (!sponsorsData.value || sponsorsData.value.length === 0) ? "animate-marquee gap-12 hover:[animation-play-state:paused]" : "gap-8 justify-center mx-auto w-full flex-wrap"}`}>
                 {sponsorsData.value && sponsorsData.value.length > 0 ? (
                   <>
                     {/* First Loop */}
                     {sponsorsData.value.map((sp) => (
-                      <a 
+                      <a
                         key={`sp-a-${sp.id}`}
                         href={sp.linkUrl || "#"}
                         target={sp.linkUrl ? "_blank" : undefined}
                         rel={sp.linkUrl ? "noopener noreferrer" : undefined}
                         class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
                       >
-                        <img 
-                          src={sp.imageUrl} 
-                          alt={sp.name} 
+                        <img
+                          src={sp.imageUrl}
+                          alt={sp.name}
                           class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
                         />
-                        {/* Tooltip con título de la marca */}
-                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                          {sp.name}
-                        </span>
                       </a>
                     ))}
                     {/* Second Loop (Seamless Loop Duplicate) */}
-                    {sponsorsData.value.map((sp) => (
-                      <a 
+                    {sponsorsData.value.length > 4 && sponsorsData.value.map((sp) => (
+                      <a
                         key={`sp-b-${sp.id}`}
                         href={sp.linkUrl || "#"}
                         target={sp.linkUrl ? "_blank" : undefined}
@@ -1208,15 +1045,11 @@ export default component$(() => {
                         class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
                         aria-hidden="true"
                       >
-                        <img 
-                          src={sp.imageUrl} 
-                          alt={sp.name} 
+                        <img
+                          src={sp.imageUrl}
+                          alt={sp.name}
                           class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
                         />
-                        {/* Tooltip con título de la marca */}
-                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                          {sp.name}
-                        </span>
                       </a>
                     ))}
                   </>
@@ -1237,9 +1070,6 @@ export default component$(() => {
                         {mock.icon === "shop" && <LuShoppingBag class="w-10 h-10 text-brand-green stroke-[2]" />}
                         {mock.icon === "compass" && <LuCompass class="w-10 h-10 text-brand-green stroke-[2]" />}
                         <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
-                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                          {mock.name}
-                        </span>
                       </div>
                     ))}
                     {/* Mock loop 2 */}
@@ -1257,9 +1087,6 @@ export default component$(() => {
                         {mock.icon === "shop" && <LuShoppingBag class="w-10 h-10 text-brand-green stroke-[2]" />}
                         {mock.icon === "compass" && <LuCompass class="w-10 h-10 text-brand-green stroke-[2]" />}
                         <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
-                        <span class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none uppercase tracking-wider">
-                          {mock.name}
-                        </span>
                       </div>
                     ))}
                   </>
@@ -1284,104 +1111,10 @@ export default component$(() => {
         {/* Benefits Grid Preview - Single Row (4 cards) */}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
           {benefits.slice(0, 4).map((benefit: Benefit) => {
-            const imageUrl = benefit.imagen
-              ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
-              : null;
-
-            const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
-            const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
-            const discountText = benefit.resumen?.trim() || "Beneficio Exclusivo";
             const isPremiumOnly = benefit.isPremiumOnly;
             const isLocked = isPremiumOnly && !user.value;
-
             return (
-              <div
-                key={benefit.id}
-                class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none"
-              >
-                <div class="relative h-52 bg-slate-50 overflow-hidden flex items-center justify-center">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={benefit.titulo}
-                      loading="lazy"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      width={320}
-                      height={208}
-                    />
-                  ) : (
-                    <div class="flex flex-col items-center justify-center p-6 text-center">
-                      <span class="text-brand-green font-display font-black text-2xl">AMP+</span>
-                      <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{primaryCat}</span>
-                    </div>
-                  )}
-
-                  {isLocked && (
-                    <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white">
-                      <span class="text-3xl">🔒</span>
-                      <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
-                        Exclusivo Premium
-                      </span>
-                    </div>
-                  )}
-
-                  <div class="absolute top-3.5 right-3.5 z-10">
-                    <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
-                      {discountText.replace("Descuento del", "").trim()}
-                    </span>
-                  </div>
-
-                  <div class="absolute bottom-3 left-3 z-10">
-                    <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-black/55 backdrop-blur-sm border border-white/10 uppercase tracking-wide text-white">
-                      {primaryCat}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="flex-grow p-6 flex flex-col justify-between text-left">
-                  <div class="space-y-2.5">
-                    <div class="flex items-center text-brand-green-light space-x-1">
-                      <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                      </svg>
-                      <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-500">
-                        {primaryLoc}
-                      </span>
-                    </div>
-
-                    <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
-                      {benefit.titulo}
-                    </h3>
-
-                    <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">
-                      {benefit.descripcion
-                        ? benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
-                        : "No hay descripción disponible para este beneficio."}
-                    </p>
-                  </div>
-
-                  <div class="pt-5 border-t border-slate-100 mt-4">
-                    {isLocked ? (
-                      <button
-                        type="button"
-                        class="w-full text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-slate-100 text-slate-450 hover:bg-slate-150 active:scale-95 transition-all shadow-inner border border-slate-200 cursor-pointer"
-                        onClick$={() => {
-                          alert("Este beneficio es exclusivo para socios de la Mutual. Iniciá sesión para acceder.");
-                        }}
-                      >
-                        🔑 Acceso Premium Exclusivo
-                      </button>
-                    ) : (
-                      <Link
-                        href={`/beneficio/${benefit.url}`}
-                        class="block text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-brand-green text-white hover:bg-brand-green-light active:scale-95 transition-all shadow-md cursor-pointer"
-                      >
-                        Ver Descuento &rarr;
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <BenefitCard key={benefit.id} benefit={benefit} isLocked={isLocked} />
             );
           })}
         </div>
@@ -1400,83 +1133,83 @@ export default component$(() => {
         </div>
       </div>
 
-        {/* Real-time Configurable Popup Modal */}
-        {showPopup.value && settings && (
-          <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-              class="absolute inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity duration-300"
+      {/* Real-time Configurable Popup Modal */}
+      {showPopup.value && settings && (
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            class="absolute inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity duration-300"
+            onClick$={() => {
+              showPopup.value = false;
+              (window as any).__popupClosed = true;
+            }}
+          />
+
+          {/* Modal Container */}
+          <div class="relative w-full max-w-lg bg-white rounded-[2rem] overflow-hidden shadow-2xl border border-slate-100 flex flex-col transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95">
+            {/* Close button on top-right */}
+            <button
               onClick$={() => {
                 showPopup.value = false;
                 (window as any).__popupClosed = true;
               }}
-            />
+              class="absolute top-4 right-4 z-10 w-9 h-9 bg-white/85 hover:bg-white text-slate-700 rounded-full flex items-center justify-center shadow-md border border-slate-200/50 transition-all duration-200 active:scale-90 cursor-pointer"
+              aria-label="Cerrar"
+            >
+              <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
 
-            {/* Modal Container */}
-            <div class="relative w-full max-w-lg bg-white rounded-[2rem] overflow-hidden shadow-2xl border border-slate-100 flex flex-col transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95">
-              {/* Close button on top-right */}
-              <button
-                onClick$={() => {
-                  showPopup.value = false;
-                  (window as any).__popupClosed = true;
-                }}
-                class="absolute top-4 right-4 z-10 w-9 h-9 bg-white/85 hover:bg-white text-slate-700 rounded-full flex items-center justify-center shadow-md border border-slate-200/50 transition-all duration-200 active:scale-90 cursor-pointer"
-                aria-label="Cerrar"
-              >
-                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            {/* Optional Image */}
+            {settings.popupImageUrl && (
+              <div class="relative h-52 sm:h-64 bg-slate-100 overflow-hidden">
+                <img
+                  src={settings.popupImageUrl}
+                  alt={settings.popupTitle || "Anuncio"}
+                  class="w-full h-full object-cover"
+                  loading="eager"
+                  width={512}
+                  height={256}
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+              </div>
+            )}
 
-              {/* Optional Image */}
-              {settings.popupImageUrl && (
-                <div class="relative h-52 sm:h-64 bg-slate-100 overflow-hidden">
-                  <img
-                    src={settings.popupImageUrl}
-                    alt={settings.popupTitle || "Anuncio"}
-                    class="w-full h-full object-cover"
-                    loading="eager"
-                    width={512}
-                    height={256}
-                  />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                </div>
+            {/* Content */}
+            <div class="p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
+              <h3 class="text-xl sm:text-2xl font-display font-black text-brand-green-dark tracking-tight leading-tight">
+                {settings.popupTitle || "Anuncio Importante"}
+              </h3>
+
+              {settings.popupDescription && (
+                <p class="text-[13px] sm:text-[14.5px] text-slate-550 leading-relaxed font-medium max-h-40 overflow-y-auto pr-1">
+                  {settings.popupDescription}
+                </p>
               )}
 
-              {/* Content */}
-              <div class="p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
-                <h3 class="text-xl sm:text-2xl font-display font-black text-brand-green-dark tracking-tight leading-tight">
-                  {settings.popupTitle || "Anuncio Importante"}
-                </h3>
-
-                {settings.popupDescription && (
-                  <p class="text-[13px] sm:text-[14.5px] text-slate-550 leading-relaxed font-medium max-h-40 overflow-y-auto pr-1">
-                    {settings.popupDescription}
-                  </p>
-                )}
-
-                {/* Primary Call to Action Button */}
-                {settings.popupButtonLink && (
-                  <div class="w-full pt-2">
-                    <a
-                      href={settings.popupButtonLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick$={() => {
-                        showPopup.value = false;
-                        (window as any).__popupClosed = true;
-                      }}
-                      class="inline-flex items-center justify-center w-full px-6 py-3.5 rounded-2xl bg-brand-green hover:bg-brand-green-dark text-white font-display font-black text-sm uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg active:scale-[0.98]"
-                    >
-                      {settings.popupButtonText || "Más Información"}
-                    </a>
-                  </div>
-                )}
-              </div>
+              {/* Primary Call to Action Button */}
+              {settings.popupButtonLink && (
+                <div class="w-full pt-2">
+                  <a
+                    href={settings.popupButtonLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick$={() => {
+                      showPopup.value = false;
+                      (window as any).__popupClosed = true;
+                    }}
+                    class="inline-flex items-center justify-center w-full px-6 py-3.5 rounded-2xl bg-brand-green hover:bg-brand-green-dark text-white font-display font-black text-sm uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg active:scale-[0.98]"
+                  >
+                    {settings.popupButtonText || "Más Información"}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
   );
 });
 

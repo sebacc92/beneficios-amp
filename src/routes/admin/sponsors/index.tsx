@@ -36,9 +36,14 @@ export const useCreateSponsorAction = routeAction$(
 
       let uploadedImageUrl = "";
 
-      if (data.optimizedImage && data.optimizedImage.startsWith("data:image")) {
+      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
         const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const buffer = Buffer.from(base64Data, "base64");
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
 
         const uploadsDir = `${process.cwd()}/public/uploads`;
         const fsModule = await import("fs/promises");
@@ -46,13 +51,13 @@ export const useCreateSponsorAction = routeAction$(
 
         const fileName = `sponsor-${Date.now()}.webp`;
         const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
+        await fsModule.writeFile(filePath, bytes);
 
         uploadedImageUrl = `/uploads/${fileName}`;
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
 
         const uploadsDir = `${process.cwd()}/public/uploads`;
         const fsModule = await import("fs/promises");
@@ -109,9 +114,14 @@ export const useUpdateSponsorAction = routeAction$(
       const db = getDB(requestEvent);
       let uploadedImageUrl = data.imageUrl;
 
-      if (data.optimizedImage && data.optimizedImage.startsWith("data:image")) {
+      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
         const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const buffer = Buffer.from(base64Data, "base64");
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
 
         const uploadsDir = `${process.cwd()}/public/uploads`;
         const fsModule = await import("fs/promises");
@@ -119,13 +129,13 @@ export const useUpdateSponsorAction = routeAction$(
 
         const fileName = `sponsor-${Date.now()}.webp`;
         const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
+        await fsModule.writeFile(filePath, bytes);
 
         uploadedImageUrl = `/uploads/${fileName}`;
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
 
         const uploadsDir = `${process.cwd()}/public/uploads`;
         const fsModule = await import("fs/promises");

@@ -3,6 +3,7 @@ import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
+import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import {
   LuList,
   LuMap,
@@ -527,111 +528,9 @@ export default component$(() => {
             ) : (
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                 {displayBenefits.map((benefit: Benefit) => {
-                  const imageSrc = benefit.imagen
-                    ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
-                    : "";
-                  const primaryCat = benefit.categorias[0]?.descripcion || "Beneficios";
-                  const primaryLoc = benefit.ubicacion[0]?.descripcion || "La Plata";
-                  const discountText = benefit.resumen || "Exclusivo";
-
                   const isLocked = benefit.isPremiumOnly && !user.value;
-
                   return (
-                    <div
-                      key={benefit.id}
-                      class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none"
-                    >
-                      {/* Image & floating elements */}
-                      <div class="relative h-52 bg-slate-50 overflow-hidden flex items-center justify-center">
-                        {imageSrc ? (
-                          <img
-                            src={imageSrc}
-                            alt={benefit.titulo}
-                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            width={320}
-                            height={208}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div class="flex flex-col items-center justify-center p-6 text-center">
-                            <span class="text-brand-green font-display font-black text-2xl">AMP+</span>
-                            <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{primaryCat}</span>
-                          </div>
-                        )}
-
-                        {/* Exclusive Gold locking label */}
-                        {isLocked && (
-                          <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
-                            <span class="text-3xl">🔒</span>
-                            <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
-                              Exclusivo Premium
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Floating Offer Badge */}
-                        <div class="absolute top-3.5 right-3.5 z-10">
-                          <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
-                            {discountText.replace("Descuento del", "").trim()}
-                          </span>
-                        </div>
-
-                        {/* Floating Category Pill */}
-                        <div class="absolute bottom-3 left-3 z-10">
-                          <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-black/55 backdrop-blur-sm border border-white/10 uppercase tracking-wide text-white">
-                            {primaryCat}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Benefit Card Body */}
-                      <div class="flex-grow p-6 flex flex-col justify-between">
-                        <div class="space-y-2.5 text-left">
-                          {/* Location pin badge */}
-                          <div class="flex items-center text-brand-green-light space-x-1">
-                            <svg class="w-4 h-4 text-brand-gold fill-current" viewBox="0 0 24 24">
-                              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                            </svg>
-                            <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-500">
-                              {primaryLoc}
-                            </span>
-                          </div>
-
-                          <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
-                            {benefit.titulo}
-                          </h3>
-
-                          {/* Short descriptions */}
-                          <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">
-                            {benefit.descripcion
-                              ? benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
-                              : "No hay descripción disponible para este beneficio."}
-                          </p>
-                        </div>
-
-                        {/* Action Link Button */}
-                        <div class="pt-5 border-t border-slate-100 mt-4">
-                          {isLocked ? (
-                            <button
-                              type="button"
-                              class="w-full text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-slate-100 text-slate-450 hover:bg-slate-150 active:scale-95 transition-all shadow-inner border border-slate-200 cursor-pointer"
-                              onClick$={() => {
-                                alert("Este beneficio es exclusivo para socios de la Mutual. Iniciá sesión para acceder.");
-                              }}
-                            >
-                              🔑 Acceso Premium Exclusivo
-                            </button>
-                          ) : (
-                            <Link
-                              href={`/beneficio/${benefit.url}`}
-                              class="block text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-brand-green text-white hover:bg-brand-green-light active:scale-95 transition-all shadow-md cursor-pointer"
-                            >
-                              Ver Descuento &rarr;
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <BenefitCard key={benefit.id} benefit={benefit} isLocked={isLocked} />
                   );
                 })}
               </div>
