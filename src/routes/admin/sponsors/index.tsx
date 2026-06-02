@@ -52,7 +52,7 @@ export const useCreateSponsorAction = routeAction$(
 
         if (token) {
           try {
-            const blob = await put(fileName, bytes, { access: "public", token });
+            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
             uploadedImageUrl = blob.url;
             isBlob = true;
           } catch (e) {
@@ -154,7 +154,7 @@ export const useUpdateSponsorAction = routeAction$(
 
         if (token) {
           try {
-            const blob = await put(fileName, bytes, { access: "public", token });
+            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
             uploadedImageUrl = blob.url;
             isBlob = true;
           } catch (e) {

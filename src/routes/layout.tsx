@@ -1,11 +1,33 @@
-import { component$, Slot, useSignal } from "@builder.io/qwik";
-import { Link, useLocation, routeLoader$ } from "@builder.io/qwik-city";
+import { component$, Slot, useSignal, useTask$, $ } from "@builder.io/qwik";
+import { Link, useLocation, routeLoader$, server$ } from "@builder.io/qwik-city";
 import { Chatbot } from "~/components/chatbot/chatbot";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuMapPin, LuSettings, LuUser, LuCrown, LuLock } from "@qwikest/icons/lucide";
+import { searchBenefits } from "~/server/cache";
 
 export const useLayoutUser = routeLoader$((event) => {
   return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
+});
+
+export const getSearchSuggestions = server$(async function(query: string) {
+  if (!query || query.trim().length < 2) return [];
+  try {
+    const results = await searchBenefits({
+      query: query.trim(),
+      limit: 6,
+      requestEvent: this
+    });
+    return results.data.map(b => ({
+      id: b.id,
+      titulo: b.titulo,
+      resumen: b.resumen,
+      url: b.url,
+      categoria: b.categorias?.[0]?.descripcion || "Beneficio"
+    }));
+  } catch (err) {
+    console.error("Error in getSearchSuggestions:", err);
+    return [];
+  }
 });
 
 export default component$(() => {
@@ -13,6 +35,57 @@ export default component$(() => {
   const location = useLocation();
   const searchInput = useSignal("");
   const user = useLayoutUser();
+
+  const suggestions = useSignal<any[]>([]);
+  const showSuggestions = useSignal(false);
+  const activeIndex = useSignal<number>(-1);
+  const searchContainerRef = useSignal<HTMLDivElement | undefined>(undefined);
+  const mobileSearchContainerRef = useSignal<HTMLDivElement | undefined>(undefined);
+
+  useTask$(({ track, cleanup }) => {
+    track(() => searchInput.value);
+
+    if (searchInput.value.trim().length < 2) {
+      suggestions.value = [];
+      showSuggestions.value = false;
+      activeIndex.value = -1;
+      return;
+    }
+
+    const delayId = setTimeout(async () => {
+      const results = await getSearchSuggestions(searchInput.value);
+      suggestions.value = results;
+      showSuggestions.value = results.length > 0;
+      activeIndex.value = -1;
+    }, 300);
+
+    cleanup(() => clearTimeout(delayId));
+  });
+
+  const handleKeyDown = $((ev: KeyboardEvent, isMobile = false) => {
+    if (!showSuggestions.value || suggestions.value.length === 0) return;
+
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      activeIndex.value = (activeIndex.value + 1) % suggestions.value.length;
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      activeIndex.value = (activeIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+    } else if (ev.key === "Escape") {
+      showSuggestions.value = false;
+      activeIndex.value = -1;
+    } else if (ev.key === "Enter") {
+      if (activeIndex.value >= 0 && activeIndex.value < suggestions.value.length) {
+        ev.preventDefault();
+        const selected = suggestions.value[activeIndex.value];
+        showSuggestions.value = false;
+        if (isMobile) {
+          isMobileMenuOpen.value = false;
+        }
+        window.location.href = `/beneficio/${selected.url}`;
+      }
+    }
+  });
 
   // Determine active links
   const isActive = (path: string) => {
@@ -30,7 +103,18 @@ export default component$(() => {
   }
 
   return (
-    <div class="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800">
+    <div
+      window:onClick$={(ev) => {
+        const target = ev.target as HTMLElement | null;
+        if (!target) return;
+        const clickInDesktop = searchContainerRef.value?.contains(target);
+        const clickInMobile = mobileSearchContainerRef.value?.contains(target);
+        if (!clickInDesktop && !clickInMobile) {
+          showSuggestions.value = false;
+        }
+      }}
+      class="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800"
+    >
       {/* Top Banner (Optional Premium Touch) */}
       <div class="bg-brand-green-dark text-brand-gold text-sm py-2 px-4 text-center font-semibold border-b border-brand-gold/25 tracking-wide shadow-sm z-50">
         Portal de Beneficios Oficial de la Agremiación Médica Platense
@@ -54,7 +138,7 @@ export default component$(() => {
             </div>
 
             {/* Global Search Bar (Desktop - Larger and Featured) */}
-            <div class="hidden lg:flex items-center relative max-w-md w-full mx-8">
+            <div ref={searchContainerRef} class="hidden lg:flex items-center relative max-w-md w-full mx-8">
               <form
                 onSubmit$={(e) => {
                   e.preventDefault();
@@ -68,7 +152,14 @@ export default component$(() => {
                   type="text"
                   placeholder="Buscar beneficios, marcas o categorías..."
                   bind:value={searchInput}
+                  onFocus$={() => {
+                    if (suggestions.value.length > 0) {
+                      showSuggestions.value = true;
+                    }
+                  }}
+                  onKeyDown$={(ev) => handleKeyDown(ev, false)}
                   class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm pl-12 pr-4 py-2.5 rounded-full border-2 border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all duration-300 shadow-sm"
+                  autocomplete="off"
                 />
                 <div class="absolute left-4 top-3 text-slate-400 pointer-events-none">
                   <svg
@@ -86,6 +177,40 @@ export default component$(() => {
                   </svg>
                 </div>
               </form>
+
+              {/* Suggestions Dropdown (Desktop) */}
+              {showSuggestions.value && suggestions.value.length > 0 && (
+                <div class="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden z-50 text-left">
+                  <div class="px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Sugerencias
+                  </div>
+                  <div class="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {suggestions.value.map((item, idx) => (
+                      <Link
+                        key={item.id}
+                        href={`/beneficio/${item.url}`}
+                        onClick$={() => {
+                          showSuggestions.value = false;
+                        }}
+                        class={[
+                          "flex items-center justify-between px-5 py-3 transition-colors duration-150 cursor-pointer block select-none",
+                          activeIndex.value === idx
+                            ? "bg-brand-green/5 text-brand-green-dark"
+                            : "hover:bg-slate-50 text-slate-700 hover:text-brand-green-dark"
+                        ]}
+                      >
+                        <div class="flex flex-col min-w-0 pr-4">
+                          <span class="font-extrabold text-sm truncate">{item.titulo}</span>
+                          <span class="text-xs text-slate-400 font-medium truncate mt-0.5">{item.resumen}</span>
+                        </div>
+                        <span class="inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-slate-100 text-slate-500 uppercase tracking-wide flex-shrink-0">
+                          {item.categoria}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Desktop Navigation Links */}
@@ -194,27 +319,71 @@ export default component$(() => {
         >
           <div class="px-4 pt-2 pb-4 space-y-2 bg-white">
             {/* Search Bar for Mobile */}
-            <form
-              onSubmit$={(e) => {
-                e.preventDefault();
-                if (searchInput.value.trim()) {
-                  window.location.href = `/beneficios?buscar=${encodeURIComponent(searchInput.value.trim())}`;
-                }
-              }}
-              class="relative w-full mb-3"
-            >
-              <input
-                type="text"
-                placeholder="Buscar beneficio..."
-                bind:value={searchInput}
-                class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:border-brand-green focus:outline-none"
-              />
-              <div class="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </form>
+            <div ref={mobileSearchContainerRef} class="relative w-full mb-3">
+              <form
+                onSubmit$={(e) => {
+                  e.preventDefault();
+                  if (searchInput.value.trim()) {
+                    window.location.href = `/beneficios?buscar=${encodeURIComponent(searchInput.value.trim())}`;
+                  }
+                }}
+                class="relative w-full"
+              >
+                <input
+                  type="text"
+                  placeholder="Buscar beneficio..."
+                  bind:value={searchInput}
+                  onFocus$={() => {
+                    if (suggestions.value.length > 0) {
+                      showSuggestions.value = true;
+                    }
+                  }}
+                  onKeyDown$={(ev) => handleKeyDown(ev, true)}
+                  class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:border-brand-green focus:outline-none"
+                  autocomplete="off"
+                />
+                <div class="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </form>
+
+              {/* Suggestions Dropdown (Mobile) */}
+              {showSuggestions.value && suggestions.value.length > 0 && (
+                <div class="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-50 text-left">
+                  <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Sugerencias
+                  </div>
+                  <div class="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    {suggestions.value.map((item, idx) => (
+                      <Link
+                        key={item.id}
+                        href={`/beneficio/${item.url}`}
+                        onClick$={() => {
+                          showSuggestions.value = false;
+                          isMobileMenuOpen.value = false;
+                        }}
+                        class={[
+                          "flex items-center justify-between px-4 py-2.5 transition-colors duration-150 cursor-pointer block select-none",
+                          activeIndex.value === idx
+                            ? "bg-brand-green/5 text-brand-green-dark"
+                            : "hover:bg-slate-50 text-slate-700 hover:text-brand-green-dark"
+                        ]}
+                      >
+                        <div class="flex flex-col min-w-0 pr-3">
+                          <span class="font-bold text-xs truncate">{item.titulo}</span>
+                          <span class="text-[10px] text-slate-400 truncate mt-0.5">{item.resumen}</span>
+                        </div>
+                        <span class="inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-slate-100 text-slate-500 uppercase tracking-wide flex-shrink-0">
+                          {item.categoria}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {user.value ? (
               <Link
