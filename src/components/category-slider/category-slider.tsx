@@ -135,12 +135,24 @@ export const CategorySlider = component$<CategorySliderProps>(({
               key={cat.id}
               href={href}
               class={[
-                "flex flex-col items-center justify-center text-center p-4 rounded-[2.2rem] border transition-all duration-300 w-36 h-36 flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm",
+                "relative flex flex-col items-center justify-center text-center p-4 rounded-[2.2rem] border transition-all duration-300 w-36 h-36 flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm",
                 isSelected
                   ? "bg-brand-green border-brand-green text-white shadow-lg shadow-brand-green/20 scale-105"
                   : "bg-white border-slate-200 hover:border-brand-green/45 text-slate-700 hover:text-brand-green hover:shadow-md hover:scale-105"
               ]}
             >
+              {/* Floating Benefit Count Badge */}
+              <span
+                class={[
+                  "absolute top-3 right-3 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[20px] h-5",
+                  isSelected
+                    ? "bg-brand-gold text-slate-950 shadow-md shadow-brand-gold/10"
+                    : "bg-slate-100 text-slate-500 group-hover:bg-brand-green group-hover:text-white"
+                ]}
+              >
+                {cat.beneficios_count || 0}
+              </span>
+
               <span
                 class={[
                   "flex items-center justify-center transition-transform duration-300 group-hover:scale-110",

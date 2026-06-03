@@ -3,6 +3,7 @@ import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@bu
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
+import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import { HeroSlider } from "~/components/hero-slider/hero-slider";
 import { CuratedRow } from "~/components/curated-row/curated-row";
@@ -124,8 +125,13 @@ export default component$(() => {
           <HeroSlider slides={slides} />
 
           {/* Category Slider */}
-          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden text-left animate-fade-in-up">
+          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4 print:hidden text-left animate-fade-in-up">
             <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} />
+          </div>
+
+          {/* Offer Slider */}
+          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 print:hidden text-left animate-fade-in-up">
+            <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} />
           </div>
 
           {/* Gold Benefits Row */}

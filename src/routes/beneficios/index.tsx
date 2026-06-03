@@ -3,6 +3,7 @@ import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
+import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import {
   LuList,
@@ -107,12 +108,22 @@ export default component$(() => {
       {/* Search Header Info */}
       <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 print:hidden text-left">
         {/* Beautiful Horizontal Category Slider Bar */}
-        <div class="relative mb-8 pb-3 border-b border-slate-200/50">
+        <div class="relative mb-6 pb-3 border-b border-slate-200/50">
           <CategorySlider
             categorias={filters.categorias}
             activeCategoryId={activeFilters.categoryId}
             sliderId="category-scroll-container"
             title="Explorar por Categoría"
+          />
+        </div>
+
+        {/* Beautiful Horizontal Offer Slider Bar */}
+        <div class="relative mb-8 pb-3 border-b border-slate-200/50">
+          <OfferSlider
+            ofertas={filters.ofertas}
+            activeOfferId={activeFilters.offerId}
+            sliderId="offer-scroll-container"
+            title="Explorar por Descuento"
           />
         </div>
       </section>
