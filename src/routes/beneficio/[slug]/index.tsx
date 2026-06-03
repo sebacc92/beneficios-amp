@@ -1,8 +1,13 @@
 import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
-import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
+import { routeLoader$, Link, type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { getBenefitBySlug, getBenefits, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
 import { LuLock, LuCrown } from "@qwikest/icons/lucide";
+import { and, eq } from "drizzle-orm";
+import { getDB } from "~/db";
+import { coupons } from "~/db/schema";
+import type { AuthenticatedUser } from "~/routes/plugin@auth";
+
 
 // Extracts structured contact details from the raw HTML description
 function extractContacts(html: string) {
@@ -65,10 +70,113 @@ export const useBenefitData = routeLoader$(async (event) => {
   // Extract contact links for quick-action buttons
   const extractedContacts = extractContacts(benefit.descripcion);
 
+  // Check if current user has an active coupon for this benefit
+  const user = event.sharedMap.get("user") as AuthenticatedUser | null;
+  let activeCoupon = null;
+  if (user) {
+    try {
+      const db = getDB(event);
+      const [couponRecord] = await db
+        .select()
+        .from(coupons)
+        .where(
+          and(
+            eq(coupons.userId, user.id),
+            eq(coupons.benefitId, String(benefit.id)),
+            eq(coupons.status, "active")
+          )
+        )
+        .limit(1);
+      if (couponRecord) {
+        activeCoupon = {
+          id: couponRecord.id,
+          code: couponRecord.code,
+          status: couponRecord.status,
+          createdAt: couponRecord.createdAt,
+        };
+      }
+    } catch (err) {
+      console.error("Error fetching active coupon:", err);
+    }
+  }
+
   return {
     benefit,
     similar,
-    contacts: extractedContacts
+    contacts: extractedContacts,
+    activeCoupon
+  };
+});
+
+export const generateCouponAction = server$(async function(benefitId: string, benefitTitle: string, benefitResumen: string) {
+  const user = this.sharedMap.get("user") as AuthenticatedUser | null;
+  if (!user) {
+    throw new Error("No estás autenticado");
+  }
+
+  const db = getDB(this);
+
+  // Check if there is an active coupon already
+  const [existing] = await db
+    .select()
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.userId, user.id),
+        eq(coupons.benefitId, benefitId),
+        eq(coupons.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return {
+      id: existing.id,
+      code: existing.code,
+      status: existing.status,
+      createdAt: existing.createdAt,
+    };
+  }
+
+  // Generate unique 6-digit code
+  let code = "";
+  let attempts = 0;
+  while (attempts < 10) {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    
+    const [dup] = await db
+      .select()
+      .from(coupons)
+      .where(eq(coupons.code, code))
+      .limit(1);
+      
+    if (!dup) {
+      break;
+    }
+    attempts++;
+  }
+
+  const newCoupon = {
+    id: crypto.randomUUID(),
+    code,
+    benefitId,
+    benefitTitle,
+    benefitResumen,
+    userId: user.id,
+    userName: user.name,
+    userMatricula: user.matricula || "",
+    status: "active" as const,
+    createdAt: new Date().toISOString(),
+    usedAt: null,
+  };
+
+  await db.insert(coupons).values(newCoupon);
+  
+  return {
+    id: newCoupon.id,
+    code: newCoupon.code,
+    status: newCoupon.status,
+    createdAt: newCoupon.createdAt,
   };
 });
 
@@ -77,6 +185,32 @@ export default component$(() => {
   const isMapLoaded = useSignal(false);
   const showToast = useSignal(false);
   const user = useLayoutUser();
+
+  const generatedCoupon = useSignal<{
+    id: string;
+    code: string;
+    status: string;
+    createdAt: string;
+  } | null>(data.value?.activeCoupon || null);
+  const isGenerating = useSignal(false);
+
+  const handleGenerateCoupon = $(async () => {
+    if (isGenerating.value || !data.value) return;
+    isGenerating.value = true;
+    try {
+      const { benefit } = data.value;
+      const coupon = await generateCouponAction(
+        String(benefit.id),
+        benefit.titulo,
+        benefit.resumen
+      );
+      generatedCoupon.value = coupon;
+    } catch (err) {
+      console.error("Error generating coupon:", err);
+    } finally {
+      isGenerating.value = false;
+    }
+  });
 
   const handleShare = $(async () => {
     if (typeof window === "undefined" || !data.value) return;
@@ -452,6 +586,120 @@ export default component$(() => {
                   />
                 </div>
 
+                {/* Sistema de Cupones QR y Numéricos */}
+                <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm space-y-6 print:hidden">
+                  <div class="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div class="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                    <div class="w-10 h-10 rounded-full bg-brand-gold/15 border border-brand-gold/30 flex items-center justify-center text-brand-green-dark">
+                      <svg class="w-5 h-5 text-brand-green-dark fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.75a3 3 0 11-6 0 3 3 0 016 0zM12 18.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-black text-brand-green-dark tracking-tight">Cupón de Descuento Digital</h3>
+                      <p class="text-xs text-slate-450 font-medium">Validá tu beneficio de forma rápida en el local</p>
+                    </div>
+                  </div>
+
+                  {user.value ? (
+                    generatedCoupon.value ? (
+                      <div class="space-y-6">
+                        <div class="border-2 border-dashed border-brand-green bg-emerald-50/20 rounded-2xl p-6 text-center space-y-4 max-w-sm mx-auto">
+                          <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-extrabold bg-brand-green/10 text-brand-green uppercase tracking-widest">
+                            Cupón Activo
+                          </span>
+                          
+                          <div class="space-y-1">
+                            <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Código de Canje</span>
+                            <span class="text-3xl font-mono font-black text-brand-green tracking-widest block bg-white border border-slate-200 py-2.5 px-4 rounded-xl shadow-inner max-w-xs mx-auto">
+                              {generatedCoupon.value.code.slice(0, 3)} {generatedCoupon.value.code.slice(3)}
+                            </span>
+                          </div>
+
+                          <div class="bg-white p-3 border border-slate-150 rounded-2xl shadow-sm max-w-[200px] mx-auto">
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                                typeof window !== "undefined"
+                                  ? `${window.location.origin}/validar-cupon?code=${generatedCoupon.value.code}`
+                                  : `https://beneficios.amepla.org.ar/validar-cupon?code=${generatedCoupon.value.code}`
+                              )}`}
+                              alt="QR de Canje"
+                              width={180}
+                              height={180}
+                              class="object-contain mx-auto"
+                            />
+                            <span class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mt-1.5 block">Escanear para canjear</span>
+                          </div>
+
+                          <div class="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-250/50">
+                            <div class="flex justify-between">
+                              <span class="font-medium text-slate-400">Beneficiario:</span>
+                              <span class="font-bold text-slate-700">{user.value.name}</span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span class="font-medium text-slate-400">Matrícula:</span>
+                              <span class="font-mono font-bold text-slate-700">{user.value.matricula || "N/A"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p class="text-xs text-slate-455 text-center leading-relaxed max-w-sm mx-auto">
+                          Mostrá esta pantalla o indicá el código numérico al comercio al realizar tu pago para aplicar el descuento.
+                        </p>
+                      </div>
+                    ) : (
+                      <div class="text-center py-6 space-y-4 max-w-sm mx-auto">
+                        <p class="text-xs text-slate-500 leading-relaxed">
+                          Al presionar el botón se generará un código numérico y un QR único para que el comercio registre el descuento.
+                        </p>
+                        <button
+                          type="button"
+                          onClick$={handleGenerateCoupon}
+                          disabled={isGenerating.value}
+                          class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-sm font-extrabold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isGenerating.value ? (
+                            <>
+                              <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>Generando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0" />
+                              </svg>
+                              <span>Generar Mi Cupón QR</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div class="border border-amber-200 bg-amber-50/30 rounded-2xl p-6 text-center space-y-4 max-w-md mx-auto">
+                      <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto text-amber-600">
+                        <LuLock class="w-5 h-5" />
+                      </div>
+                      <div class="space-y-1">
+                        <h4 class="text-sm font-black text-slate-800 uppercase tracking-wide">Acceso Restringido a Agremiados</h4>
+                        <p class="text-xs text-slate-500 leading-relaxed">
+                          Debés iniciar sesión con tu cuenta de la Agremiación Médica Platense para poder descargar el cupón de este beneficio.
+                        </p>
+                      </div>
+                      <Link
+                        href={`/login?redirect=${encodeURIComponent(
+                          typeof window !== "undefined"
+                            ? window.location.pathname + window.location.search
+                            : `/beneficio/${benefit.url}`
+                        )}`}
+                        class="w-full inline-flex items-center justify-center px-6 py-3 rounded-2xl bg-brand-gold hover:bg-brand-gold/90 text-brand-green-dark text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95"
+                      >
+                        Iniciar Sesión
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
                 {/* Documentación PDF Adjunta */}
                 {benefit.pdfUrl && (
                   <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all duration-300">
@@ -689,73 +937,91 @@ export default component$(() => {
       )}
 
       {/* Print-only coupon container styled beautifully as a professional voucher */}
-      <div class="print-voucher-container font-sans bg-white border-2 border-dashed border-brand-green p-8 rounded-2xl max-w-lg mx-auto text-center space-y-6">
-        <div class="flex flex-col items-center pb-4 border-b border-slate-200">
-          <div class="w-20 h-20 bg-brand-green rounded-full flex items-center justify-center p-2 mb-2 border border-brand-gold">
-            <img
-              src="/logo-beneficios_amp2.webp"
-              alt="Logo AMP"
-              width={54}
-              height={54}
-              class="object-contain"
-            />
+      {/* Print-only coupon container styled beautifully as a professional voucher */}
+      {user.value && generatedCoupon.value ? (
+        <div class="print-voucher-container font-sans bg-white border-2 border-dashed border-brand-green p-8 rounded-2xl max-w-lg mx-auto text-center space-y-6">
+          <div class="flex flex-col items-center pb-4 border-b border-slate-200">
+            <div class="w-20 h-20 bg-brand-green rounded-full flex items-center justify-center p-2 mb-2 border border-brand-gold">
+              <img
+                src="/logo-beneficios_amp2.webp"
+                alt="Logo AMP"
+                width={54}
+                height={54}
+                class="object-contain"
+              />
+            </div>
+            <h2 class="text-xl font-display font-black text-brand-green-dark leading-none tracking-tight">AMP+ Beneficios Médicos</h2>
+            <span class="text-[9px] font-bold text-brand-gold uppercase tracking-wider mt-1">Cupón de Descuento Oficial</span>
           </div>
-          <h2 class="text-xl font-display font-black text-brand-green-dark leading-none tracking-tight">AMP+ Beneficios Médicos</h2>
-          <span class="text-[9px] font-bold text-brand-gold uppercase tracking-wider mt-1">Cupón de Descuento Oficial</span>
-        </div>
 
-        <div class="space-y-3">
-          <h3 class="text-2xl font-display font-extrabold text-slate-800 leading-tight">{benefit.titulo}</h3>
-          <div class="inline-block px-4 py-2 bg-brand-gold/15 border border-brand-gold text-brand-green-dark font-black text-xl rounded-full tracking-wide">
-            {benefit.resumen.trim()}
+          <div class="space-y-3">
+            <h3 class="text-2xl font-display font-extrabold text-slate-800 leading-tight">{benefit.titulo}</h3>
+            <div class="inline-block px-4 py-2 bg-brand-gold/15 border border-brand-gold text-brand-green-dark font-black text-xl rounded-full tracking-wide">
+              {benefit.resumen.trim()}
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+              Presentá este cupón impreso junto con tu credencial digital médica AMP+ para validar el beneficio.
+            </p>
           </div>
-          <p class="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-            Presentá este cupón impreso junto con tu credencial digital médica AMP+ para validar el beneficio.
+
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left text-xs font-semibold text-slate-600 space-y-2">
+            <div class="flex justify-between">
+              <span>Médico Agremiado:</span>
+              <span class="text-brand-green font-bold">{user.value.name}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Matrícula Provincial:</span>
+              <span class="font-mono text-slate-800">{user.value.matricula || "N/A"}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Código de Canje:</span>
+              <span class="font-mono font-bold text-brand-green">{generatedCoupon.value.code.slice(0, 3)} {generatedCoupon.value.code.slice(3)}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Fecha de Emisión:</span>
+              <span class="text-slate-800">{new Date(generatedCoupon.value.createdAt).toLocaleDateString("es-AR")}</span>
+            </div>
+          </div>
+
+          {/* QR Code Validation */}
+          <div class="flex flex-col items-center py-2 space-y-1.5">
+            <div class="w-24 h-24 bg-white p-1 border border-slate-200 rounded-xl flex items-center justify-center shadow-inner">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(
+                  typeof window !== "undefined"
+                    ? `${window.location.origin}/validar-cupon?code=${generatedCoupon.value.code}`
+                    : `https://beneficios.amepla.org.ar/validar-cupon?code=${generatedCoupon.value.code}`
+                )}`}
+                alt="Validation QR"
+                width={88}
+                height={88}
+                class="object-contain"
+              />
+            </div>
+            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Escanear en Comercio para Validar</span>
+          </div>
+
+          {/* Barcode Mockup */}
+          <div class="pt-4 border-t border-slate-200 flex flex-col items-center">
+            <div class="w-full h-12 bg-slate-900 rounded flex items-center justify-between px-6 py-1.5 space-x-0.5 overflow-hidden filter grayscale opacity-90">
+              {/* Visual simulated barcode lines */}
+              {Array.from({ length: 48 }).map((_, i) => {
+                const widths = ["w-[1px]", "w-[2px]", "w-[3px]", "w-[1.5px]", "w-[4px]"];
+                const width = widths[Math.floor(Math.sin(i) * 5) + 2] || "w-[1px]";
+                return <div key={i} class={`h-full bg-white ${width}`} />;
+              })}
+            </div>
+            <span class="text-[8px] font-mono tracking-widest text-slate-400 mt-1.5 uppercase">AMP-B-{benefit.id}-{generatedCoupon.value.code}</span>
+          </div>
+        </div>
+      ) : (
+        <div class="print-voucher-container font-sans bg-white border-2 border-dashed border-red-300 p-8 rounded-2xl max-w-lg mx-auto text-center space-y-4">
+          <h2 class="text-lg font-black text-red-600">Cupón No Generado</h2>
+          <p class="text-xs text-slate-500">
+            Para poder imprimir o descargar el cupón de este beneficio, debés iniciar sesión y hacer click en "Generar Cupón" en la página del beneficio.
           </p>
         </div>
-
-        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left text-xs font-semibold text-slate-600 space-y-2">
-          <div class="flex justify-between">
-            <span>Médico Agremiado:</span>
-            <span class="text-brand-green font-bold">{user.value ? user.value.name : "Dr. Manuel Rodríguez"}</span>
-          </div>
-          <div class="flex justify-between">
-            <span>Matrícula Provincial:</span>
-            <span class="font-mono text-slate-800">{user.value ? user.value.matricula : "115243"}</span>
-          </div>
-          <div class="flex justify-between">
-            <span>Fecha de Emisión:</span>
-            <span class="text-slate-800">{new Date().toLocaleDateString("es-AR")}</span>
-          </div>
-        </div>
-
-        {/* QR Code Validation Mockup */}
-        <div class="flex flex-col items-center py-2 space-y-1.5">
-          <div class="w-24 h-24 bg-white p-1 border border-slate-200 rounded-xl flex items-center justify-center shadow-inner">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=COUPON:${benefit.id}:${user.value?.id || "anonymous"}`}
-              alt="Validation QR"
-              width={88}
-              height={88}
-              class="object-contain"
-            />
-          </div>
-          <span class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Escanear en Comercio para Validar</span>
-        </div>
-
-        {/* Barcode Mockup */}
-        <div class="pt-4 border-t border-slate-200 flex flex-col items-center">
-          <div class="w-full h-12 bg-slate-900 rounded flex items-center justify-between px-6 py-1.5 space-x-0.5 overflow-hidden filter grayscale opacity-90">
-            {/* Visual simulated barcode lines */}
-            {Array.from({ length: 48 }).map((_, i) => {
-              const widths = ["w-[1px]", "w-[2px]", "w-[3px]", "w-[1.5px]", "w-[4px]"];
-              const width = widths[Math.floor(Math.sin(i) * 5) + 2] || "w-[1px]";
-              return <div key={i} class={`h-full bg-white ${width}`} />;
-            })}
-          </div>
-          <span class="text-[8px] font-mono tracking-widest text-slate-400 mt-1.5 uppercase">AMP-B-{benefit.id}-938209</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 });

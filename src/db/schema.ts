@@ -150,4 +150,19 @@ export const merchantRequests = sqliteTable("merchant_requests", {
   createdAt: text("created_at").notNull(),
 });
 
+// --- Coupon System ---
+export const coupons = sqliteTable("coupons", {
+  id: text("id").primaryKey(),
+  code: text("code").unique().notNull(), // Unique 6-digit code e.g. "839105"
+  benefitId: text("benefit_id").notNull(),
+  benefitTitle: text("benefit_title").notNull(),
+  benefitResumen: text("benefit_resumen").notNull(),
+  userId: text("user_id").notNull(),
+  userName: text("user_name").notNull(),
+  userMatricula: text("user_matricula"),
+  status: text("status", { enum: ["active", "used", "expired"] }).default("active").notNull(),
+  createdAt: text("created_at").notNull(), // ISO Date String
+  usedAt: text("used_at"), // ISO Date String
+});
+
 

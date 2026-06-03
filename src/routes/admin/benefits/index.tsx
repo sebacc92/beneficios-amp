@@ -1,6 +1,6 @@
 import { component$, useSignal, useComputed$, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuTicket, LuCrown, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch } from "@qwikest/icons/lucide";
+import { LuPlus, LuTicket, LuCrown, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
@@ -45,7 +45,7 @@ export const useCreateBenefitAction = routeAction$(
       const uuid = "cb-" + Date.now().toString();
       const slug = uuid + "-" + data.titulo.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
 
-      let uploadedPdfUrl = data.pdfUrl || null;
+      let uploadedPdfUrl = null;
 
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
@@ -82,6 +82,74 @@ export const useCreateBenefitAction = routeAction$(
         }
       }
 
+      let uploadedImageUrl = null;
+      let imageUploaded = false;
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
+
+      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
+        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const fileName = `benefit-${Date.now()}.webp`;
+
+        if (token) {
+          try {
+            const blob = await put(fileName, Buffer.from(bytes), {
+              access: "public",
+              token: token
+            });
+            uploadedImageUrl = blob.url;
+            imageUploaded = true;
+            console.log("[Vercel Blob] Uploaded optimized image to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
+          }
+        }
+
+        if (!imageUploaded) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, bytes);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
+      } else if (data.imageFile && typeof data.imageFile === "object" && (data.imageFile as Blob).size > 0) {
+        const file = data.imageFile as File;
+        const extension = file.name.split(".").pop() || "png";
+        const fileName = `benefit-${Date.now()}.${extension}`;
+
+        if (token) {
+          try {
+            const blob = await put(fileName, file, {
+              access: "public",
+              token: token
+            });
+            uploadedImageUrl = blob.url;
+            imageUploaded = true;
+            console.log("[Vercel Blob] Uploaded image file to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
+          }
+        }
+
+        if (!imageUploaded) {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = new Uint8Array(arrayBuffer);
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          uploadedImageUrl = `/uploads/${fileName}`;
+        }
+      }
+
       let lat = data.latitud?.trim() || null;
       let lng = data.longitud?.trim() || null;
       if (!lat || !lng) {
@@ -96,7 +164,7 @@ export const useCreateBenefitAction = routeAction$(
         titulo: data.titulo,
         resumen: data.resumen,
         descripcion: data.descripcion,
-        imagen: data.imagen || null,
+        imagen: uploadedImageUrl,
         slug,
         isFeatured: data.isFeatured === "on",
         isPremiumOnly: data.isPremiumOnly === "on",
@@ -133,6 +201,8 @@ export const useCreateBenefitAction = routeAction$(
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
+    imageFile: z.any().optional(),
+    optimizedImage: z.string().optional(),
     latitud: z.string().optional(),
     longitud: z.string().optional(),
   })
@@ -149,7 +219,7 @@ export const useEditBenefitAction = routeAction$(
       const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
       if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
 
-      let finalPdfUrl = data.pdfUrl || existing.pdfUrl;
+      let finalPdfUrl = existing.pdfUrl;
 
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
@@ -184,8 +254,81 @@ export const useEditBenefitAction = routeAction$(
           await fsModule.writeFile(filePath, buffer);
           finalPdfUrl = `/uploads/${fileName}`;
         }
-      } else if (data.pdfUrl === "") {
+      } else if (data.clearPdf === "true") {
         finalPdfUrl = null;
+      }
+
+      let finalImageUrl = existing.imagen;
+
+      if (data.clearImage === "true") {
+        finalImageUrl = null;
+      }
+
+      let imageUploaded = false;
+      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
+
+      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
+        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const fileName = `benefit-${Date.now()}.webp`;
+
+        if (token) {
+          try {
+            const blob = await put(fileName, Buffer.from(bytes), {
+              access: "public",
+              token: token
+            });
+            finalImageUrl = blob.url;
+            imageUploaded = true;
+            console.log("[Vercel Blob] Uploaded optimized image to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
+          }
+        }
+
+        if (!imageUploaded) {
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, bytes);
+          finalImageUrl = `/uploads/${fileName}`;
+        }
+      } else if (data.imageFile && typeof data.imageFile === "object" && (data.imageFile as Blob).size > 0) {
+        const file = data.imageFile as File;
+        const extension = file.name.split(".").pop() || "png";
+        const fileName = `benefit-${Date.now()}.${extension}`;
+
+        if (token) {
+          try {
+            const blob = await put(fileName, file, {
+              access: "public",
+              token: token
+            });
+            finalImageUrl = blob.url;
+            imageUploaded = true;
+            console.log("[Vercel Blob] Uploaded image file to:", blob.url);
+          } catch (blobErr: any) {
+            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
+          }
+        }
+
+        if (!imageUploaded) {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = new Uint8Array(arrayBuffer);
+          const uploadsDir = `${process.cwd()}/public/uploads`;
+          const fsModule = await import("fs/promises");
+          await fsModule.mkdir(uploadsDir, { recursive: true });
+          const filePath = `${uploadsDir}/${fileName}`;
+          await fsModule.writeFile(filePath, buffer);
+          finalImageUrl = `/uploads/${fileName}`;
+        }
       }
 
       let lat = data.latitud?.trim() || null;
@@ -201,7 +344,7 @@ export const useEditBenefitAction = routeAction$(
           titulo: data.titulo,
           resumen: data.resumen,
           descripcion: data.descripcion,
-          imagen: data.imagen || existing.imagen,
+          imagen: finalImageUrl,
           isFeatured: data.isFeatured === "on",
           isPremiumOnly: data.isPremiumOnly === "on",
           categoryId: Number(data.categoryId),
@@ -238,6 +381,10 @@ export const useEditBenefitAction = routeAction$(
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
+    imageFile: z.any().optional(),
+    optimizedImage: z.string().optional(),
+    clearImage: z.string().optional(),
+    clearPdf: z.string().optional(),
     latitud: z.string().optional(),
     longitud: z.string().optional(),
   })
@@ -272,15 +419,124 @@ export default component$(() => {
   const isCreateBenefitOpen = useSignal(false);
   const editingBenefit = useSignal<any | null>(null);
 
+  // Image Upload signals
+  const createImagePreviewUrl = useSignal<string | null>(null);
+  const createOptimizedImageBase64 = useSignal<string>("");
+
+  const editImagePreviewUrl = useSignal<string | null>(null);
+  const editOptimizedImageBase64 = useSignal<string>("");
+  const editIsImageDeleted = useSignal<boolean>(false);
+  const editIsPdfDeleted = useSignal<boolean>(false);
+
   // Pagination & Search state
   const currentPage = useSignal(1);
   const searchQuery = useSignal("");
   const goldFilterActive = useSignal(false);
 
+  // Change handler with client-side canvas optimization (Create)
+  const handleCreateImageChange = $((event: Event) => {
+    const element = event.target as HTMLInputElement;
+    if (!element.files || element.files.length === 0) return;
+    const file = element.files[0];
+
+    if (file.type === "image/svg+xml") {
+      createOptimizedImageBase64.value = "";
+      createImagePreviewUrl.value = URL.createObjectURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxW = 800;
+        const maxH = 450;
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/webp", 0.85);
+          createOptimizedImageBase64.value = dataUrl;
+          createImagePreviewUrl.value = dataUrl;
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Change handler with client-side canvas optimization (Edit)
+  const handleEditImageChange = $((event: Event) => {
+    const element = event.target as HTMLInputElement;
+    if (!element.files || element.files.length === 0) return;
+    const file = element.files[0];
+    editIsImageDeleted.value = false;
+
+    if (file.type === "image/svg+xml") {
+      editOptimizedImageBase64.value = "";
+      editImagePreviewUrl.value = URL.createObjectURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxW = 800;
+        const maxH = 450;
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/webp", 0.85);
+          editOptimizedImageBase64.value = dataUrl;
+          editImagePreviewUrl.value = dataUrl;
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+
   useTask$(({ track }) => {
     track(() => editBenefitAction.value);
     if (editBenefitAction.value?.success) {
       editingBenefit.value = null;
+      editImagePreviewUrl.value = null;
+      editOptimizedImageBase64.value = "";
+      editIsImageDeleted.value = false;
+      editIsPdfDeleted.value = false;
+    }
+  });
+
+  useTask$(({ track }) => {
+    track(() => createBenefitAction.value);
+    if (createBenefitAction.value?.success) {
+      isCreateBenefitOpen.value = false;
+      createImagePreviewUrl.value = null;
+      createOptimizedImageBase64.value = "";
     }
   });
 
@@ -393,6 +649,8 @@ export default component$(() => {
             onClick$={() => {
               editingBenefit.value = null;
               isCreateBenefitOpen.value = !isCreateBenefitOpen.value;
+              createImagePreviewUrl.value = null;
+              createOptimizedImageBase64.value = "";
             }}
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
           >
@@ -522,16 +780,67 @@ export default component$(() => {
               </div>
             </div>
 
-            {/* Documentación PDF Widget */}
-            <div class="border-t border-slate-100 pt-5 space-y-4">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-                </svg>
-                Documentación / Catálogo Adjunto (PDF)
-              </h4>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-1">
+            {/* Imagen Destacada y Documentación PDF */}
+            <div class="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Imagen Ilustrativa del Beneficio */}
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+                  <LuImage class="w-4 h-4 text-brand-green" />
+                  Imagen Ilustrativa del Beneficio
+                </h4>
+                <input type="hidden" name="optimizedImage" value={createOptimizedImageBase64.value} />
+                <div class="space-y-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Imagen</label>
+                  <div class="flex items-center gap-4">
+                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
+                      {createImagePreviewUrl.value ? (
+                        <img src={createImagePreviewUrl.value} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
+                      ) : (
+                        <LuImage class="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <div class="flex flex-col gap-2">
+                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+                        <LuImage class="w-4 h-4 text-brand-green" />
+                        Seleccionar Archivo
+                        <input
+                          id="create-image-file-input"
+                          type="file"
+                          name="imageFile"
+                          accept="image/*"
+                          onChange$={handleCreateImageChange}
+                          class="hidden"
+                        />
+                      </label>
+                      {createImagePreviewUrl.value && (
+                        <button
+                          type="button"
+                          onClick$={() => {
+                            createImagePreviewUrl.value = null;
+                            createOptimizedImageBase64.value = "";
+                            const input = document.getElementById("create-image-file-input") as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          class="px-4 py-2 border border-red-200 hover:bg-red-50 text-red-650 text-xs font-extrabold rounded-2xl transition-all inline-flex items-center justify-center shadow-sm"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-slate-400 font-medium">Archivos PNG, JPEG o WebP. Se optimizará automáticamente a WebP.</p>
+                </div>
+              </div>
+
+              {/* Documentación PDF Widget */}
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+                  </svg>
+                  Documentación / Catálogo (PDF)
+                </h4>
+                <div class="space-y-2">
                   <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Archivo PDF</label>
                   <input
                     type="file"
@@ -539,17 +848,7 @@ export default component$(() => {
                     accept="application/pdf"
                     class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
                   />
-                  <p class="text-[10px] text-slate-400">Subí la lista de precios, menú, folleto descriptivo o bases y condiciones.</p>
-                </div>
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">O Enlace PDF Externo</label>
-                  <input
-                    type="url"
-                    name="pdfUrl"
-                    placeholder="https://ejemplo.com/menu.pdf"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                  />
-                  <p class="text-[10px] text-slate-400">Si el documento está alojado de manera externa en la web.</p>
+                  <p class="text-[10px] text-slate-400 font-medium">Subí la lista de precios, menú o bases y condiciones.</p>
                 </div>
               </div>
             </div>
@@ -704,37 +1003,102 @@ export default component$(() => {
               </div>
             </div>
 
-            {/* Documentación PDF Widget */}
-            <div class="border-t border-slate-100 pt-5 space-y-4">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-                </svg>
-                Documentación / Catálogo Adjunto (PDF)
-              </h4>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Nuevo Archivo PDF</label>
-                  <input
-                    type="file"
-                    name="pdfFile"
-                    accept="application/pdf"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
-                  />
-                  {editingBenefit.value.pdfUrl && (
-                    <p class="text-[10px] text-emerald-650 font-bold">✓ Archivo actual: {editingBenefit.value.pdfUrl.split('/').pop()}</p>
-                  )}
+            {/* Imagen Destacada y Documentación PDF */}
+            <div class="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Imagen Ilustrativa del Beneficio */}
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+                  <LuImage class="w-4 h-4 text-brand-green" />
+                  Imagen Ilustrativa del Beneficio
+                </h4>
+                <input type="hidden" name="optimizedImage" value={editOptimizedImageBase64.value} />
+                <input type="hidden" name="clearImage" value={editIsImageDeleted.value ? "true" : "false"} />
+                <div class="space-y-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Nueva Imagen</label>
+                  <div class="flex items-center gap-4">
+                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
+                      {editImagePreviewUrl.value && !editIsImageDeleted.value ? (
+                        <img src={editImagePreviewUrl.value} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
+                      ) : (
+                        <LuImage class="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <div class="flex flex-col gap-2">
+                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+                        <LuImage class="w-4 h-4 text-brand-green" />
+                        Seleccionar Archivo
+                        <input
+                          id="edit-image-file-input"
+                          type="file"
+                          name="imageFile"
+                          accept="image/*"
+                          onChange$={handleEditImageChange}
+                          class="hidden"
+                        />
+                      </label>
+                      {editImagePreviewUrl.value && !editIsImageDeleted.value && (
+                        <button
+                          type="button"
+                          onClick$={() => {
+                            editIsImageDeleted.value = true;
+                            editOptimizedImageBase64.value = "";
+                            const input = document.getElementById("edit-image-file-input") as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          class="px-4 py-2 border border-red-200 hover:bg-red-50 text-red-650 text-xs font-extrabold rounded-2xl transition-all inline-flex items-center justify-center shadow-sm"
+                        >
+                          Eliminar Imagen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-slate-400 font-medium">Archivos PNG, JPEG o WebP. Se optimizará automáticamente.</p>
                 </div>
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">O Enlace PDF Externo</label>
-                  <input
-                    type="url"
-                    name="pdfUrl"
-                    value={editingBenefit.value.pdfUrl || ""}
-                    placeholder="https://ejemplo.com/menu.pdf"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                  />
-                  <p class="text-[10px] text-slate-450">Si deseas eliminar el PDF, borrá este campo y no subas ningún archivo.</p>
+              </div>
+
+              {/* Documentación PDF Widget */}
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+                  </svg>
+                  Documentación / Catálogo (PDF)
+                </h4>
+                <input type="hidden" name="clearPdf" value={editIsPdfDeleted.value ? "true" : "false"} />
+                <div class="space-y-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Nuevo PDF</label>
+                  <div class="flex flex-col gap-2">
+                    <input
+                      id="edit-pdf-file-input"
+                      type="file"
+                      name="pdfFile"
+                      accept="application/pdf"
+                      onChange$={() => {
+                        editIsPdfDeleted.value = false;
+                      }}
+                      class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
+                    />
+                    
+                    {editingBenefit.value.pdfUrl && !editIsPdfDeleted.value && (
+                      <div class="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                        <span class="text-xs font-semibold text-slate-650 truncate max-w-[200px]" title={editingBenefit.value.pdfUrl.split('/').pop()}>
+                          📄 {editingBenefit.value.pdfUrl.split('/').pop()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick$={() => {
+                            editIsPdfDeleted.value = true;
+                            const input = document.getElementById("edit-pdf-file-input") as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          class="text-[10px] text-red-650 hover:underline font-bold"
+                        >
+                          Eliminar PDF
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p class="text-[10px] text-slate-400 font-medium">Subí la lista de precios, menú o bases y condiciones.</p>
                 </div>
               </div>
             </div>
@@ -781,6 +1145,9 @@ export default component$(() => {
                 type="button"
                 onClick$={() => {
                   editingBenefit.value = null;
+                  editImagePreviewUrl.value = null;
+                  editOptimizedImageBase64.value = "";
+                  editIsImageDeleted.value = false;
                 }}
                 class="py-3 px-6 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold shadow-sm transition-all duration-300 cursor-pointer"
               >
@@ -860,6 +1227,9 @@ export default component$(() => {
                             onClick$={() => {
                               editingBenefit.value = benefit;
                               isCreateBenefitOpen.value = false;
+                              editImagePreviewUrl.value = benefit.imagen || null;
+                              editOptimizedImageBase64.value = "";
+                              editIsImageDeleted.value = false;
                             }}
                             class="p-2 text-brand-green hover:text-brand-green-light hover:bg-emerald-50 rounded-full transition-all cursor-pointer"
                             title="Editar Beneficio"
