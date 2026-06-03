@@ -1018,7 +1018,20 @@ export default component$(() => {
                   <div class="flex items-center gap-4">
                     <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
                       {editImagePreviewUrl.value && !editIsImageDeleted.value ? (
-                        <img src={editImagePreviewUrl.value} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
+                        <img
+                          src={
+                            editImagePreviewUrl.value.startsWith("data:") ||
+                            editImagePreviewUrl.value.startsWith("blob:") ||
+                            editImagePreviewUrl.value.startsWith("http") ||
+                            editImagePreviewUrl.value.startsWith("/")
+                              ? editImagePreviewUrl.value
+                              : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
+                          }
+                          alt="Vista previa"
+                          class="w-full h-full object-cover"
+                          width={80}
+                          height={80}
+                        />
                       ) : (
                         <LuImage class="w-6 h-6 text-slate-400" />
                       )}
@@ -1190,10 +1203,11 @@ export default component$(() => {
                         <div class="flex items-center gap-2">
                           <span>{benefit.titulo}</span>
                           {benefit.pdfUrl && (
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-55 text-red-600 border border-red-200" title="Contiene documento PDF adjunto">
-                              <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24">
-                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-                              </svg>
+                            <span
+                              class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-red-50 text-red-600 border border-red-200 uppercase tracking-wider"
+                              title="Contiene documento PDF adjunto"
+                            >
+                              PDF
                             </span>
                           )}
                         </div>
