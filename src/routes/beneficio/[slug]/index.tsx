@@ -376,6 +376,10 @@ export default component$(() => {
     ? (benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
     : null;
 
+  const imageMobileUrl = benefit.imagenMobile
+    ? (benefit.imagenMobile.startsWith('http') || benefit.imagenMobile.startsWith('/') ? benefit.imagenMobile : `https://beneficios.amepla.org.ar/files/${benefit.imagenMobile}`)
+    : null;
+
   const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
   const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
 
@@ -401,13 +405,18 @@ export default component$(() => {
               {/* Feature Hero Image */}
               <div class="relative h-64 sm:h-[400px] bg-brand-green-dark overflow-hidden flex items-center justify-center">
                 {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={benefit.titulo}
-                    class="w-full h-full object-cover"
-                    width={800}
-                    height={400}
-                  />
+                  <picture class="w-full h-full block">
+                    {imageMobileUrl && (
+                      <source media="(max-width: 640px)" srcset={imageMobileUrl} />
+                    )}
+                    <img
+                      src={imageUrl}
+                      alt={benefit.titulo}
+                      class="w-full h-full object-cover"
+                      width={800}
+                      height={400}
+                    />
+                  </picture>
                 ) : (
                   <div class="flex flex-col items-center justify-center p-8 text-center h-full">
                     <span class="text-brand-gold text-6xl font-display font-black tracking-tight leading-none">

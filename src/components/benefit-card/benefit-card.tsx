@@ -62,13 +62,17 @@ const getTimeAgo = (dateStr?: string) => {
     return `Hace ${diffMonths} meses`;
   }
   return `Hace ${Math.floor(diffMonths / 12)} años`;
-};
-
-export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard", isLocked = false }) => {
-  const imageSrc = benefit.imagen
+};export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard", isLocked = false }) => {
+  const desktopImageSrc = benefit.imagen
     ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") 
         ? benefit.imagen 
         : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
+    : "";
+
+  const mobileImageSrc = benefit.imagenMobile
+    ? (benefit.imagenMobile.startsWith("http") || benefit.imagenMobile.startsWith("/") 
+        ? benefit.imagenMobile 
+        : `https://beneficios.amepla.org.ar/files/${benefit.imagenMobile}`)
     : "";
 
   const primaryCat = benefit.categorias?.[0]?.descripcion || "Beneficios";
@@ -85,15 +89,20 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
       >
         {/* Card Image */}
         <div class="relative h-44 bg-slate-900 overflow-hidden flex items-center justify-center">
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={benefit.titulo}
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-              width={320}
-              height={176}
-              loading="lazy"
-            />
+          {desktopImageSrc ? (
+            <picture class="w-full h-full block">
+              {mobileImageSrc && (
+                <source media="(max-width: 640px)" srcset={mobileImageSrc} />
+              )}
+              <img
+                src={desktopImageSrc}
+                alt={benefit.titulo}
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
+                width={320}
+                height={176}
+                loading="lazy"
+              />
+            </picture>
           ) : (
             <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-950 to-slate-900">
               <span class="text-brand-gold font-display font-black text-2xl">AMP+ GOLD</span>
@@ -105,7 +114,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
 
           {/* Floating Badges */}
           <div class="absolute top-3.5 left-3.5 z-10">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-brand-gold text-slate-950 uppercase tracking-widest shadow-sm">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-brand-gold text-slate-955 uppercase tracking-widest shadow-sm">
               {primaryCat}
             </span>
           </div>
@@ -150,15 +159,20 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
       >
         {/* Card Image */}
         <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={benefit.titulo}
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              width={320}
-              height={176}
-              loading="lazy"
-            />
+          {desktopImageSrc ? (
+            <picture class="w-full h-full block">
+              {mobileImageSrc && (
+                <source media="(max-width: 640px)" srcset={mobileImageSrc} />
+              )}
+              <img
+                src={desktopImageSrc}
+                alt={benefit.titulo}
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                width={320}
+                height={176}
+                loading="lazy"
+              />
+            </picture>
           ) : (
             <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
               <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
@@ -173,7 +187,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
             <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-black bg-slate-950/60 text-slate-100 backdrop-blur-sm border border-slate-800/40 uppercase tracking-widest leading-none">
               {primaryCat}
             </span>
-            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[9px] font-black bg-slate-950/70 text-emerald-400 backdrop-blur-sm border border-emerald-500/25 tracking-widest uppercase leading-none">
+            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[9px] font-black bg-slate-950/70 text-emerald-400 backdrop-blur-sm border border-emerald-505/25 tracking-widest uppercase leading-none">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>{timeAgo}</span>
             </span>
@@ -193,8 +207,8 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
           <div class="flex items-center justify-between pt-3.5 border-t border-slate-100 mt-auto">
             <div class="flex items-center space-x-2 text-left">
               <div class="w-7.5 h-7.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <div class="flex flex-col">
@@ -216,15 +230,20 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
     <div class="bg-white border border-slate-100/80 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none text-left">
       {/* Image & floating elements */}
       <div class="relative h-52 bg-slate-50 overflow-hidden flex items-center justify-center">
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt={benefit.titulo}
-            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            width={320}
-            height={208}
-            loading="lazy"
-          />
+        {desktopImageSrc ? (
+          <picture class="w-full h-full block">
+            {mobileImageSrc && (
+              <source media="(max-width: 640px)" srcset={mobileImageSrc} />
+            )}
+            <img
+              src={desktopImageSrc}
+              alt={benefit.titulo}
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              width={320}
+              height={208}
+              loading="lazy"
+            />
+          </picture>
         ) : (
           <div class="flex flex-col items-center justify-center p-6 text-center">
             <span class="text-brand-green font-display font-black text-2xl">AMP+</span>
@@ -234,7 +253,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
 
         {/* Exclusive Gold locking label */}
         {isLocked && (
-          <div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
+          <div class="absolute inset-0 bg-slate-955/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
             <span class="text-3xl">🔒</span>
             <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
               Exclusivo Premium

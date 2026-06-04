@@ -64,6 +64,7 @@ export const customBenefits = sqliteTable("custom_benefits", {
   resumen: text("resumen").notNull(),
   descripcion: text("descripcion").notNull(),
   imagen: text("imagen"),
+  imagenMobile: text("imagen_mobile"),
   slug: text("slug").unique().notNull(),
   isFeatured: integer("is_featured", { mode: "boolean" }).default(false).notNull(),
   isPremiumOnly: integer("is_premium_only", { mode: "boolean" }).default(false).notNull(),

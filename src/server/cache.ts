@@ -46,6 +46,7 @@ export interface Benefit {
   isPremiumOnly?: boolean; // Premium badge
   isFeatured?: boolean; // Featured status
   pdfUrl?: string | null; // PDF file document URL or path
+  imagenMobile?: string | null; // Mobile image URL or path
 }
 
 export interface Filters {
@@ -282,6 +283,7 @@ export async function ensureDbSeeded(db: any) {
         terms: "Válido presentando credencial digital.",
         latitud: b.latitud || null,
         longitud: b.longitud || null,
+        imagenMobile: null,
         createdAt: b.created_at || new Date().toISOString(),
       });
     }
@@ -436,6 +438,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
               isPremiumOnly: cb.isPremiumOnly,
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
+        imagenMobile: cb.imagenMobile || null,
         created_at: cb.createdAt,
       } as Benefit;
     });
