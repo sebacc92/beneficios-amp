@@ -240,7 +240,7 @@ export const useCreateBenefitAction = routeAction$(
         locationId: Number(data.locationId),
         offerId: Number(data.offerId),
         couponCode: data.couponCode || null,
-        validUntil: data.validUntil || null,
+        validUntil: data.isActive !== "on" ? `draft|${data.validUntil || ""}` : (data.validUntil || null),
         terms: data.terms || null,
         pdfUrl: uploadedPdfUrl,
         latitud: lat,
@@ -267,6 +267,7 @@ export const useCreateBenefitAction = routeAction$(
     offerId: z.string(),
     couponCode: z.string().optional(),
     validUntil: z.string().optional(),
+    isActive: z.string().optional(),
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
@@ -495,7 +496,7 @@ export const useEditBenefitAction = routeAction$(
           locationId: Number(data.locationId),
           offerId: Number(data.offerId),
           couponCode: data.couponCode || null,
-          validUntil: data.validUntil || null,
+          validUntil: data.isActive !== "on" ? `draft|${data.validUntil || ""}` : (data.validUntil || null),
           terms: data.terms || null,
           pdfUrl: finalPdfUrl,
           latitud: lat,
@@ -523,6 +524,7 @@ export const useEditBenefitAction = routeAction$(
     offerId: z.string(),
     couponCode: z.string().optional(),
     validUntil: z.string().optional(),
+    isActive: z.string().optional(),
     terms: z.string().optional(),
     pdfUrl: z.string().optional(),
     pdfFile: z.any().optional(),
@@ -535,6 +537,40 @@ export const useEditBenefitAction = routeAction$(
     clearPdf: z.string().optional(),
     latitud: z.string().optional(),
     longitud: z.string().optional(),
+  })
+);
+
+export const useToggleBenefitActiveAction = routeAction$(
+  async (data, requestEvent) => {
+    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
+
+    try {
+      const db = getDB(requestEvent);
+      const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
+      if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
+
+      const rawValidUntil = existing.validUntil;
+      const isDraft = rawValidUntil?.startsWith("draft|") || rawValidUntil === "draft";
+      let newValidUntil: string | null = null;
+      if (isDraft) {
+        newValidUntil = rawValidUntil === "draft" ? null : rawValidUntil!.substring(6);
+      } else {
+        newValidUntil = `draft|${rawValidUntil || ""}`;
+      }
+
+      await db.update(customBenefitsTable)
+        .set({ validUntil: newValidUntil })
+        .where(eq(customBenefitsTable.id, data.id));
+
+      return { success: true };
+    } catch (err: any) {
+      console.error(err);
+      return requestEvent.fail(500, { message: "Error al cambiar el estado." });
+    }
+  },
+  zod$({
+    id: z.string(),
   })
 );
 
@@ -563,6 +599,7 @@ export default component$(() => {
   const createBenefitAction = useCreateBenefitAction();
   const editBenefitAction = useEditBenefitAction();
   const deleteBenefitAction = useDeleteBenefitAction();
+  const toggleBenefitActiveAction = useToggleBenefitActiveAction();
 
   const isCreateBenefitOpen = useSignal(false);
   const editingBenefit = useSignal<any | null>(null);
@@ -585,6 +622,7 @@ export default component$(() => {
   const currentPage = useSignal(1);
   const searchQuery = useSignal("");
   const goldFilterActive = useSignal(false);
+  const statusFilter = useSignal<"all" | "active" | "inactive">("all");
 
   // Live preview signals for Create
   const createPreviewTitulo = useSignal("Nombre del Comercio");
@@ -821,12 +859,22 @@ export default component$(() => {
     currentPage.value = 1;
   });
 
+  useTask$(({ track }) => {
+    track(() => statusFilter.value);
+    currentPage.value = 1;
+  });
+
   const itemsPerPage = 25;
 
   const filteredBenefits = useComputed$(() => {
     let items = customBenefits.value;
     if (goldFilterActive.value) {
       items = items.filter(b => b.isPremiumOnly);
+    }
+    if (statusFilter.value === "active") {
+      items = items.filter(b => !(b.validUntil?.startsWith("draft|") || b.validUntil === "draft"));
+    } else if (statusFilter.value === "inactive") {
+      items = items.filter(b => b.validUntil?.startsWith("draft|") || b.validUntil === "draft");
     }
     const query = searchQuery.value.toLowerCase().trim();
     if (!query) return items;
@@ -916,6 +964,21 @@ export default component$(() => {
             <span>Filtrar Gold</span>
           </button>
 
+          {/* Status Filter */}
+          <div class="relative w-full sm:w-44">
+            <select
+              value={statusFilter.value}
+              onChange$={(ev, el) => {
+                statusFilter.value = el.value as any;
+              }}
+              class="w-full bg-white text-slate-700 text-xs px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all cursor-pointer font-bold shadow-sm"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Borradores</option>
+            </select>
+          </div>
+
           <button
             onClick$={() => {
               editingBenefit.value = null;
@@ -942,6 +1005,12 @@ export default component$(() => {
         {editBenefitAction.value?.success && (
           <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-fade-in">
             ✓ Beneficio modificado exitosamente y actualizado en el catálogo.
+          </div>
+        )}
+
+        {toggleBenefitActiveAction.value?.success && (
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-fade-in">
+            ✓ Estado de activación del beneficio modificado con éxito.
           </div>
         )}
 
@@ -1300,7 +1369,7 @@ export default component$(() => {
                 </div>
               </div>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
@@ -1311,7 +1380,7 @@ export default component$(() => {
                 />
                 <label for="isFeatured" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
                   <LuSparkles class="w-4 h-4 text-brand-gold fill-brand-gold animate-pulse" />
-                  <span>Destacado de la Semana (Jerarquizar en Home)</span>
+                  <span>Destacado de la Semana</span>
                 </label>
               </div>
 
@@ -1324,8 +1393,22 @@ export default component$(() => {
                   class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
                 />
                 <label for="isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuCrown class="w-4 h-4 text-amber-500" />
+                  <LuCrown class="w-4 h-4 text-amber-550" />
                   <span>Beneficio Gold/Premium</span>
+                </label>
+              </div>
+
+              <div class="flex items-center gap-3 pt-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  name="isActive"
+                  defaultChecked={true}
+                  class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
+                />
+                <label for="isActive" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
+                  <span class="w-2.5 h-2.5 rounded-full bg-brand-green"></span>
+                  <span>Publicar (Activo)</span>
                 </label>
               </div>
             </div>
@@ -1342,7 +1425,7 @@ export default component$(() => {
 
         {/* Form Modal Panel for Edit */}
         {editingBenefit.value && (
-          <Form action={editBenefitAction} enctype="multipart/form-data" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
+          <Form key={editingBenefit.value.id} action={editBenefitAction} enctype="multipart/form-data" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
             <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Modificar Beneficio Propio</h4>
             <input type="hidden" name="id" value={editingBenefit.value.id} />
 
@@ -1789,19 +1872,19 @@ export default component$(() => {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
                   id="edit_isFeatured"
                   name="isFeatured"
-                  checked={editingBenefit.value.isFeatured}
+                  checked={editPreviewIsFeatured.value}
                   onChange$={(e, el) => { editPreviewIsFeatured.value = el.checked; }}
                   class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
                 />
                 <label for="edit_isFeatured" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
                   <LuSparkles class="w-4 h-4 text-brand-gold fill-brand-gold animate-pulse" />
-                  <span>Destacado de la Semana (Jerarquizar en Home)</span>
+                  <span>Destacado de la Semana</span>
                 </label>
               </div>
 
@@ -1810,13 +1893,27 @@ export default component$(() => {
                   type="checkbox"
                   id="edit_isPremiumOnly"
                   name="isPremiumOnly"
-                  checked={editingBenefit.value.isPremiumOnly}
+                  checked={editPreviewIsPremiumOnly.value}
                   onChange$={(e, el) => { editPreviewIsPremiumOnly.value = el.checked; }}
                   class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
                 />
                 <label for="edit_isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuCrown class="w-4 h-4 text-amber-500" />
+                  <LuCrown class="w-4 h-4 text-amber-550" />
                   <span>Beneficio Gold/Premium</span>
+                </label>
+              </div>
+
+              <div class="flex items-center gap-3 pt-2">
+                <input
+                  type="checkbox"
+                  id="edit_isActive"
+                  name="isActive"
+                  defaultChecked={!(editingBenefit.value.validUntil?.startsWith("draft|") || editingBenefit.value.validUntil === "draft")}
+                  class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
+                />
+                <label for="edit_isActive" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
+                  <span class="w-2.5 h-2.5 rounded-full bg-brand-green"></span>
+                  <span>Publicar (Activo)</span>
                 </label>
               </div>
             </div>
@@ -1854,13 +1951,14 @@ export default component$(() => {
                 <th class="px-6 py-4">Resumen / Desc.</th>
                 <th class="px-6 py-4">Segmentación</th>
                 <th class="px-6 py-4">Filtros (Categoría/Ubicación)</th>
+                <th class="px-6 py-4 text-center">Estado</th>
                 <th class="px-6 py-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               {paginatedBenefits.value.length === 0 ? (
                 <tr>
-                  <td colSpan={5} class="px-6 py-12 text-center text-slate-450">
+                  <td colSpan={6} class="px-6 py-12 text-center text-slate-450">
                     <div class="flex items-center justify-center gap-2">
                       <LuTicket class="w-5 h-5 text-purple-400" />
                       <span>Aún no has creado beneficios propios. Hacé clic en "Crear Beneficio" para registrar el primero.</span>
@@ -1871,6 +1969,7 @@ export default component$(() => {
                 paginatedBenefits.value.map((benefit) => {
                   const catDesc = adminFilters.value.categorias.find(c => c.id === benefit.categoryId)?.descripcion || `Cat #${benefit.categoryId}`;
                   const locDesc = adminFilters.value.ubicaciones.find(l => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`;
+                  const isActive = !(benefit.validUntil?.startsWith("draft|") || benefit.validUntil === "draft");
 
                   return (
                     <tr key={benefit.id} class="hover:bg-slate-50 transition-colors">
@@ -1907,6 +2006,25 @@ export default component$(() => {
                       </td>
                       <td class="px-6 py-4 text-slate-500 font-bold">
                         {catDesc} <span class="text-slate-300 mx-1">|</span> <span class="font-normal text-slate-400">{locDesc}</span>
+                      </td>
+                      {/* Estado Toggle Column */}
+                      <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center">
+                          <label class="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isActive}
+                              onChange$={$(async () => {
+                                await toggleBenefitActiveAction.submit({ id: benefit.id });
+                              })}
+                              class="sr-only peer"
+                            />
+                            <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-green"></div>
+                            <span class="ml-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 min-w-[50px] text-left">
+                              {isActive ? "Activo" : "Borrador"}
+                            </span>
+                          </label>
+                        </div>
                       </td>
                       <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center gap-1.5">

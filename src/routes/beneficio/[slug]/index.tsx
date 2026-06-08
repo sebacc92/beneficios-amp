@@ -55,7 +55,10 @@ function extractContacts(html: string) {
 // Server Loader to retrieve single benefit and similar recommendations
 export const useBenefitData = routeLoader$(async (event) => {
   const benefit = await getBenefitBySlug(event.params.slug, event);
-  if (!benefit) {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | null;
+  const isAdmin = user?.role === "admin";
+
+  if (!benefit || (benefit.isActive === false && !isAdmin)) {
     event.status(404);
     return null;
   }
@@ -71,7 +74,6 @@ export const useBenefitData = routeLoader$(async (event) => {
   const extractedContacts = extractContacts(benefit.descripcion);
 
   // Check if current user has an active coupon for this benefit
-  const user = event.sharedMap.get("user") as AuthenticatedUser | null;
   let activeCoupon = null;
   if (user) {
     try {

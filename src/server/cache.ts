@@ -47,6 +47,7 @@ export interface Benefit {
   isFeatured?: boolean; // Featured status
   pdfUrl?: string | null; // PDF file document URL or path
   imagenMobile?: string | null; // Mobile image URL or path
+  isActive?: boolean;
 }
 
 export interface Filters {
@@ -421,6 +422,14 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         ? Number(cb.slug.split("-")[0])
         : Math.floor(Math.random() * 10000) + 90000;
 
+      // Extract real validUntil and isActive status
+      const rawValidUntil = cb.validUntil;
+      const isDraft = rawValidUntil?.startsWith("draft|") || rawValidUntil === "draft";
+      const cleanValidUntil = isDraft
+        ? (rawValidUntil === "draft" ? null : rawValidUntil!.substring(6))
+        : rawValidUntil;
+      const isActive = !isDraft;
+
       return {
         id: numId,
         titulo: cb.titulo,
@@ -434,12 +443,13 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         ubicacion: [loc],
         ofertas: [off],
         orden_app: cb.isFeatured ? 1 : 0,
-        mostrar_app: 1,
-              isPremiumOnly: cb.isPremiumOnly,
+        mostrar_app: isActive ? 1 : 0,
+        isPremiumOnly: cb.isPremiumOnly,
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
         imagenMobile: cb.imagenMobile || null,
         created_at: cb.createdAt,
+        isActive,
       } as Benefit;
     });
   } catch (err) {
@@ -512,6 +522,9 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   const limit = params.limit && params.limit > 0 ? Number(params.limit) : 12;
 
   let filtered = uniqueBenefits;
+
+  // Filter out inactive benefits for public viewing
+  filtered = filtered.filter(b => b.mostrar_app !== 0);
 
   // 1. Text search filter
   if (query) {
