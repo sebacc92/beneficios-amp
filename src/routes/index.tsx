@@ -125,12 +125,12 @@ export default component$(() => {
           <HeroSlider slides={slides} />
 
           {/* Category Slider */}
-          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4 print:hidden text-left animate-fade-in-up">
+          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2 print:hidden text-left animate-fade-in-up">
             <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} />
           </div>
 
           {/* Offer Slider */}
-          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 print:hidden text-left animate-fade-in-up">
+          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-4 print:hidden text-left animate-fade-in-up">
             <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} />
           </div>
 

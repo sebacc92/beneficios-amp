@@ -106,9 +106,9 @@ export default component$(() => {
   return (
     <div class="relative min-h-screen bg-slate-50">
       {/* Search Header Info */}
-      <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 print:hidden text-left">
+      <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 print:hidden text-left">
         {/* Beautiful Horizontal Category Slider Bar */}
-        <div class="relative mb-6 pb-3 border-b border-slate-200/50">
+        <div class="relative mb-4 pb-2 border-b border-slate-200/50">
           <CategorySlider
             categorias={filters.categorias}
             activeCategoryId={activeFilters.categoryId}
@@ -118,7 +118,7 @@ export default component$(() => {
         </div>
 
         {/* Beautiful Horizontal Offer Slider Bar */}
-        <div class="relative mb-8 pb-3 border-b border-slate-200/50">
+        <div class="relative mb-5 pb-2 border-b border-slate-200/50">
           <OfferSlider
             ofertas={filters.ofertas}
             activeOfferId={activeFilters.offerId}
