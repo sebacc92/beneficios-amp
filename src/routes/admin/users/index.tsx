@@ -1,6 +1,6 @@
 import { component$, useSignal } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuCrown } from "@qwikest/icons/lucide";
+import { LuPlus } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users as usersTable } from "~/db/schema";
@@ -80,8 +80,23 @@ export const useRegisterUserAction = routeAction$(
         });
       }
 
+      // Check if DNI (matricula) already exists
+      const [existingDni] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.matricula, data.matricula.trim()))
+        .limit(1);
+
+      if (existingDni) {
+        return requestEvent.fail(409, {
+          message: "El DNI ingresado ya se encuentra registrado para otro usuario.",
+        });
+      }
+
       const { hashPassword } = await import("~/utils/crypto");
-      const passwordHash = await hashPassword(data.password);
+      // Generate a random secure dummy password under the hood
+      const dummyPassword = crypto.randomUUID();
+      const passwordHash = await hashPassword(dummyPassword);
       const userId = "usr-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
       await db.insert(usersTable).values({
@@ -90,7 +105,7 @@ export const useRegisterUserAction = routeAction$(
         passwordHash,
         name: data.name.trim(),
         matricula: data.matricula ? data.matricula.trim() : null,
-        role: data.role as any,
+        role: "member", // Set default member role
         createdAt: new Date().toISOString(),
       });
 
@@ -105,15 +120,12 @@ export const useRegisterUserAction = routeAction$(
   zod$({
     name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     email: z.string().email("Ingresá un correo electrónico válido."),
-    matricula: z.string().min(2, "Por favor ingresá la matrícula provincial."),
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
-    role: z.enum(["member", "premium"]),
+    matricula: z.string().min(2, "Por favor ingresá el DNI / matrícula provincial."),
   })
 );
 
 export default component$(() => {
   const adminUsers = useAdminUsersLoader();
-  const changeUserRoleAction = useChangeUserRoleAction();
   const registerUserAction = useRegisterUserAction();
 
   const isCreateUserOpen = useSignal(false);
@@ -179,7 +191,7 @@ export default component$(() => {
               </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre Completo</label>
                 <input
@@ -201,40 +213,16 @@ export default component$(() => {
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
               </div>
-            </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Matrícula Provincial</label>
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">DNI / Matrícula</label>
                 <input
                   type="text"
                   name="matricula"
                   required
-                  placeholder="Ej: 11111"
+                  placeholder="Ej: 12345678"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Contraseña Inicial</label>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  placeholder="Mínimo 6 caracteres"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nivel de Membresía</label>
-                <select
-                  name="role"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
-                >
-                  <option value="member">Miembro Regular</option>
-                  <option value="premium">Miembro Premium</option>
-                </select>
               </div>
             </div>
 
@@ -262,11 +250,10 @@ export default component$(() => {
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
             <thead>
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <th class="px-6 py-4">Nombre</th>
-                <th class="px-6 py-4">Correo</th>
-                <th class="px-6 py-4">Matrícula</th>
-                <th class="px-6 py-4">Rol Actual</th>
-                <th class="px-6 py-4 text-center">Modificar Nivel</th>
+                <th class="px-6 py-4">DNI / Matrícula</th>
+                <th class="px-6 py-4">Nombre Completo</th>
+                <th class="px-6 py-4">Correo Electrónico</th>
+                <th class="px-6 py-4 text-center">Estado</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
@@ -274,41 +261,14 @@ export default component$(() => {
                 .filter((u) => u.role !== "admin")
                 .map((userItem) => (
                   <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 font-bold text-slate-800">{userItem.name}</td>
+                    <td class="px-6 py-4 font-mono text-slate-800 font-bold">{userItem.matricula || "S/D"}</td>
+                    <td class="px-6 py-4 text-slate-700">{userItem.name}</td>
                     <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
-                    <td class="px-6 py-4 text-slate-500 font-mono">{userItem.matricula || "S/M"}</td>
-                    <td class="px-6 py-4">
-                      <span
-                        class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${userItem.role === "premium"
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-slate-100 text-slate-600 border-slate-200"
-                          }`}
-                      >
-                        {userItem.role === "premium" ? (
-                          <>
-                            <LuCrown class="w-2.5 h-2.5" />
-                            <span>Premium</span>
-                          </>
-                        ) : (
-                          <span>General</span>
-                        )}
-                      </span>
-                    </td>
                     <td class="px-6 py-4 text-center">
-                      <Form action={changeUserRoleAction} class="flex items-center justify-center gap-1.5">
-                        <input type="hidden" name="userId" value={userItem.id} />
-                        <select
-                          name="role"
-                          onChange$={(e, el) => {
-                            el.form?.requestSubmit();
-                          }}
-                          class="bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs p-1"
-                        >
-                          <option value="member" selected={userItem.role === "member"}>Miembro</option>
-                          <option value="premium" selected={userItem.role === "premium"}>Premium</option>
-                          <option value="admin" selected={userItem.role === "admin"}>Admin</option>
-                        </select>
-                      </Form>
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
+                        <span class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Activo</span>
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -2,7 +2,7 @@ import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
 import { Link, useLocation } from "@builder.io/qwik-city";
 import type { Signal } from "@builder.io/qwik";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
-import { LuMapPin, LuSettings, LuUser, LuCrown, LuLock } from "@qwikest/icons/lucide";
+import { LuMapPin, LuSettings, LuUser, LuLock } from "@qwikest/icons/lucide";
 import { getSearchSuggestions } from "~/routes/layout";
 
 interface SiteHeaderProps {
@@ -240,7 +240,6 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                   >
                     <LuUser class="w-4 h-4 text-brand-green" />
                     <span class="truncate max-w-[120px]">{user.value.name}</span>
-                    {user.value.role === "premium" && <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold" />}
                   </Link>
                 </div>
               ) : (
@@ -361,7 +360,6 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               >
                 <LuUser class="w-4 h-4 text-brand-green" />
                 <span>Mi Perfil</span>
-                {user.value.role === "premium" && <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold" />}
               </Link>
             ) : (
               <Link

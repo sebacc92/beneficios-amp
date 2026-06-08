@@ -1,6 +1,6 @@
 import { component$, $ } from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuUsers, LuCrown, LuTicket, LuMessageSquare, LuDownload } from "@qwikest/icons/lucide";
+import { LuUsers, LuSparkles, LuTicket, LuMessageSquare, LuDownload } from "@qwikest/icons/lucide";
 import { desc } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users as usersTable, customBenefits as customBenefitsTable } from "~/db/schema";
@@ -130,12 +130,12 @@ export default component$(() => {
 
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-xs font-bold text-slate-400 uppercase block">Miembros Premium</span>
-              <span class="text-3xl font-display font-black text-amber-600">
-                {adminUsers.value.filter((u) => u.role === "premium").length}
+              <span class="text-xs font-bold text-slate-400 uppercase block">Beneficios Destacados</span>
+              <span class="text-3xl font-display font-black text-brand-gold">
+                {customBenefits.value.filter((b) => b.isFeatured).length}
               </span>
             </div>
-            <LuCrown class="w-8 h-8 text-amber-500" />
+            <LuSparkles class="w-8 h-8 text-brand-gold" />
           </div>
 
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">

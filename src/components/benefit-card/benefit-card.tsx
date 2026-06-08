@@ -62,7 +62,8 @@ const getTimeAgo = (dateStr?: string) => {
     return `Hace ${diffMonths} meses`;
   }
   return `Hace ${Math.floor(diffMonths / 12)} años`;
-};export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard", isLocked = false }) => {
+};export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard" }) => {
+  const isLocked = false;
   const desktopImageSrc = benefit.imagen
     ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") 
         ? benefit.imagen 
@@ -256,7 +257,7 @@ const getTimeAgo = (dateStr?: string) => {
           <div class="absolute inset-0 bg-slate-955/40 backdrop-blur-[1px] flex flex-col justify-center items-center z-20 text-white animate-fade-in">
             <span class="text-3xl">🔒</span>
             <span class="text-[12px] font-extrabold tracking-widest uppercase text-brand-gold mt-1.5">
-              Exclusivo Premium
+              Exclusivo Agremiados
             </span>
           </div>
         )}
@@ -308,10 +309,10 @@ const getTimeAgo = (dateStr?: string) => {
               type="button"
               class="w-full text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-slate-100 text-slate-450 hover:bg-slate-150 active:scale-95 transition-all shadow-inner border border-slate-200 cursor-pointer"
               onClick$={() => {
-                alert("Este beneficio es exclusivo para socios de la Mutual. Iniciá sesión para acceder.");
+                alert("Este beneficio es exclusivo para agremiados. Iniciá sesión para acceder.");
               }}
             >
-              🔑 Acceso Premium Exclusivo
+              🔑 Iniciá sesión para acceder
             </button>
           ) : (
             <Link

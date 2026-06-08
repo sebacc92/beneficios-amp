@@ -59,8 +59,8 @@ export const useBenefitsData = routeLoader$(async (event) => {
         const tl = b.titulo.toLowerCase(); const dl = b.descripcion.toLowerCase(); const rl = b.resumen.toLowerCase();
         return queryTerms.some(term => tl.includes(term) || dl.includes(term) || rl.includes(term) || b.categorias.some(c => c.descripcion.toLowerCase().includes(term)));
       }).slice(0, 4);
-      const gold = items.filter(b => b.isPremiumOnly).slice(0, 6);
-      const nuevos = items.filter(b => !b.isFeatured && !b.isPremiumOnly).slice(0, 6);
+      const gold = items.filter(b => b.isFeatured).slice(0, 6);
+      const nuevos = items.filter(b => !b.isFeatured).slice(0, 6);
       curatedRows = { gold, nuevos, cafecitos };
     } catch (e) { console.error("Failed to compile curated rows:", e); }
   }
@@ -134,14 +134,14 @@ export default component$(() => {
             <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} />
           </div>
 
-          {/* Gold Benefits Row */}
+          {/* Gold/Featured Benefits Row */}
           <CuratedRow
-            title="Beneficios Gold"
-            subtitle="Selección Exclusiva Gold"
-            accentColor="gold"
+            title="Beneficios Destacados"
+            subtitle="Selección Especial"
+            accentColor="emerald"
             containerId="gold-container"
             benefits={curatedRows.gold}
-            variant="gold"
+            variant="standard"
           />
 
           {/* Nuevos Benefits Row */}
@@ -199,7 +199,7 @@ export default component$(() => {
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
           {benefits.slice(0, 4).map((benefit: Benefit, idx: number) => {
-            const isLocked = benefit.isPremiumOnly && !user.value;
+            const isLocked = false;
             return (
               <div key={benefit.id} class={`animate-fade-in-up animate-stagger-${idx + 1}`}>
                 <BenefitCard benefit={benefit} isLocked={isLocked} />

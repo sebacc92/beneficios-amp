@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
-import { LuShield, LuCrown, LuBell, LuTicket } from "@qwikest/icons/lucide";
+import { LuShield, LuBell, LuTicket } from "@qwikest/icons/lucide";
 
 // Loader to retrieve the logged-in user from the sharedMap (populated by middleware)
 export const useUserLoader = routeLoader$(async (event) => {
@@ -78,7 +78,7 @@ export default component$(() => {
               Bienvenido/a, {user.name.split(" ")[0]}
             </h1>
             <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-              Gestioná tu credencial, visualizá tus accesos premium y personalizá tu experiencia.
+              Gestioná tu credencial, accedé a tus beneficios y personalizá tu experiencia.
             </p>
           </div>
           <div class="flex items-center gap-3">
@@ -116,17 +116,8 @@ export default component$(() => {
             
             {/* Elegant Medical Card */}
             <div
-              class={`w-full aspect-[1.586/1] max-w-sm mx-auto rounded-2xl relative p-5 flex flex-col justify-between overflow-hidden shadow-xl border select-none group transition-all duration-500 transform hover:scale-[1.02] ${
-                user.role === "premium"
-                  ? "bg-gradient-to-br from-slate-900 via-slate-800 to-brand-green-dark text-white border-brand-gold/40"
-                  : "bg-gradient-to-br from-brand-green-dark to-brand-green text-white border-slate-700"
-              }`}
+              class="w-full aspect-[1.586/1] max-w-sm mx-auto rounded-2xl relative p-5 flex flex-col justify-between overflow-hidden shadow-xl border select-none group transition-all duration-500 transform hover:scale-[1.02] bg-gradient-to-br from-brand-green-dark to-brand-green text-white border-slate-700"
             >
-              {/* Premium Glow effect */}
-              {user.role === "premium" && (
-                <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent pointer-events-none"></div>
-              )}
-
               {/* Top row */}
               <div class="flex justify-between items-start relative z-10">
                 <div class="flex flex-col">
@@ -140,20 +131,9 @@ export default component$(() => {
                 
                 {/* Role Badge */}
                 <span
-                  class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-extrabold tracking-widest uppercase border ${
-                    user.role === "premium"
-                      ? "bg-brand-gold text-brand-green-dark border-brand-gold"
-                      : "bg-brand-green border-brand-gold text-white"
-                  }`}
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-extrabold tracking-widest uppercase border bg-brand-green border-brand-gold text-white"
                 >
-                  {user.role === "premium" ? (
-                    <>
-                      <LuCrown class="w-2.5 h-2.5" />
-                      <span>Premium</span>
-                    </>
-                  ) : (
-                    <span>General</span>
-                  )}
+                  <span>Agremiado</span>
                 </span>
               </div>
 
@@ -168,7 +148,7 @@ export default component$(() => {
 
                 <div class="flex justify-between items-end">
                   <div class="space-y-0.5">
-                    <div class="text-[8px] font-bold text-slate-300 tracking-wider uppercase">Matrícula Prov.</div>
+                    <div class="text-[8px] font-bold text-slate-300 tracking-wider uppercase">DNI / Matrícula</div>
                     <div class="font-bold text-xs tracking-widest">{user.matricula || "S/M"}</div>
                   </div>
                   
@@ -218,33 +198,6 @@ export default component$(() => {
           {/* Right Column: Upgrade Premium & Profile Settings */}
           <div class="md:col-span-2 space-y-8">
             
-            {/* Premium Promotion Banner if General */}
-            {user.role !== "premium" && (
-              <div class="relative overflow-hidden rounded-3xl border border-brand-gold bg-gradient-to-br from-slate-900 via-slate-800 to-brand-green-dark p-6 sm:p-8 text-white shadow-lg animate-in fade-in duration-300">
-                <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-brand-gold/15 via-transparent to-transparent pointer-events-none"></div>
-                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div class="space-y-3 max-w-md">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-gold text-brand-green-dark text-[10px] font-extrabold tracking-widest uppercase">
-                      <LuCrown class="w-3 h-3 text-brand-green-dark" />
-                      <span>AMP+ Premium</span>
-                    </span>
-                    <h3 class="text-xl sm:text-2xl font-display font-extrabold tracking-tight leading-tight">
-                      Desbloqueá Beneficios Exclusivos de Alta Jerarquía
-                    </h3>
-                    <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-                      Accedé a descuentos superiores en cadenas de hoteles de lujo (Los Cauquenes 40% OFF), spas, capacitaciones especializadas, soporte prioritario por IA y navegación sin publicidad.
-                    </p>
-                  </div>
-                  <Link
-                    href="/perfil/checkout"
-                    class="flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-gold hover:bg-brand-gold/90 text-brand-green-dark font-extrabold text-sm shadow-md transition-all duration-300 cursor-pointer self-start md:self-center"
-                  >
-                    Actualizar por $1.500/mes
-                  </Link>
-                </div>
-              </div>
-            )}
-
             {/* Profile Settings form card */}
             <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
               <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -279,7 +232,7 @@ export default component$(() => {
 
                     <div class="space-y-1">
                       <label for="matricula" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-                        Matrícula Provincial
+                        DNI (Matrícula)
                       </label>
                       <input
                         type="text"
@@ -313,7 +266,7 @@ export default component$(() => {
                   </div>
 
                   <div class="space-y-1">
-                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">Matrícula Provincial</span>
+                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">DNI (Matrícula)</span>
                     <span class="font-semibold text-slate-800">{user.matricula || "No registrada"}</span>
                   </div>
 

@@ -2,10 +2,9 @@ import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { getBenefitBySlug, getBenefits, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
-import { LuLock, LuCrown } from "@qwikest/icons/lucide";
 import { and, eq } from "drizzle-orm";
 import { getDB } from "~/db";
-import { coupons } from "~/db/schema";
+import { coupons, users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
@@ -182,6 +181,79 @@ export const generateCouponAction = server$(async function(benefitId: string, be
   };
 });
 
+export const loginAndGenerateCouponAction = server$(async function(dni: string, benefitId: string, benefitTitle: string, benefitResumen: string) {
+  const db = getDB(this);
+  const cleanDni = dni.trim();
+
+  // Find user by DNI (stored in matricula field)
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.matricula, cleanDni))
+    .limit(1);
+
+  if (!user) {
+    return { success: false, error: "El DNI ingresado no se encuentra registrado." };
+  }
+
+  // Set cookie session (expires in 30 days)
+  this.cookie.set("session_token", user.id, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 30, // 30 days
+  });
+
+  // Check if there is an active coupon already
+  const [existing] = await db
+    .select()
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.userId, user.id),
+        eq(coupons.benefitId, benefitId),
+        eq(coupons.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return { success: true };
+  }
+
+  // Generate unique 6-digit code
+  let code = "";
+  let attempts = 0;
+  while (attempts < 10) {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    const [dup] = await db
+      .select()
+      .from(coupons)
+      .where(eq(coupons.code, code))
+      .limit(1);
+    if (!dup) break;
+    attempts++;
+  }
+
+  const newCoupon = {
+    id: crypto.randomUUID(),
+    code,
+    benefitId,
+    benefitTitle,
+    benefitResumen,
+    userId: user.id,
+    userName: user.name,
+    userMatricula: user.matricula || "",
+    status: "active" as const,
+    createdAt: new Date().toISOString(),
+    usedAt: null,
+  };
+
+  await db.insert(coupons).values(newCoupon);
+
+  return { success: true };
+});
+
 export default component$(() => {
   const data = useBenefitData();
   const isMapLoaded = useSignal(false);
@@ -258,50 +330,6 @@ export default component$(() => {
   }
 
   const { benefit, similar, contacts } = data.value;
-
-  // Premium Locking logic
-  const isPremiumOnly = benefit.isPremiumOnly || (benefit.id % 7 === 0);
-  const isLocked = isPremiumOnly && user.value?.role !== "premium";
-
-  if (isLocked) {
-    return (
-      <div class="bg-slate-50 min-h-[75vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
-        <div class="max-w-md w-full bg-white rounded-3xl border border-amber-250 p-8 sm:p-10 shadow-lg text-center space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-500">
-          <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none"></div>
-          <div class="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto animate-bounce">
-            <LuLock class="w-6 h-6 text-amber-600" />
-          </div>
-          <div class="space-y-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-gold text-brand-green-dark text-[10px] font-extrabold tracking-widest uppercase">
-              <LuCrown class="w-3 h-3 text-brand-green-dark" />
-              <span>Beneficio Premium</span>
-            </span>
-            <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-tight mt-2">
-              Contenido Restringido
-            </h2>
-            <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">
-              El descuento exclusivo en <span class="font-bold text-slate-800">{benefit.titulo}</span> está disponible únicamente para médicos con suscripción **AMP+ Premium**.
-            </p>
-          </div>
-
-          <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              href="/perfil"
-              class="px-6 py-3 rounded-2xl bg-brand-gold hover:bg-brand-gold/90 text-brand-green-dark font-extrabold text-xs shadow-md transition-all duration-300"
-            >
-              Adquirir Premium
-            </Link>
-            <Link
-              href="/"
-              class="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs shadow-sm transition-all duration-300"
-            >
-              Explorar Otros
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Format link functions safely
   const getWhatsAppLink = (num: string) => {
@@ -387,7 +415,7 @@ export default component$(() => {
 
   return (
     <div class="relative min-h-screen py-10 bg-slate-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 print:hidden">
 
         {/* A. Breadcrumb */}
         <nav class="flex items-center space-x-2 text-[13px] font-bold text-slate-400 uppercase tracking-wider mb-8">
@@ -485,15 +513,17 @@ export default component$(() => {
 
                 {/* Utility Print / Share actions bar */}
                 <div class="flex flex-wrap items-center gap-3 mt-4 print-hidden pb-6 border-b border-slate-100">
-                  <button
-                    onClick$={() => window.print()}
-                    class="inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
-                  >
-                    <svg class="w-4 h-4 text-brand-green fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    <span>Imprimir Cupón PDF</span>
-                  </button>
+                  {generatedCoupon.value && (
+                    <button
+                      onClick$={() => window.print()}
+                      class="inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                    >
+                      <svg class="w-4 h-4 text-brand-green fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      <span>Imprimir Cupón PDF</span>
+                    </button>
+                  )}
 
                   <button
                     onClick$={handleShare}
@@ -687,26 +717,74 @@ export default component$(() => {
                       </div>
                     )
                   ) : (
-                    <div class="border border-amber-200 bg-amber-50/30 rounded-2xl p-6 text-center space-y-4 max-w-md mx-auto">
-                      <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto text-amber-600">
-                        <LuLock class="w-5 h-5" />
+                    <div class="border border-brand-green/20 bg-emerald-50/20 rounded-3xl p-6 sm:p-8 text-center space-y-5 max-w-md mx-auto shadow-sm">
+                      <div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto text-brand-green">
+                        <svg class="w-5 h-5 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
                       </div>
-                      <div class="space-y-1">
-                        <h4 class="text-sm font-black text-slate-800 uppercase tracking-wide">Acceso Restringido a Agremiados</h4>
-                        <p class="text-xs text-slate-500 leading-relaxed">
-                          Debés iniciar sesión con tu cuenta de la Agremiación Médica Platense para poder descargar el cupón de este beneficio.
+                      <div class="space-y-1.5">
+                        <h4 class="text-base font-display font-black text-brand-green-dark uppercase tracking-wide">Descarga Express del Cupón</h4>
+                        <p class="text-xs text-slate-500 font-medium leading-relaxed">
+                          Ingresá tu DNI para verificar tu membresía y descargar instantáneamente tu beneficio en formato QR.
                         </p>
                       </div>
-                      <Link
-                        href={`/login?redirect=${encodeURIComponent(
-                          typeof window !== "undefined"
-                            ? window.location.pathname + window.location.search
-                            : `/beneficio/${benefit.url}`
-                        )}`}
-                        class="w-full inline-flex items-center justify-center px-6 py-3 rounded-2xl bg-brand-gold hover:bg-brand-gold/90 text-brand-green-dark text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95"
-                      >
-                        Iniciar Sesión
-                      </Link>
+                      
+                      <div class="space-y-3">
+                        <input
+                          type="text"
+                          id="express-dni"
+                          placeholder="Ej: 12345678"
+                          class="w-full bg-white text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green transition-all font-mono font-bold text-center"
+                          onKeyDown$={async (ev) => {
+                            if (ev.key === "Enter") {
+                              const btn = document.getElementById("express-submit-btn");
+                              if (btn) btn.click();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          id="express-submit-btn"
+                          class="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                          onClick$={async () => {
+                            const inputEl = document.getElementById("express-dni") as HTMLInputElement | null;
+                            const dniVal = inputEl?.value.trim();
+                            if (!dniVal) {
+                              alert("Por favor ingresá tu DNI.");
+                              return;
+                            }
+                            
+                            const submitBtn = document.getElementById("express-submit-btn") as HTMLButtonElement | null;
+                            if (submitBtn) {
+                              submitBtn.disabled = true;
+                              submitBtn.innerHTML = "Verificando...";
+                            }
+                            
+                            try {
+                              const res = await loginAndGenerateCouponAction(dniVal, String(benefit.id), benefit.titulo, benefit.resumen);
+                              if (res.success) {
+                                window.location.reload();
+                              } else {
+                                alert(res.error || "El DNI ingresado no es válido o no está registrado.");
+                                if (submitBtn) {
+                                  submitBtn.disabled = false;
+                                  submitBtn.innerHTML = "Validar y Generar Cupón";
+                                }
+                              }
+                            } catch (err) {
+                              console.error(err);
+                              alert("Ocurrió un error al procesar tu solicitud.");
+                              if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = "Validar y Generar Cupón";
+                              }
+                            }
+                          }}
+                        >
+                          Validar y Generar Cupón
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -939,9 +1017,8 @@ export default component$(() => {
         </div>
       </div>
 
-      {/* Toast Notification */}
       {showToast.value && (
-        <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold uppercase tracking-wider py-3 px-6 rounded-full shadow-2xl flex items-center space-x-2.5 animate-toast-up border border-white/10">
+        <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold uppercase tracking-wider py-3 px-6 rounded-full shadow-2xl flex items-center space-x-2.5 animate-toast-up border border-white/10 print:hidden">
           <span class="text-brand-gold">✓</span>
           <span>¡Enlace copiado al portapapeles!</span>
         </div>
@@ -971,17 +1048,17 @@ export default component$(() => {
               {benefit.resumen.trim()}
             </div>
             <p class="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              Presentá este cupón impreso junto con tu credencial digital médica AMP+ para validar el beneficio.
+              Presentá este cupón impreso junto con tu credencial digital AMP+ para validar el beneficio.
             </p>
           </div>
 
           <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left text-xs font-semibold text-slate-600 space-y-2">
             <div class="flex justify-between">
-              <span>Médico Agremiado:</span>
+              <span>Beneficiario:</span>
               <span class="text-brand-green font-bold">{user.value.name}</span>
             </div>
             <div class="flex justify-between">
-              <span>Matrícula Provincial:</span>
+              <span>DNI / Matrícula:</span>
               <span class="font-mono text-slate-800">{user.value.matricula || "N/A"}</span>
             </div>
             <div class="flex justify-between">

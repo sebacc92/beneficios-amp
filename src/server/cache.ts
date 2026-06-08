@@ -275,7 +275,7 @@ export async function ensureDbSeeded(db: any) {
         imagen: b.imagen || null,
         slug: b.url,
         isFeatured: b.orden_app !== null && b.orden_app !== undefined && b.orden_app > 0,
-        isPremiumOnly: b.id % 6 === 0, // 1 in 6 is Premium for realistic demo
+        isPremiumOnly: false,
         categoryId: catId,
         locationId: locId,
         offerId: offId,

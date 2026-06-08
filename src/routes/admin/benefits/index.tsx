@@ -1,6 +1,6 @@
 import { component$, useSignal, useComputed$, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuTicket, LuCrown, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone } from "@qwikest/icons/lucide";
+import { LuPlus, LuTicket, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
@@ -235,7 +235,7 @@ export const useCreateBenefitAction = routeAction$(
         imagenMobile: uploadedImageMobileUrl,
         slug,
         isFeatured: data.isFeatured === "on",
-        isPremiumOnly: data.isPremiumOnly === "on",
+        isPremiumOnly: false,
         categoryId: Number(data.categoryId),
         locationId: Number(data.locationId),
         offerId: Number(data.offerId),
@@ -261,7 +261,6 @@ export const useCreateBenefitAction = routeAction$(
     imagen: z.string().optional(),
     imagenMobile: z.string().optional(),
     isFeatured: z.string().optional(),
-    isPremiumOnly: z.string().optional(),
     categoryId: z.string(),
     locationId: z.string(),
     offerId: z.string(),
@@ -491,7 +490,7 @@ export const useEditBenefitAction = routeAction$(
           imagen: finalImageUrl,
           imagenMobile: finalImageMobileUrl,
           isFeatured: data.isFeatured === "on",
-          isPremiumOnly: data.isPremiumOnly === "on",
+          isPremiumOnly: false,
           categoryId: Number(data.categoryId),
           locationId: Number(data.locationId),
           offerId: Number(data.offerId),
@@ -518,7 +517,6 @@ export const useEditBenefitAction = routeAction$(
     imagen: z.string().optional(),
     imagenMobile: z.string().optional(),
     isFeatured: z.string().optional(),
-    isPremiumOnly: z.string().optional(),
     categoryId: z.string(),
     locationId: z.string(),
     offerId: z.string(),
@@ -629,7 +627,6 @@ export default component$(() => {
   const createPreviewResumen = useSignal("20% de descuento");
   const createPreviewDescripcion = useSignal("Breve descripción de las condiciones del beneficio...");
   const createPreviewIsFeatured = useSignal(false);
-  const createPreviewIsPremiumOnly = useSignal(false);
   const createPreviewCategory = useSignal("");
   const createPreviewLocation = useSignal("");
 
@@ -638,7 +635,6 @@ export default component$(() => {
   const editPreviewResumen = useSignal("");
   const editPreviewDescripcion = useSignal("");
   const editPreviewIsFeatured = useSignal(false);
-  const editPreviewIsPremiumOnly = useSignal(false);
   const editPreviewCategory = useSignal("");
   const editPreviewLocation = useSignal("");
 
@@ -868,9 +864,6 @@ export default component$(() => {
 
   const filteredBenefits = useComputed$(() => {
     let items = customBenefits.value;
-    if (goldFilterActive.value) {
-      items = items.filter(b => b.isPremiumOnly);
-    }
     if (statusFilter.value === "active") {
       items = items.filter(b => !(b.validUntil?.startsWith("draft|") || b.validUntil === "draft"));
     } else if (statusFilter.value === "inactive") {
@@ -948,21 +941,7 @@ export default component$(() => {
             )}
           </div>
 
-          {/* Gold Filter Chip */}
-          <button
-            type="button"
-            onClick$={() => {
-              goldFilterActive.value = !goldFilterActive.value;
-            }}
-            class={`inline-flex items-center gap-1.5 px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap border ${
-              goldFilterActive.value
-                ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <LuCrown class="w-4 h-4" />
-            <span>Filtrar Gold</span>
-          </button>
+
 
           {/* Status Filter */}
           <div class="relative w-full sm:w-44">
@@ -1305,7 +1284,7 @@ export default component$(() => {
                       
                       <div class="pt-3 border-t border-slate-100">
                         <div class="w-full text-center text-[10px] font-black uppercase tracking-wider py-2.5 rounded-xl bg-brand-green text-white">
-                          {createPreviewIsPremiumOnly.value ? "🔑 Acceso Premium Gold" : "Ver Beneficio"}
+                          Ver Beneficio
                         </div>
                       </div>
                     </div>
@@ -1360,7 +1339,7 @@ export default component$(() => {
                         
                         <div class="pt-2 border-t border-slate-100 mt-2">
                           <div class="w-full text-center text-[8px] font-black uppercase tracking-wider py-1.5 rounded-lg bg-brand-green text-white">
-                            {createPreviewIsPremiumOnly.value ? "🔑 Premium Gold" : "Obtener"}
+                            Obtener
                           </div>
                         </div>
                       </div>
@@ -1384,19 +1363,7 @@ export default component$(() => {
                 </label>
               </div>
 
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="isPremiumOnly"
-                  name="isPremiumOnly"
-                  onChange$={(e, el) => { createPreviewIsPremiumOnly.value = el.checked; }}
-                  class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
-                />
-                <label for="isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuCrown class="w-4 h-4 text-amber-550" />
-                  <span>Beneficio Gold/Premium</span>
-                </label>
-              </div>
+
 
               <div class="flex items-center gap-3 pt-2">
                 <input
@@ -1785,7 +1752,7 @@ export default component$(() => {
                       
                       <div class="pt-3 border-t border-slate-100">
                         <div class="w-full text-center text-[10px] font-black uppercase tracking-wider py-2.5 rounded-xl bg-brand-green text-white">
-                          {editPreviewIsPremiumOnly.value ? "🔑 Acceso Premium Gold" : "Ver Beneficio"}
+                          Ver Beneficio
                         </div>
                       </div>
                     </div>
@@ -1862,7 +1829,7 @@ export default component$(() => {
                         
                         <div class="pt-2 border-t border-slate-100 mt-2">
                           <div class="w-full text-center text-[8px] font-black uppercase tracking-wider py-1.5 rounded-lg bg-brand-green text-white">
-                            {editPreviewIsPremiumOnly.value ? "🔑 Premium Gold" : "Obtener"}
+                            Obtener
                           </div>
                         </div>
                       </div>
@@ -1888,20 +1855,7 @@ export default component$(() => {
                 </label>
               </div>
 
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="edit_isPremiumOnly"
-                  name="isPremiumOnly"
-                  checked={editPreviewIsPremiumOnly.value}
-                  onChange$={(e, el) => { editPreviewIsPremiumOnly.value = el.checked; }}
-                  class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4"
-                />
-                <label for="edit_isPremiumOnly" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuCrown class="w-4 h-4 text-amber-550" />
-                  <span>Beneficio Gold/Premium</span>
-                </label>
-              </div>
+
 
               <div class="flex items-center gap-3 pt-2">
                 <input
@@ -1949,7 +1903,6 @@ export default component$(() => {
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <th class="px-6 py-4">Título</th>
                 <th class="px-6 py-4">Resumen / Desc.</th>
-                <th class="px-6 py-4">Segmentación</th>
                 <th class="px-6 py-4">Filtros (Categoría/Ubicación)</th>
                 <th class="px-6 py-4 text-center">Estado</th>
                 <th class="px-6 py-4 text-center">Acciones</th>
@@ -1958,7 +1911,7 @@ export default component$(() => {
             <tbody class="divide-y divide-slate-100 font-medium">
               {paginatedBenefits.value.length === 0 ? (
                 <tr>
-                  <td colSpan={6} class="px-6 py-12 text-center text-slate-450">
+                  <td colSpan={5} class="px-6 py-12 text-center text-slate-450">
                     <div class="flex items-center justify-center gap-2">
                       <LuTicket class="w-5 h-5 text-purple-400" />
                       <span>Aún no has creado beneficios propios. Hacé clic en "Crear Beneficio" para registrar el primero.</span>
@@ -1987,23 +1940,6 @@ export default component$(() => {
                         </div>
                       </td>
                       <td class="px-6 py-4 text-slate-500">{benefit.resumen}</td>
-                      <td class="px-6 py-4">
-                        <span
-                          class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${benefit.isPremiumOnly
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-emerald-50 text-emerald-800 border-emerald-100"
-                          }`}
-                        >
-                          {benefit.isPremiumOnly ? (
-                            <>
-                              <LuCrown class="w-2.5 h-2.5" />
-                              <span>Gold</span>
-                            </>
-                          ) : (
-                            <span>General</span>
-                          )}
-                        </span>
-                      </td>
                       <td class="px-6 py-4 text-slate-500 font-bold">
                         {catDesc} <span class="text-slate-300 mx-1">|</span> <span class="font-normal text-slate-400">{locDesc}</span>
                       </td>
@@ -2046,7 +1982,6 @@ export default component$(() => {
                               editPreviewResumen.value = benefit.resumen || "";
                               editPreviewDescripcion.value = benefit.descripcion || "";
                               editPreviewIsFeatured.value = benefit.isFeatured;
-                              editPreviewIsPremiumOnly.value = benefit.isPremiumOnly;
                               
                               const cat = adminFilters.value.categorias.find(c => c.id === benefit.categoryId)?.descripcion || "Categoría";
                               editPreviewCategory.value = cat;

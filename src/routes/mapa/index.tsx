@@ -2,7 +2,7 @@ import { component$, useSignal, useVisibleTask$, useComputed$ } from "@builder.i
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 
-import { LuMapPin, LuCrown, LuList, LuSearch, LuFilter, LuRefreshCw } from "@qwikest/icons/lucide";
+import { LuMapPin, LuList, LuSearch, LuFilter, LuRefreshCw } from "@qwikest/icons/lucide";
 
 // Server Loader to fetch all benefits that have coordinates and all filters
 export const useBenefitsMapData = routeLoader$(async (event) => {
@@ -29,7 +29,6 @@ export default component$(() => {
   const selectedCategory = useSignal<number | null>(
     location.url.searchParams.get("categoria") ? Number(location.url.searchParams.get("categoria")) : null
   );
-  const premiumOnly = useSignal(location.url.searchParams.get("gold") === "1");
 
   const visibleCount = useSignal(0);
   const isMapLoaded = useSignal(false);
@@ -40,7 +39,6 @@ export default component$(() => {
   useVisibleTask$(({ track }) => {
     track(() => searchQuery.value);
     track(() => selectedCategory.value);
-    track(() => premiumOnly.value);
 
     if (typeof window === "undefined") return;
 
@@ -57,12 +55,6 @@ export default component$(() => {
       url.searchParams.delete("categoria");
     }
 
-    if (premiumOnly.value) {
-      url.searchParams.set("gold", "1");
-    } else {
-      url.searchParams.delete("gold");
-    }
-
     window.history.replaceState({}, "", url.toString());
   });
 
@@ -71,7 +63,6 @@ export default component$(() => {
     const params = new URLSearchParams();
     if (searchQuery.value.trim()) params.set("buscar", searchQuery.value.trim());
     if (selectedCategory.value) params.set("categoria", String(selectedCategory.value));
-    if (premiumOnly.value) params.set("gold", "1");
     return `/beneficios?${params.toString()}`;
   });
 
@@ -141,22 +132,12 @@ export default component$(() => {
     track(() => isMapLoaded.value);
     track(() => searchQuery.value);
     track(() => selectedCategory.value);
-    track(() => premiumOnly.value);
 
     if (!isMapLoaded.value || !mapRef.value || !markersGroupRef.value) return;
 
     const L = (window as any).L;
     const markersGroup = markersGroupRef.value;
     markersGroup.clearLayers();
-
-    const goldIcon = L.icon({
-      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
-      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
 
     const greenIcon = L.icon({
       iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -169,10 +150,8 @@ export default component$(() => {
 
     const query = searchQuery.value.toLowerCase().trim();
     const catId = selectedCategory.value;
-    const goldOnly = premiumOnly.value;
 
     const filtered = data.value.benefits.filter((b: Benefit) => {
-      if (goldOnly && !b.isPremiumOnly) return false;
       if (catId && !b.categorias.some(c => c.id === catId)) return false;
       if (query) {
         const titleMatch = b.titulo.toLowerCase().includes(query);
@@ -196,8 +175,8 @@ export default component$(() => {
       const popupHTML = `
         <div class="font-sans max-w-[240px] text-slate-800 text-left p-1">
           ${imageSrc ? `<img src="${imageSrc}" alt="${benefit.titulo}" class="w-full h-24 object-cover rounded-xl mb-2.5 shadow-sm" />` : ""}
-          <span class="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black ${benefit.isPremiumOnly ? "bg-brand-gold text-slate-950" : "bg-brand-green/10 text-brand-green"} uppercase tracking-wider mb-1">
-            ${primaryCat} ${benefit.isPremiumOnly ? "★ GOLD" : ""}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black bg-brand-green/10 text-brand-green uppercase tracking-wider mb-1">
+            ${primaryCat}
           </span>
           <h3 class="text-sm font-extrabold text-slate-900 leading-tight mb-1 line-clamp-2">${benefit.titulo}</h3>
           <p class="text-xs font-black text-brand-green-dark bg-emerald-50 border border-emerald-100/50 rounded-lg py-1 px-2 mb-2 text-center uppercase tracking-wide">
@@ -209,7 +188,7 @@ export default component$(() => {
         </div>
       `;
 
-      L.marker([lat, lng], { icon: benefit.isPremiumOnly ? goldIcon : greenIcon })
+      L.marker([lat, lng], { icon: greenIcon })
         .bindPopup(popupHTML)
         .addTo(markersGroup);
     });
@@ -293,32 +272,12 @@ export default component$(() => {
           </div>
         </div>
 
-        {/* Premium Gold Toggle */}
-        <div class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-3">
-          <div class="flex items-center space-x-2">
-            <LuCrown class="w-4 h-4 text-brand-gold fill-brand-gold/10" />
-            <span class="text-xs font-extrabold text-slate-700">Socios Premium (Gold)</span>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={premiumOnly.value}
-              onChange$={(ev, el) => {
-                premiumOnly.value = el.checked;
-              }}
-              class="sr-only peer"
-            />
-            <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-green"></div>
-          </label>
-        </div>
-
         {/* Reset Filters button */}
-        {(searchQuery.value.trim() || selectedCategory.value || premiumOnly.value) && (
+        {(searchQuery.value.trim() || selectedCategory.value) && (
           <button
             onClick$={() => {
               searchQuery.value = "";
               selectedCategory.value = null;
-              premiumOnly.value = false;
             }}
             class="w-full flex items-center justify-center space-x-1.5 py-2.5 rounded-xl border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-slate-650 hover:text-red-700 text-xs font-bold transition-all cursor-pointer"
           >

@@ -81,7 +81,7 @@ export const EditorialCards = component$<EditorialCardsProps>(({ user }) => {
                   <div><span class="text-[8.5px] font-black text-emerald-300 uppercase tracking-widest leading-none">Médico Agremiado</span><h4 class="text-lg font-display font-extrabold tracking-wide truncate mt-0.5">{user.value.name}</h4><span class="text-[11px] font-mono bg-slate-900/30 px-2 py-0.5 rounded text-emerald-100 mt-1.5 inline-block">M.P. {user.value.matricula || "12345"}</span></div>
                   <div class="flex items-center justify-between border-t border-white/10 pt-2.5 mt-1">
                     <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-black bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 tracking-widest uppercase leading-none"><span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span><span>Socio Activo</span></span>
-                    <span class="text-[9px] font-black text-brand-gold uppercase tracking-widest leading-none">{user.value.role === "admin" ? "ADMIN" : user.value.role === "premium" ? "SOCIO PREMIUM" : "MIEMBRO"}</span>
+                    <span class="text-[9px] font-black text-brand-gold uppercase tracking-widest leading-none">{user.value.role === "admin" ? "ADMINISTRADOR" : "MÉDICO AGREMIADO"}</span>
                   </div>
                 </div>
                 <div class="flex flex-col items-center justify-center p-6 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">

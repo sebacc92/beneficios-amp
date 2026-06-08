@@ -1,14 +1,12 @@
 import { component$, useComputed$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
-import { useLayoutUser } from "../layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import {
   LuList,
-  LuMap,
-  LuCrown
+  LuMap
 } from "@qwikest/icons/lucide";
 
 
@@ -20,7 +18,6 @@ export const useBenefitsData = routeLoader$(async (event) => {
   const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
   const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
   const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
-  const isGoldOnly = url.searchParams.get("gold") === "1";
 
   const isMap = url.searchParams.get("vista") === "mapa";
 
@@ -31,8 +28,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
     offerId,
     page,
     limit: isMap ? 1000 : 12,
-    requestEvent: event,
-    isPremiumOnly: isGoldOnly
+    requestEvent: event
   });
 
   const filters = await getFilters();
@@ -52,12 +48,10 @@ export const useBenefitsData = routeLoader$(async (event) => {
 export default component$(() => {
   const location = useLocation();
   const data = useBenefitsData();
-  const user = useLayoutUser();
 
   const { searchResult, filters, activeFilters } = data.value;
   const { data: benefits, total, totalPages, page } = searchResult;
-  const isGoldOnly = location.url.searchParams.get("gold") === "1";
-  const hasActiveFilters = activeFilters.query || activeFilters.categoryId || activeFilters.locationId || activeFilters.offerId || isGoldOnly;
+  const hasActiveFilters = activeFilters.query || activeFilters.categoryId || activeFilters.locationId || activeFilters.offerId;
 
   const displayBenefits = benefits;
 
@@ -66,7 +60,6 @@ export default component$(() => {
     const params = new URLSearchParams();
     if (activeFilters.query) params.set("buscar", activeFilters.query);
     if (activeFilters.categoryId) params.set("categoria", String(activeFilters.categoryId));
-    if (isGoldOnly) params.set("gold", "1");
     return `/mapa?${params.toString()}`;
   });
 
@@ -141,19 +134,7 @@ export default component$(() => {
           </div>
 
           <div class="flex items-center gap-3 flex-wrap">
-            {/* Gold Filter Toggle Button */}
-            <Link
-              href={getFilterUrl({ gold: isGoldOnly ? null : "1", page: 1 })}
-              class={[
-                "px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border shadow-sm select-none",
-                isGoldOnly
-                  ? "bg-brand-gold text-slate-950 border-brand-gold shadow-brand-gold/15"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              ]}
-            >
-              <LuCrown class={["w-4 h-4", isGoldOnly ? "text-slate-950" : "text-amber-500"]} />
-              <span>Beneficios Gold</span>
-            </Link>
+
 
             {/* List/Map View Mode Toggle Button */}
             <div class="flex items-center bg-slate-200/60 p-1 rounded-2xl border border-slate-200/40 shadow-inner z-20 select-none">
@@ -337,13 +318,7 @@ export default component$(() => {
                 </span>
               )}
 
-              {isGoldOnly && (
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-gold/15 text-amber-700 border border-brand-gold/30">
-                  <LuCrown class="w-3.5 h-3.5 mr-1 text-amber-550" />
-                  Membresía: Gold
-                  <Link href={getFilterUrl({ gold: null })} class="ml-1.5 text-amber-600 hover:text-amber-850 font-extrabold">&times;</Link>
-                </span>
-              )}
+
 
               <Link
                 href="/beneficios"
@@ -368,7 +343,7 @@ export default component$(() => {
         ) : (
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
             {displayBenefits.map((benefit: Benefit, idx: number) => {
-              const isLocked = benefit.isPremiumOnly && !user.value;
+              const isLocked = false;
               return (
                 <div key={benefit.id} class={`animate-fade-in-up animate-stagger-${Math.min(idx + 1, 8)}`}>
                   <BenefitCard benefit={benefit} isLocked={isLocked} />
