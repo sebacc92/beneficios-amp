@@ -862,64 +862,140 @@ export default component$(() => {
           {/* RIGHT SIDEBAR: Credential & Interactive OSM Leaflet Map */}
           <div class="space-y-8">
 
-            {/* 1. Interactive Digital Credential mockup */}
-            <div class="glass-card border rounded-2xl p-6 bg-gradient-to-br from-brand-green-dark to-brand-green text-white shadow-lg relative overflow-hidden select-none animate-float">
-              {/* Backglow decoratives */}
-              <div class="absolute -right-16 -top-16 w-36 h-36 bg-brand-gold/15 rounded-full blur-xl" />
-              <div class="absolute -left-12 -bottom-12 w-28 h-28 bg-white/5 rounded-full blur-lg" />
+            {/* 1. Interactive Digital Credential */}
+            {user.value ? (
+              <div class="credential-card border rounded-2xl p-6 shadow-lg relative overflow-hidden select-none animate-float">
+                {/* Backglow decoratives */}
+                <div class="absolute -right-16 -top-16 w-36 h-36 bg-brand-gold/15 rounded-full blur-xl" />
+                <div class="absolute -left-12 -bottom-12 w-28 h-28 bg-white/5 rounded-full blur-lg" />
 
-              <div class="flex items-center justify-between border-b border-white/20 pb-4 mb-6">
-                <div class="flex items-center space-x-2">
-                  <img
-                    src="/logo-beneficios_amp2.webp"
-                    alt="AMP"
-                    width={96}
-                    height={38}
-                    class="h-[38px] w-auto object-contain"
-                  />
-                  <span class="text-sm font-extrabold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
+                <div class="flex items-center justify-between border-b border-white/20 pb-4 mb-6">
+                  <div class="flex items-center space-x-2">
+                    <img
+                      src="/logo-beneficios_amp2.webp"
+                      alt="AMP"
+                      width={96}
+                      height={38}
+                      class="h-[38px] w-auto object-contain"
+                    />
+                    <span class="text-sm font-extrabold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
+                  </div>
+                  <span class="text-[11px] font-black text-brand-gold border border-brand-gold/45 px-2.5 py-1 rounded uppercase tracking-wider">
+                    Activa
+                  </span>
                 </div>
-                <span class="text-[11px] font-black text-brand-gold border border-brand-gold/45 px-2.5 py-1 rounded uppercase tracking-wider">
-                  Activa
-                </span>
+
+                <div class="space-y-4">
+                  <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-display font-extrabold text-lg text-brand-gold-light shadow-inner uppercase">
+                      {(() => {
+                        const nameParts = user.value.name.trim().split(/\s+/);
+                        if (nameParts.length >= 2) {
+                          return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+                        }
+                        return nameParts[0]?.substring(0, 2).toUpperCase() || "DR";
+                      })()}
+                    </div>
+                    <div>
+                      <h4 class="text-base font-black font-display leading-none text-white tracking-wide">{user.value.name}</h4>
+                      <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">Matrícula: {user.value.matricula || "N/A"}</p>
+                    </div>
+                  </div>
+
+                  <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 flex justify-between items-center mt-3 text-xs">
+                    <div>
+                      <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Afiliado Nro.</span>
+                      <span class="font-mono font-black text-white text-sm mt-0.5 block">
+                        {user.value.matricula ? `00-${user.value.matricula}/1-09` : "00-00000/1-09"}
+                      </span>
+                    </div>
+                    <div class="text-right">
+                      <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Vence</span>
+                      <span class="font-black text-white text-sm mt-0.5 block">12 / 2028</span>
+                    </div>
+                  </div>
+
+                  {/* Simulated Barcode */}
+                  <div class="pt-4 border-t border-white/10 flex flex-col items-center">
+                    <div class="w-full h-8 bg-white/95 rounded flex items-center justify-between px-3 py-1 space-x-0.5 overflow-hidden filter grayscale opacity-85">
+                      {Array.from({ length: 42 }).map((_, i) => {
+                        const widths = ["w-[1px]", "w-[2px]", "w-[3px]", "w-[1px]", "w-[4px]"];
+                        const width = widths[Math.floor(Math.sin(i + (user.value?.matricula ? parseInt(user.value.matricula) : 0)) * 5) + 2] || "w-[1px]";
+                        return <div key={i} class={`h-full bg-slate-900 ${width}`} />;
+                      })}
+                    </div>
+                    <span class="text-[10px] font-mono tracking-widest text-slate-300 mt-1.5 font-bold">
+                      {user.value.matricula ? `${user.value.matricula}0034988109` : "000000000034988109"}
+                    </span>
+                  </div>
+                </div>
               </div>
-
-              <div class="space-y-4">
-                <div class="flex items-center space-x-4">
-                  <div class="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-display font-extrabold text-lg text-brand-gold-light shadow-inner">
-                    DR
+            ) : (
+              <div class="credential-card-locked border rounded-2xl p-6 shadow-lg relative overflow-hidden select-none animate-float">
+                {/* Blur backdrop overlay decoration */}
+                <div class="absolute inset-0 bg-slate-950/20 backdrop-blur-[3px] z-10 flex flex-col items-center justify-center p-6 text-center">
+                  <div class="w-12 h-12 rounded-full bg-brand-gold/15 border border-brand-gold/40 flex items-center justify-center text-brand-gold shadow-lg mb-3 animate-pulse">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25-2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
                   </div>
-                  <div>
-                    <h4 class="text-base font-black font-display leading-none text-white tracking-wide">Dr. Manuel Rodriguez</h4>
-                    <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">Matrícula: 115243</p>
-                  </div>
+                  <h4 class="text-sm font-black text-white uppercase tracking-wider mb-1">Credencial Digital AMP+</h4>
+                  <p class="text-[11px] text-slate-300 font-medium max-w-[200px] leading-relaxed mb-4">
+                    Iniciá sesión o verificá tu DNI para visualizar tu credencial digital.
+                  </p>
+                  <button
+                    type="button"
+                    onClick$={() => {
+                      const inputEl = document.getElementById("express-dni");
+                      if (inputEl) {
+                        inputEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                        inputEl.focus();
+                      }
+                    }}
+                    class="px-4 py-2 bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-[11px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    Verificar DNI
+                  </button>
                 </div>
 
-                <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 flex justify-between items-center mt-3 text-xs">
-                  <div>
-                    <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Afiliado Nro.</span>
-                    <span class="font-mono font-black text-white text-sm mt-0.5 block">00-34988/1-09</span>
+                {/* Mocked blurry background content to make it look realistic under the overlay */}
+                <div class="opacity-30 filter blur-[2px] pointer-events-none select-none">
+                  <div class="flex items-center justify-between border-b border-white/20 pb-4 mb-6">
+                    <div class="flex items-center space-x-2">
+                      <div class="w-10 h-6 bg-white/20 rounded" />
+                      <span class="text-sm font-extrabold uppercase tracking-widest text-slate-200">Credencial AMP+</span>
+                    </div>
+                    <span class="text-[11px] font-black text-brand-gold border border-brand-gold/45 px-2.5 py-1 rounded uppercase tracking-wider">
+                      Activa
+                    </span>
                   </div>
-                  <div class="text-right">
-                    <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Vence</span>
-                    <span class="font-black text-white text-sm mt-0.5 block">12 / 2027</span>
-                  </div>
-                </div>
 
-                {/* Simulated Barcode */}
-                <div class="pt-4 border-t border-white/10 flex flex-col items-center">
-                  <div class="w-full h-8 bg-white/95 rounded flex items-center justify-between px-3 py-1 space-x-0.5 overflow-hidden filter grayscale opacity-85">
-                    {/* Visual simulated barcode lines */}
-                    {Array.from({ length: 42 }).map((_, i) => {
-                      const widths = ["w-[1px]", "w-[2px]", "w-[3px]", "w-[1px]", "w-[4px]"];
-                      const width = widths[Math.floor(Math.sin(i) * 5) + 2] || "w-[1px]";
-                      return <div key={i} class={`h-full bg-slate-900 ${width}`} />;
-                    })}
+                  <div class="space-y-4">
+                    <div class="flex items-center space-x-4">
+                      <div class="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-display font-extrabold text-lg text-brand-gold-light shadow-inner">
+                        DR
+                      </div>
+                      <div>
+                        <h4 class="text-base font-black font-display leading-none text-white tracking-wide">Dr. Manuel Rodriguez</h4>
+                        <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">Matrícula: 115243</p>
+                      </div>
+                    </div>
+
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 flex justify-between items-center mt-3 text-xs">
+                      <div>
+                        <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Afiliado Nro.</span>
+                        <span class="font-mono font-black text-white text-sm mt-0.5 block">00-34988/1-09</span>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Vence</span>
+                        <span class="font-black text-white text-sm mt-0.5 block">12 / 2027</span>
+                      </div>
+                    </div>
                   </div>
-                  <span class="text-[10px] font-mono tracking-widest text-slate-300 mt-1.5 font-bold">1152430034988109</span>
                 </div>
               </div>
-            </div>
+            )}
+
 
             {/* 2. Lazy Map Container */}
             {benefit.latitud && benefit.longitud && (
