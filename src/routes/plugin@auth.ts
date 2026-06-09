@@ -49,7 +49,8 @@ export const onRequest: RequestHandler = async (event) => {
   }
 
   // TEMPORAL: Bypassing auth checks for easy testing ONLY for admin routes.
-  if (!event.sharedMap.get("user") && event.url.pathname.startsWith("/admin")) {
+  const currentUser = event.sharedMap.get("user") as AuthenticatedUser | null;
+  if (event.url.pathname.startsWith("/admin") && (!currentUser || currentUser.role !== "admin")) {
     const mockAdmin: AuthenticatedUser = {
       id: "mock-admin-id",
       name: "Administrador",
