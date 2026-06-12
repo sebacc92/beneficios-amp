@@ -1,5 +1,5 @@
 import type { RequestEventBase } from "@builder.io/qwik-city";
-import { eq, desc, asc, sql } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { getDB } from "~/db";
 import { siteSettings, chatSessions, chatMessages } from "~/db/schema";
 
@@ -73,27 +73,8 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
 
 export async function getSettings(requestEvent: RequestEventBase): Promise<ChatbotSettings> {
   const db = getDB(requestEvent);
-  
-  // Try to alter table dynamically to ensure campaign columns exist in production Turso
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_active INTEGER DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_title TEXT DEFAULT 'Cafecitos & Desayunos'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_subtitle TEXT DEFAULT 'Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_emoji TEXT DEFAULT '☕'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_tag TEXT DEFAULT 'SELECCIÓN GOURMET'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_query TEXT DEFAULT 'cafe,café,desayuno,factura,gastronomia,gastro'`);
-  } catch (e) {}
 
+  // Schema migrations run once per isolate via ensureMigrated in plugin@auth.ts.
   try {
     const [settings] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
     if (!settings) {

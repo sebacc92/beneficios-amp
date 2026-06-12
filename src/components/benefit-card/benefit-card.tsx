@@ -4,7 +4,7 @@ import type { Benefit } from "~/server/cache";
 
 interface BenefitCardProps {
   benefit: Benefit;
-  variant?: "gold" | "new" | "standard";
+  variant?: "new" | "standard";
   isLocked?: boolean;
 }
 
@@ -81,73 +81,7 @@ const getTimeAgo = (dateStr?: string) => {
   const discountText = benefit.resumen || "Exclusivo";
   const formattedDiscount = discountText.replace("Descuento del", "").trim();
 
-  // --- 1. VARIANT: GOLD ---
-  if (variant === "gold") {
-    return (
-      <Link
-        href={`/beneficio/${benefit.url}`}
-        class="group block bg-[#091522] border border-[#d4af37]/35 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-[#d4af37]/15 hover:-translate-y-1.5 transition-all duration-300 relative h-[368px] select-none text-left"
-      >
-        {/* Card Image */}
-        <div class="relative h-[180px] bg-slate-900 overflow-hidden flex items-center justify-center">
-          {desktopImageSrc ? (
-            <picture class="w-full h-full block">
-              {mobileImageSrc && (
-                <source media="(max-width: 640px)" srcset={mobileImageSrc} />
-              )}
-              <img
-                src={desktopImageSrc}
-                alt={benefit.titulo}
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                width={320}
-                height={180}
-                loading="lazy"
-              />
-            </picture>
-          ) : (
-            <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-950 to-slate-900">
-              <span class="text-brand-gold font-display font-black text-2xl">AMP+ GOLD</span>
-              <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
-                {primaryCat}
-              </span>
-            </div>
-          )}
-
-          {/* Floating Badges */}
-          <div class="absolute top-3.5 left-3.5 z-10">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-brand-gold text-slate-955 uppercase tracking-widest shadow-sm">
-              {primaryCat}
-            </span>
-          </div>
-          <div class="absolute top-3.5 right-3.5 z-10">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black bg-slate-950/80 text-brand-gold backdrop-blur-sm tracking-wider uppercase">
-              ★ GOLD
-            </span>
-          </div>
-        </div>
-
-        {/* Card Body - Optimized padding (pb-8) and custom spacing for maximum breathing room */}
-        <div class="pt-5 px-6 pb-8 flex flex-col justify-between h-[192px] bg-[#091522] text-left">
-          <div class="space-y-1.5">
-            <h3 class="text-[12px] font-black text-brand-gold/80 uppercase tracking-wider truncate">
-              {primaryLoc}
-            </h3>
-            <h4 class="text-[16.5px] font-display font-extrabold text-white line-clamp-2 leading-snug group-hover:text-brand-gold transition-colors duration-205">
-              {benefit.titulo}
-            </h4>
-          </div>
-          <div class="flex items-center justify-between pt-3.5 border-t border-slate-800/80 mt-auto">
-            <span class="text-[12px] font-black text-brand-gold/75 uppercase tracking-wider">Membresía Gold</span>
-            <span class="inline-flex items-center px-4 py-1.5 rounded-xl text-[14.5px] font-black bg-brand-gold text-slate-950 shadow-md uppercase tracking-wide border border-[#d4af37]/30">
-              {formattedDiscount}
-            </span>
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
-  // --- 2. VARIANT: NEW (NUEVOS BENEFICIOS) ---
+  // --- 1. VARIANT: NEW (NUEVOS BENEFICIOS) ---
   if (variant === "new") {
     const dateVal = benefit.created_at || (benefit as any).createdAt;
     const timeAgo = getTimeAgo(dateVal);

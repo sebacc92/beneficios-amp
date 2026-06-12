@@ -14,6 +14,7 @@ import { getSettings } from "~/server/chatbotDb";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
 import { asc, eq } from "drizzle-orm";
+// Migrations create merchant_requests at boot; no inline DDL needed.
 
 // Loader to fetch sponsors sorted by display order (y)
 export const useSponsorsData = routeLoader$(async (event) => {
@@ -34,14 +35,12 @@ export const useBenefitsData = routeLoader$(async (event) => {
   const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
   const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
   const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
-  const isGoldOnly = url.searchParams.get("gold") === "1";
   const isMap = url.searchParams.get("vista") === "mapa";
 
   const searchResult = await searchBenefits({
     query, categoryId, locationId, offerId, page,
     limit: isMap ? 1000 : 12,
     requestEvent: event,
-    isPremiumOnly: isGoldOnly
   });
 
   const filters = await getFilters();
@@ -50,7 +49,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   try { settings = await getSettings(event); } catch (err) { console.error("Failed to load settings in homepage loader:", err); }
 
   let curatedRows = null;
-  if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
+  if (!query && !categoryId && !locationId && !offerId && page === 1) {
     try {
       const all = await searchBenefits({ limit: 60, requestEvent: event });
       const items = all.data;
@@ -69,7 +68,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
     await ensureHeroSlidesSeeded(db);
-    slides = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.isActive, 1)).orderBy(asc(heroSlidesTable.orderIndex));
+    slides = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.isActive, true)).orderBy(asc(heroSlidesTable.orderIndex));
   } catch (err) {
     console.error("Failed to load slides on homepage:", err);
     slides = [
@@ -86,10 +85,6 @@ export const submitMerchantRequest = server$(async function (data: {
 }) {
   try {
     const db = getDB(this);
-    try {
-      const { sql } = await import("drizzle-orm");
-      await db.run(sql`CREATE TABLE IF NOT EXISTS merchant_requests (id TEXT PRIMARY KEY, business_name TEXT NOT NULL, category TEXT NOT NULL, contact_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
-    } catch { console.info("merchant_requests table check completed."); }
     const id = Math.random().toString(36).substring(2, 9);
     await db.insert(merchantRequests).values({ id, businessName: data.businessName, category: data.category, contactName: data.contactName, email: data.email, phone: data.phone, proposal: data.proposal, status: "pending", createdAt: new Date().toISOString() });
     return { success: true, message: "¡Solicitud enviada con éxito!" };

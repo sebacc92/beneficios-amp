@@ -52,7 +52,7 @@ export const useChangeUserRoleAction = routeAction$(
   },
   zod$({
     userId: z.string(),
-    role: z.enum(["admin", "member", "premium"]),
+    role: z.enum(["admin", "member"]),
   })
 );
 

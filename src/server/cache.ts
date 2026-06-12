@@ -33,7 +33,7 @@ export interface Benefit {
   imagen: string | null;
   created_at?: string;
   updated_at?: string;
-  url: string; // This is the slug, e.g. "2339-sanar-es-vivir-masajes"
+  url: string;
   indice?: number;
   latitud: string | null;
   longitud: string | null;
@@ -41,12 +41,11 @@ export interface Benefit {
   orden_app?: number | null;
   mostrar_app?: number;
   categorias: Category[];
-  ubicacion: Location[]; // Note: Singular in original API response but is an array
+  ubicacion: Location[];
   ofertas: Offer[];
-  isPremiumOnly?: boolean; // Premium badge
-  isFeatured?: boolean; // Featured status
-  pdfUrl?: string | null; // PDF file document URL or path
-  imagenMobile?: string | null; // Mobile image URL or path
+  isFeatured?: boolean;
+  pdfUrl?: string | null;
+  imagenMobile?: string | null;
   isActive?: boolean;
 }
 
@@ -56,218 +55,109 @@ export interface Filters {
   ofertas: Offer[];
 }
 
-// Support Node/Vite HMR persistence by storing the cache in globalThis
-const globalCached = globalThis as any;
-if (!globalCached.__benefitsCache) {
-  globalCached.__benefitsCache = {
-    benefits: null,
-    filters: null,
-    lastFetchTime: 0
-  };
+interface SeedCache {
+  benefits: Benefit[];
+  filters: Filters;
 }
 
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+// One-shot, isolate-wide cache. The seed.json is bundled at build time so
+// loading it is essentially free — we just need to dedupe parsing across
+// concurrent requests in the same isolate.
+const globalState = globalThis as unknown as { __ampSeedPromise?: Promise<SeedCache> };
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 15000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
-}
-
-export async function initCache(force = false): Promise<{ benefitsCount: number; success: boolean }> {
-  const now = Date.now();
-  const cache = globalCached.__benefitsCache;
-  if (!force && cache.benefits && cache.filters && now - cache.lastFetchTime < CACHE_TTL) {
-    return { benefitsCount: cache.benefits.length, success: true };
-  }
-
-  console.log('[Cache] Refreshing benefits and filters cache...');
-  try {
-    // To completely prevent Vercel 504 Function Invocation Timeout, we serve the local seed data by default.
-    // The live database custom benefits are queried directly from Turso, so they are always 100% up-to-date.
-    if (!force) {
-      const localSeed = await import('./data/seed.json').catch(() => null);
-      if (localSeed && localSeed.benefits && localSeed.filters) {
-        globalCached.__benefitsCache = {
-          benefits: localSeed.benefits as Benefit[],
+function loadSeed(): Promise<SeedCache> {
+  if (!globalState.__ampSeedPromise) {
+    globalState.__ampSeedPromise = (async () => {
+      try {
+        const localSeed = await import("./data/seed.json");
+        const benefits = (localSeed.benefits as Benefit[]).map((item) => ({
+          ...item,
+          isFeatured:
+            item.orden_app !== null && item.orden_app !== undefined && item.orden_app > 0,
+        }));
+        return {
+          benefits,
           filters: localSeed.filters as Filters,
-          lastFetchTime: now
         };
-        console.log(`[Cache] Instantly initialized cache from local seed: ${localSeed.benefits.length} benefits.`);
-        return { benefitsCount: localSeed.benefits.length, success: true };
-      }
-    }
-
-    // 1. Fetch filters with an 8 second timeout to avoid blocking startup
-    const filtersRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/filtros/beneficios', {}, 8000);
-    if (!filtersRes.ok) throw new Error(`Filters API returned ${filtersRes.status}`);
-    const filtersData = await filtersRes.json() as Filters;
-
-    // Test page 1 first to check if API is responding fast
-    const testPageRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/beneficios?page=1', {}, 8000);
-    if (!testPageRes.ok) throw new Error(`API returned ${testPageRes.status} on page 1`);
-    const testPageJson = await testPageRes.json();
-    const totalPages = testPageJson.last_page || 45;
-
-    const allData: Benefit[] = [...(testPageJson.data || [])];
-    const batchSize = 4; // Smaller batch size to prevent overloading WAF / rate limits
-
-    for (let i = 2; i <= totalPages; i += batchSize) {
-      const batchPromises: Promise<Benefit[]>[] = [];
-      for (let page = i; page < i + batchSize && page <= totalPages; page++) {
-        batchPromises.push(
-          fetchWithTimeout(`https://beneficios.amepla.org.ar/api/v1/beneficios?page=${page}`, {}, 10000)
-            .then(async (res) => {
-              if (!res.ok) throw new Error(`Status ${res.status}`);
-              const json = await res.json();
-              return (json.data || []) as Benefit[];
-            })
-            .catch((err) => {
-              console.error(`[Cache] Error page ${page}:`, err.message);
-              return [] as Benefit[];
-            })
-        );
-      }
-      const results = await Promise.all(batchPromises);
-      for (const items of results) {
-        allData.push(...items);
-      }
-    }
-
-    // Remove duplicates by ID just in case
-    const seenIds = new Set<number>();
-    const uniqueBenefits: Benefit[] = [];
-    
-    for (const item of allData) {
-      if (!seenIds.has(item.id)) {
-        seenIds.add(item.id);
-        uniqueBenefits.push(item);
-      }
-    }
-
-    if (uniqueBenefits.length === 0) {
-      throw new Error('No benefits fetched from API');
-    }
-
-    globalCached.__benefitsCache = {
-      benefits: uniqueBenefits.map(item => ({
-        ...item,
-        isFeatured: item.orden_app !== null && item.orden_app !== undefined && item.orden_app > 0
-      })),
-      filters: filtersData,
-      lastFetchTime: now
-    };
-
-    console.log(`[Cache] Successfully cached ${uniqueBenefits.length} benefits and filters.`);
-    return { benefitsCount: uniqueBenefits.length, success: true };
-  } catch (error: any) {
-    console.error('[Cache] Failed to fetch live data:', error.message);
-    
-    // Attempt fallback from local JSON files if they exist (helps with build & offline dev)
-    try {
-      const localSeed = await import('./data/seed.json').catch(() => null);
-      if (localSeed && localSeed.benefits && localSeed.filters) {
-        globalCached.__benefitsCache = {
-          benefits: localSeed.benefits as Benefit[],
-          filters: localSeed.filters as Filters,
-          lastFetchTime: now
+      } catch (err) {
+        console.error("[Cache] Failed to load bundled seed:", err);
+        return {
+          benefits: [],
+          filters: { categorias: [], ubicaciones: [], ofertas: [] },
         };
-        console.log(`[Cache] Loaded fallback seed data: ${localSeed.benefits.length} benefits.`);
-        return { benefitsCount: localSeed.benefits.length, success: true };
       }
-    } catch (fallbackError) {
-      console.error('[Cache] Fallback seed loading failed:', fallbackError);
-    }
-
-    // If cache is empty and API failed, initialize with empty structures to avoid crash
-    if (!globalCached.__benefitsCache.benefits) globalCached.__benefitsCache.benefits = [];
-    if (!globalCached.__benefitsCache.filters) globalCached.__benefitsCache.filters = { categorias: [], ubicaciones: [], ofertas: [] };
-    
-    return { benefitsCount: globalCached.__benefitsCache.benefits.length, success: false };
+    })();
   }
+  return globalState.__ampSeedPromise;
 }
 
 export async function getBenefits(): Promise<Benefit[]> {
-  await initCache();
-  return globalCached.__benefitsCache.benefits || [];
+  const seed = await loadSeed();
+  return seed.benefits;
 }
 
 export async function getFilters(): Promise<Filters> {
-  await initCache();
-  const cache = globalCached.__benefitsCache;
-  if (!cache || !cache.filters) {
-    return { categorias: [], ubicaciones: [], ofertas: [] };
-  }
-
-  const benefits = cache.benefits || [];
+  const seed = await loadSeed();
+  const benefits = seed.benefits;
   const categoryCounts: Record<number, number> = {};
 
   for (const b of benefits) {
-    if (b.categorias) {
-      for (const cat of b.categorias) {
-        if (cat && cat.id) {
-          categoryCounts[cat.id] = (categoryCounts[cat.id] || 0) + 1;
-        }
+    if (!b.categorias) continue;
+    for (const cat of b.categorias) {
+      if (cat && cat.id) {
+        categoryCounts[cat.id] = (categoryCounts[cat.id] || 0) + 1;
       }
     }
   }
 
-  const sortedCategorias = [...(cache.filters.categorias || [])]
-    .map((cat: any) => ({
+  const sortedCategorias = [...(seed.filters.categorias || [])]
+    .map((cat) => ({
       ...cat,
       beneficios_count: categoryCounts[cat.id] || 0,
     }))
-    .sort((a: any, b: any) => (b.beneficios_count || 0) - (a.beneficios_count || 0));
+    .sort((a, b) => (b.beneficios_count || 0) - (a.beneficios_count || 0));
 
   return {
-    ...cache.filters,
+    ...seed.filters,
     categorias: sortedCategorias,
   };
 }
 
-// Helper to automatically seed DB if it's empty
-export async function ensureDbSeeded(db: any) {
-  try {
-    // Ensure benefit with ID 775 is completely deleted from the database
-    await db.delete(customBenefits).where(eq(customBenefits.id, "775"));
+// Track which isolates have already seeded so we don't repeat the work on
+// every request. Each flag is keyed in globalThis so it survives HMR.
+const seedFlags = globalThis as unknown as {
+  __benefitsSeeded?: boolean;
+  __heroSlidesSeeded?: boolean;
+};
 
+export async function ensureDbSeeded(db: any) {
+  if (seedFlags.__benefitsSeeded) return;
+  try {
     const existing = await db.select().from(customBenefits);
-    const lacksCoordinates = existing.length > 0 && existing.some((x: any) => x.latitud === null || x.latitud === undefined);
+    const lacksCoordinates =
+      existing.length > 0 && existing.some((x: any) => x.latitud === null || x.latitud === undefined);
 
     if (lacksCoordinates) {
-      console.log("[Seeder] Custom benefits lacking coordinates detected. Re-seeding table with coordinates...");
+      console.log("[Seeder] Custom benefits lacking coordinates detected. Re-seeding...");
       await db.delete(customBenefits);
     } else if (existing.length > 5) {
+      seedFlags.__benefitsSeeded = true;
       return;
     }
 
-    console.log("[Seeder] custom_benefits table is empty or needs coordinate updates. Seeding from seed.json...");
     const seedData = await import("./data/seed.json");
     if (!seedData || !seedData.benefits) {
       console.warn("[Seeder] Could not load seed.json");
+      seedFlags.__benefitsSeeded = true;
       return;
     }
 
-    const benefitsToInsert = [];
-    for (const b of seedData.benefits) {
-      const alreadyExists = existing.some((ex: any) => ex.slug === b.url || ex.id === String(b.id));
-      if (alreadyExists) continue;
+    const existingSlugs = new Set(existing.map((ex: any) => ex.slug));
+    const existingIds = new Set(existing.map((ex: any) => ex.id));
 
-      const catId = b.categorias?.[0]?.id || 109; // Default category
-      const locId = b.ubicacion?.[0]?.id || 25; // Default location
-      const offId = b.ofertas?.[0]?.id || 1; // Default offer
-
-      benefitsToInsert.push({
+    const benefitsToInsert = seedData.benefits
+      .filter((b: any) => !existingSlugs.has(b.url) && !existingIds.has(String(b.id)))
+      .map((b: any) => ({
         id: String(b.id),
         titulo: b.titulo,
         resumen: b.resumen || "Descuento especial",
@@ -275,10 +165,9 @@ export async function ensureDbSeeded(db: any) {
         imagen: b.imagen || null,
         slug: b.url,
         isFeatured: b.orden_app !== null && b.orden_app !== undefined && b.orden_app > 0,
-        isPremiumOnly: false,
-        categoryId: catId,
-        locationId: locId,
-        offerId: offId,
+        categoryId: b.categorias?.[0]?.id || 109,
+        locationId: b.ubicacion?.[0]?.id || 25,
+        offerId: b.ofertas?.[0]?.id || 1,
         couponCode: "AMEPLA" + b.id,
         validUntil: "2026-12-31",
         terms: "Válido presentando credencial digital.",
@@ -286,32 +175,30 @@ export async function ensureDbSeeded(db: any) {
         longitud: b.longitud || null,
         imagenMobile: null,
         createdAt: b.created_at || new Date().toISOString(),
-      });
-    }
+      }));
 
     if (benefitsToInsert.length > 0) {
-      console.log(`[Seeder] Inserting ${benefitsToInsert.length} seed benefits into custom_benefits in SQLite...`);
-      // Chunk to prevent SQLite limit
+      console.log(`[Seeder] Inserting ${benefitsToInsert.length} seed benefits...`);
       const chunkSize = 40;
       for (let i = 0; i < benefitsToInsert.length; i += chunkSize) {
-        const chunk = benefitsToInsert.slice(i, i + chunkSize);
-        await db.insert(customBenefits).values(chunk);
+        await db.insert(customBenefits).values(benefitsToInsert.slice(i, i + chunkSize));
       }
-      console.log("[Seeder] SQLite seeding completed successfully.");
     }
+    seedFlags.__benefitsSeeded = true;
   } catch (err) {
     console.error("[Seeder] Error seeding benefits table:", err);
   }
 }
 
 export async function ensureHeroSlidesSeeded(db: any) {
+  if (seedFlags.__heroSlidesSeeded) return;
   try {
     const existing = await db.select().from(heroSlides);
     if (existing.length > 0) {
+      seedFlags.__heroSlidesSeeded = true;
       return;
     }
 
-    console.log("[Seeder] hero_slides table is empty. Seeding from default slides...");
     const defaults = [
       {
         id: "slide-1",
@@ -324,7 +211,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Exclusivo AMP+",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg",
-        isActive: 1,
+        isActive: true,
       },
       {
         id: "slide-2",
@@ -337,7 +224,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Cuidado Médico",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
-        isActive: 1,
+        isActive: true,
       },
       {
         id: "slide-3",
@@ -350,7 +237,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Turismo & Escapadas",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/-DAZZLER SLIDE.jpg",
-        isActive: 1,
+        isActive: true,
       },
       {
         id: "slide-4",
@@ -363,7 +250,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Tendencias & Moda",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
-        isActive: 1,
+        isActive: true,
       },
       {
         id: "slide-5",
@@ -376,7 +263,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Bienestar & Relax",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/27-PHOTO-2025-11-03-12-09-52.jpg",
-        isActive: 1,
+        isActive: true,
       },
       {
         id: "slide-6",
@@ -389,24 +276,22 @@ export async function ensureHeroSlidesSeeded(db: any) {
         createdAt: new Date().toISOString(),
         preTitle: "Fitness & Salud",
         imageMobile: "https://beneficios.amepla.org.ar/images/slider/-Tred Slide.jpg",
-        isActive: 1,
+        isActive: true,
       },
     ];
 
     for (const slide of defaults) {
       await db.insert(heroSlides).values(slide);
     }
-    console.log("[Seeder] hero_slides table successfully seeded.");
+    seedFlags.__heroSlidesSeeded = true;
   } catch (err) {
     console.error("[Seeder] Error seeding hero_slides table:", err);
   }
 }
 
-// Transforms DB custom benefits schema into standard cached Benefit interface elements
 export async function getCustomBenefits(requestEvent: RequestEventBase): Promise<Benefit[]> {
   try {
     const db = getDB(requestEvent);
-    // Automatically guarantee database is populated from seed.json on start
     await ensureDbSeeded(db);
 
     const dbBenefits = await db.select().from(customBenefits);
@@ -417,12 +302,10 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
       const loc = filters.ubicaciones.find((l) => l.id === cb.locationId) || { id: cb.locationId, descripcion: "La Plata" };
       const off = filters.ofertas.find((o) => o.id === cb.offerId) || { id: cb.offerId, descripcion: "Especial" };
 
-      // Derive numerical ID from slug string or use a hashed representation
       const numId = cb.slug.split("-")[0] && !isNaN(Number(cb.slug.split("-")[0]))
         ? Number(cb.slug.split("-")[0])
         : Math.floor(Math.random() * 10000) + 90000;
 
-      // Extract real validUntil and isActive status
       const rawValidUntil = cb.validUntil;
       const isDraft = rawValidUntil?.startsWith("draft|") || rawValidUntil === "draft";
       const cleanValidUntil = isDraft
@@ -444,12 +327,12 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         ofertas: [off],
         orden_app: cb.isFeatured ? 1 : 0,
         mostrar_app: isActive ? 1 : 0,
-        isPremiumOnly: cb.isPremiumOnly,
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
         imagenMobile: cb.imagenMobile || null,
         created_at: cb.createdAt,
         isActive,
+        validUntil: cleanValidUntil,
       } as Benefit;
     });
   } catch (err) {
@@ -461,27 +344,25 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
 export async function getBenefitBySlug(slug: string, requestEvent?: RequestEventBase): Promise<Benefit | null> {
   if (requestEvent) {
     const customList = await getCustomBenefits(requestEvent);
-    const customMatch = customList.find(b => b.url === slug);
+    const customMatch = customList.find((b) => b.url === slug);
     if (customMatch) return customMatch;
 
-    // Check fallback match by ID prefix on customList
-    const idPrefix = slug.split('-')[0];
+    const idPrefix = slug.split("-")[0];
     if (idPrefix && !isNaN(Number(idPrefix))) {
       const id = Number(idPrefix);
-      return customList.find(b => b.id === id) || null;
+      return customList.find((b) => b.id === id) || null;
     }
     return null;
   }
 
   const benefits = await getBenefits();
-  const benefit = benefits.find(b => b.url === slug);
+  const benefit = benefits.find((b) => b.url === slug);
   if (benefit) return benefit;
 
-  // Fallback to match by ID prefix
-  const idPrefix = slug.split('-')[0];
+  const idPrefix = slug.split("-")[0];
   if (idPrefix && !isNaN(Number(idPrefix))) {
     const id = Number(idPrefix);
-    return benefits.find(b => b.id === id) || null;
+    return benefits.find((b) => b.id === id) || null;
   }
   return null;
 }
@@ -493,8 +374,7 @@ export interface SearchParams {
   offerId?: number;
   page?: number;
   limit?: number;
-  requestEvent?: RequestEventBase; // Support fetching custom DB benefits
-  isPremiumOnly?: boolean;
+  requestEvent?: RequestEventBase;
 }
 
 export interface SearchResult {
@@ -506,55 +386,37 @@ export interface SearchResult {
 }
 
 export async function searchBenefits(params: SearchParams): Promise<SearchResult> {
-  let uniqueBenefits: Benefit[] = [];
-  
-  if (params.requestEvent) {
-    uniqueBenefits = await getCustomBenefits(params.requestEvent);
-  } else {
-    uniqueBenefits = await getBenefits();
-  }
-  
-  const query = params.query?.toLowerCase().trim() || '';
+  const uniqueBenefits: Benefit[] = params.requestEvent
+    ? await getCustomBenefits(params.requestEvent)
+    : await getBenefits();
+
+  const query = params.query?.toLowerCase().trim() || "";
   const categoryId = params.categoryId ? Number(params.categoryId) : null;
   const locationId = params.locationId ? Number(params.locationId) : null;
   const offerId = params.offerId ? Number(params.offerId) : null;
   const page = params.page && params.page > 0 ? Number(params.page) : 1;
   const limit = params.limit && params.limit > 0 ? Number(params.limit) : 12;
 
-  let filtered = uniqueBenefits;
+  let filtered = uniqueBenefits.filter((b) => b.mostrar_app !== 0);
 
-  // Filter out inactive benefits for public viewing
-  filtered = filtered.filter(b => b.mostrar_app !== 0);
-
-  // 1. Text search filter
   if (query) {
-    filtered = filtered.filter(b => {
+    filtered = filtered.filter((b) => {
       const titleMatch = b.titulo.toLowerCase().includes(query);
       const descMatch = b.descripcion.toLowerCase().includes(query);
-      const catMatch = b.categorias.some(c => c.descripcion.toLowerCase().includes(query));
-      const locMatch = b.ubicacion.some(l => l.descripcion.toLowerCase().includes(query));
+      const catMatch = b.categorias.some((c) => c.descripcion.toLowerCase().includes(query));
+      const locMatch = b.ubicacion.some((l) => l.descripcion.toLowerCase().includes(query));
       return titleMatch || descMatch || catMatch || locMatch;
     });
   }
 
-  // 2. Category filter
   if (categoryId) {
-    filtered = filtered.filter(b => b.categorias.some(c => c.id === categoryId));
+    filtered = filtered.filter((b) => b.categorias.some((c) => c.id === categoryId));
   }
-
-  // 3. Location filter
   if (locationId) {
-    filtered = filtered.filter(b => b.ubicacion.some(l => l.id === locationId));
+    filtered = filtered.filter((b) => b.ubicacion.some((l) => l.id === locationId));
   }
-
-  // 4. Offer/Discount filter
   if (offerId) {
-    filtered = filtered.filter(b => b.ofertas.some(o => o.id === offerId));
-  }
-
-  // 5. Gold/Premium filter
-  if (params.isPremiumOnly) {
-    filtered = filtered.filter(b => b.isPremiumOnly);
+    filtered = filtered.filter((b) => b.ofertas.some((o) => o.id === offerId));
   }
 
   const total = filtered.length;
@@ -562,11 +424,5 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   const offset = (page - 1) * limit;
   const paginatedData = filtered.slice(offset, offset + limit);
 
-  return {
-    data: paginatedData,
-    total,
-    totalPages,
-    page,
-    limit
-  };
+  return { data: paginatedData, total, totalPages, page, limit };
 }

@@ -1,6 +1,7 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
+import { ensureMigrated } from "~/db/migrate";
 import { users } from "~/db/schema";
 
 export interface AuthenticatedUser {
@@ -8,13 +9,19 @@ export interface AuthenticatedUser {
   name: string;
   email: string;
   matricula: string | null;
-  role: "admin" | "member" | "premium";
+  role: "admin" | "member";
   avatarUrl: string | null;
-  premiumExpiresAt: string | null;
   createdAt: string;
 }
 
 export const onRequest: RequestHandler = async (event) => {
+  // Run one-shot DB migrations exactly once per isolate.
+  try {
+    await ensureMigrated(event);
+  } catch (err) {
+    console.error("[Auth Middleware] Migrations failed:", err);
+  }
+
   const sessionToken = event.cookie.get("session_token")?.value;
 
   if (sessionToken) {
@@ -32,15 +39,12 @@ export const onRequest: RequestHandler = async (event) => {
           name: userRecord.name,
           email: userRecord.email,
           matricula: userRecord.matricula,
-          role: userRecord.role as any,
+          role: userRecord.role,
           avatarUrl: userRecord.avatarUrl,
-          premiumExpiresAt: userRecord.premiumExpiresAt,
           createdAt: userRecord.createdAt,
         };
-        // Expose user in sharedMap so all loaders and actions can access it
         event.sharedMap.set("user", authenticatedUser);
       } else {
-        // Clear invalid cookie
         event.cookie.delete("session_token", { path: "/" });
       }
     } catch (err) {
@@ -48,21 +52,13 @@ export const onRequest: RequestHandler = async (event) => {
     }
   }
 
-  // TEMPORAL: Bypassing auth checks for easy testing ONLY for admin routes.
-  const currentUser = event.sharedMap.get("user") as AuthenticatedUser | null;
-  if (event.url.pathname.startsWith("/admin") && (!currentUser || currentUser.role !== "admin")) {
-    const mockAdmin: AuthenticatedUser = {
-      id: "mock-admin-id",
-      name: "Administrador",
-      email: "admin@amepla.org.ar",
-      matricula: "12345",
-      role: "admin",
-      avatarUrl: null,
-      premiumExpiresAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    event.sharedMap.set("user", mockAdmin);
+  // Gate the admin panel. `/admin/login` is the only admin route accessible
+  // without an authenticated admin session — everything else requires one.
+  const pathname = event.url.pathname;
+  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
+    const currentUser = event.sharedMap.get("user") as AuthenticatedUser | null;
+    if (!currentUser || currentUser.role !== "admin") {
+      throw event.redirect(302, "/admin/login");
+    }
   }
-
-  await event.next();
 };

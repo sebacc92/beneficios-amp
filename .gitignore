@@ -48,3 +48,12 @@ lerna-debug.log*
 # Vercel
 .vercel
 .env*
+
+# Local SQLite database (dev only)
+*.db
+*.db-journal
+sqlite.db
+
+# Local uploads dir served from public/uploads (dev fallback when no Vercel Blob token)
+public/uploads
+tmp

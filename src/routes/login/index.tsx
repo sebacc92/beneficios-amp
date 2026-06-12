@@ -24,12 +24,20 @@ export const loginUserServer = server$(async function(dni: string) {
     return { success: false, error: "El DNI ingresado no se encuentra registrado." };
   }
 
-  // Set cookie session (expires in 30 days)
+  // Admins must authenticate with email + password through the admin login.
+  if (user.role === "admin") {
+    return {
+      success: false,
+      error: "Las cuentas de administrador deben ingresar desde el panel de administración.",
+    };
+  }
+
   this.cookie.set("session_token", user.id, {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    secure: this.url.protocol === "https:",
+    maxAge: 60 * 60 * 24 * 30, // 30 days for agremiados
   });
 
   return { success: true };

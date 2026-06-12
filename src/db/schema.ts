@@ -23,14 +23,14 @@ export const siteSettings = sqliteTable("site_settings", {
   campaignEmoji: text("campaign_emoji"),
   campaignTag: text("campaign_tag"),
   campaignQuery: text("campaign_query"),
-  updatedAt: text("updated_at"), // Store ISO timestamps as string for full edge-compatibility
+  updatedAt: text("updated_at"),
 });
 
 // --- Chat Sessions ---
 export const chatSessions = sqliteTable("chat_sessions", {
   id: text("id").primaryKey(),
-  createdAt: text("created_at").notNull(), // ISO Date strings
-  lastActive: text("last_active").notNull(), // ISO Date strings
+  createdAt: text("created_at").notNull(),
+  lastActive: text("last_active").notNull(),
 });
 
 // --- Chat Messages ---
@@ -41,19 +41,20 @@ export const chatMessages = sqliteTable("chat_messages", {
     .notNull(),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
   content: text("content").notNull(),
-  createdAt: text("created_at").notNull(), // ISO Date strings
+  createdAt: text("created_at").notNull(),
 });
 
 // --- User Management & Session Auth ---
+// `passwordHash` is required for admins. For members it can be a random placeholder
+// because members authenticate by DNI (matricula) rather than password.
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
   matricula: text("matricula"),
-  role: text("role", { enum: ["admin", "member", "premium"] }).default("member").notNull(),
+  role: text("role", { enum: ["admin", "member"] }).default("member").notNull(),
   avatarUrl: text("avatar_url"),
-  premiumExpiresAt: text("premium_expires_at"), // ISO Date string
   createdAt: text("created_at").notNull(),
 });
 
@@ -67,7 +68,6 @@ export const customBenefits = sqliteTable("custom_benefits", {
   imagenMobile: text("imagen_mobile"),
   slug: text("slug").unique().notNull(),
   isFeatured: integer("is_featured", { mode: "boolean" }).default(false).notNull(),
-  isPremiumOnly: integer("is_premium_only", { mode: "boolean" }).default(false).notNull(),
   categoryId: integer("category_id").notNull(),
   locationId: integer("location_id").notNull(),
   offerId: integer("offer_id").notNull(),
@@ -116,10 +116,10 @@ export const sponsors = sqliteTable("sponsors", {
   name: text("name").notNull(),
   imageUrl: text("image_url").notNull(),
   linkUrl: text("link_url"),
-  x: integer("x").default(0).notNull(), // Starting column (0 to 5)
-  y: integer("y").default(0).notNull(), // Starting row (0+)
-  w: integer("w").default(2).notNull(), // Width span (1 to 6)
-  h: integer("h").default(2).notNull(), // Height span (1+)
+  x: integer("x").default(0).notNull(),
+  y: integer("y").default(0).notNull(),
+  w: integer("w").default(2).notNull(),
+  h: integer("h").default(2).notNull(),
   createdAt: text("created_at").notNull(),
 });
 
@@ -135,7 +135,7 @@ export const heroSlides = sqliteTable("hero_slides", {
   createdAt: text("created_at").notNull(),
   preTitle: text("pre_title"),
   imageMobile: text("image_mobile"),
-  isActive: integer("is_active").default(1).notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
 });
 
 // --- Merchant Club Applications ---
@@ -154,7 +154,7 @@ export const merchantRequests = sqliteTable("merchant_requests", {
 // --- Coupon System ---
 export const coupons = sqliteTable("coupons", {
   id: text("id").primaryKey(),
-  code: text("code").unique().notNull(), // Unique 6-digit code e.g. "839105"
+  code: text("code").unique().notNull(),
   benefitId: text("benefit_id").notNull(),
   benefitTitle: text("benefit_title").notNull(),
   benefitResumen: text("benefit_resumen").notNull(),
@@ -162,8 +162,6 @@ export const coupons = sqliteTable("coupons", {
   userName: text("user_name").notNull(),
   userMatricula: text("user_matricula"),
   status: text("status", { enum: ["active", "used", "expired"] }).default("active").notNull(),
-  createdAt: text("created_at").notNull(), // ISO Date String
-  usedAt: text("used_at"), // ISO Date String
+  createdAt: text("created_at").notNull(),
+  usedAt: text("used_at"),
 });
-
-

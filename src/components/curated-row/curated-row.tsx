@@ -5,10 +5,10 @@ import { BenefitCard } from "~/components/benefit-card/benefit-card";
 interface CuratedRowProps {
   title: string;
   subtitle: string;
-  accentColor: "gold" | "green" | "emerald";
+  accentColor: "green" | "emerald";
   containerId: string;
   benefits: Benefit[];
-  variant: "gold" | "new" | "standard";
+  variant: "new" | "standard";
 }
 
 export const CuratedRow = component$<CuratedRowProps>(({
@@ -32,18 +32,10 @@ export const CuratedRow = component$<CuratedRowProps>(({
   if (!benefits || benefits.length === 0) return null;
 
   const dotColorClass =
-    accentColor === "gold"
-      ? "bg-brand-gold"
-      : accentColor === "emerald"
-        ? "bg-emerald-500"
-        : "bg-brand-green";
+    accentColor === "emerald" ? "bg-emerald-500" : "bg-brand-green";
 
   const labelColorClass =
-    accentColor === "gold"
-      ? "text-brand-gold"
-      : accentColor === "emerald"
-        ? "text-emerald-650"
-        : "text-brand-green";
+    accentColor === "emerald" ? "text-emerald-650" : "text-brand-green";
 
   return (
     <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left animate-fade-in-up">

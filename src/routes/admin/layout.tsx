@@ -12,6 +12,11 @@ export default component$(() => {
   const userLoader = useAdminUser();
   const user = userLoader.value;
 
+  // Admin login lives under /admin/* but must not render the admin sidebar.
+  if (location.url.pathname.replace(/\/$/, "") === "/admin/login") {
+    return <Slot />;
+  }
+
   // Active tab helper based on path
   const currentPath = location.url.pathname;
   const isPathActive = (routePath: string) => {

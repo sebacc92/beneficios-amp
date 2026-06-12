@@ -126,7 +126,7 @@ export const useCreateSlideAction = routeAction$(
         buttonText: data.buttonText || "Explorar",
         buttonLink: data.buttonLink || "/",
         orderIndex: Number(data.orderIndex || 0),
-        isActive: data.isActive === "on" ? 1 : 0,
+        isActive: data.isActive === "on",
         createdAt: new Date().toISOString(),
       });
 
@@ -234,7 +234,7 @@ export const useUpdateSlideAction = routeAction$(
         buttonText: data.buttonText || "Explorar",
         buttonLink: data.buttonLink || "/",
         orderIndex: Number(data.orderIndex || 0),
-        isActive: data.isActive === "on" ? 1 : 0,
+        isActive: data.isActive === "on",
       }).where(eq(heroSlidesTable.id, id));
 
       return { success: true };
@@ -289,7 +289,7 @@ export const useToggleActiveAction = routeAction$(
       const current = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.id, id)).limit(1);
       if (current.length === 0) return requestEvent.fail(404, { message: "Slide no encontrado." });
 
-      const newActive = current[0].isActive === 1 ? 0 : 1;
+      const newActive = !current[0].isActive;
       await db.update(heroSlidesTable).set({ isActive: newActive }).where(eq(heroSlidesTable.id, id));
       return { success: true, isActive: newActive };
     } catch (err: any) {
@@ -786,11 +786,11 @@ export default component$(() => {
                   <div class="absolute top-2 right-2 z-20 flex gap-1.5 items-center">
                     <span class={[
                       "inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase backdrop-blur-md shadow-xs border text-white",
-                      slide.isActive === 1 
+                      slide.isActive 
                         ? "bg-emerald-500/80 border-emerald-400" 
                         : "bg-red-500/80 border-red-400"
                     ]}>
-                      {slide.isActive === 1 ? "Activo" : "Borrador"}
+                      {slide.isActive ? "Activo" : "Borrador"}
                     </span>
                   </div>
 
@@ -860,13 +860,13 @@ export default component$(() => {
                             type="submit"
                             class={[
                               "p-2 rounded-full border shadow-xs transition-all cursor-pointer active:scale-90",
-                              slide.isActive === 1 
+                              slide.isActive 
                                 ? "text-emerald-650 hover:text-emerald-800 bg-emerald-50 border-emerald-100 hover:bg-emerald-100" 
                                 : "text-slate-450 hover:text-slate-600 bg-slate-50 border-slate-200/60 hover:bg-slate-100"
                             ]}
-                            title={slide.isActive === 1 ? "Desactivar (Ocultar)" : "Activar (Mostrar)"}
+                            title={slide.isActive ? "Desactivar (Ocultar)" : "Activar (Mostrar)"}
                           >
-                            {slide.isActive === 1 ? <LuEye class="w-3.5 h-3.5" /> : <LuEyeOff class="w-3.5 h-3.5" />}
+                            {slide.isActive ? <LuEye class="w-3.5 h-3.5" /> : <LuEyeOff class="w-3.5 h-3.5" />}
                           </button>
                         </Form>
 
@@ -1016,7 +1016,7 @@ export default component$(() => {
                     <input
                       type="checkbox"
                       name="isActive"
-                      checked={editingSlide.value.isActive === 1}
+                      checked={editingSlide.value.isActive}
                       class="sr-only peer"
                     />
                     <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>

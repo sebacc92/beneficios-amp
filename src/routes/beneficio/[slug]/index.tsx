@@ -139,23 +139,7 @@ export const generateCouponAction = server$(async function(benefitId: string, be
     };
   }
 
-  // Generate unique 6-digit code
-  let code = "";
-  let attempts = 0;
-  while (attempts < 10) {
-    code = String(Math.floor(100000 + Math.random() * 900000));
-    
-    const [dup] = await db
-      .select()
-      .from(coupons)
-      .where(eq(coupons.code, code))
-      .limit(1);
-      
-    if (!dup) {
-      break;
-    }
-    attempts++;
-  }
+  const code = await generateUniqueCouponCode(db);
 
   const newCoupon = {
     id: crypto.randomUUID(),
@@ -172,7 +156,7 @@ export const generateCouponAction = server$(async function(benefitId: string, be
   };
 
   await db.insert(coupons).values(newCoupon);
-  
+
   return {
     id: newCoupon.id,
     code: newCoupon.code,
@@ -181,11 +165,32 @@ export const generateCouponAction = server$(async function(benefitId: string, be
   };
 });
 
+// Generates a unique numeric coupon code. Uses a cryptographically-random
+// 8-digit code (~1e8 keyspace) which keeps collisions vanishingly rare even
+// at scale; an explicit DB check guarantees uniqueness and we throw rather
+// than silently inserting a duplicate when the rare collision happens.
+async function generateUniqueCouponCode(db: ReturnType<typeof getDB>): Promise<string> {
+  const MAX_ATTEMPTS = 8;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    const code = String(10000000 + (buf[0] % 90000000));
+
+    const [dup] = await db
+      .select({ id: coupons.id })
+      .from(coupons)
+      .where(eq(coupons.code, code))
+      .limit(1);
+
+    if (!dup) return code;
+  }
+  throw new Error("No se pudo generar un código de cupón único, intentalo nuevamente.");
+}
+
 export const loginAndGenerateCouponAction = server$(async function(dni: string, benefitId: string, benefitTitle: string, benefitResumen: string) {
   const db = getDB(this);
   const cleanDni = dni.trim();
 
-  // Find user by DNI (stored in matricula field)
   const [user] = await db
     .select()
     .from(users)
@@ -196,15 +201,21 @@ export const loginAndGenerateCouponAction = server$(async function(dni: string, 
     return { success: false, error: "El DNI ingresado no se encuentra registrado." };
   }
 
-  // Set cookie session (expires in 30 days)
+  if (user.role === "admin") {
+    return {
+      success: false,
+      error: "Las cuentas de administrador deben ingresar desde el panel de administración.",
+    };
+  }
+
   this.cookie.set("session_token", user.id, {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    secure: this.url.protocol === "https:",
+    maxAge: 60 * 60 * 24 * 30,
   });
 
-  // Check if there is an active coupon already
   const [existing] = await db
     .select()
     .from(coupons)
@@ -221,21 +232,9 @@ export const loginAndGenerateCouponAction = server$(async function(dni: string, 
     return { success: true };
   }
 
-  // Generate unique 6-digit code
-  let code = "";
-  let attempts = 0;
-  while (attempts < 10) {
-    code = String(Math.floor(100000 + Math.random() * 900000));
-    const [dup] = await db
-      .select()
-      .from(coupons)
-      .where(eq(coupons.code, code))
-      .limit(1);
-    if (!dup) break;
-    attempts++;
-  }
+  const code = await generateUniqueCouponCode(db);
 
-  const newCoupon = {
+  await db.insert(coupons).values({
     id: crypto.randomUUID(),
     code,
     benefitId,
@@ -247,9 +246,7 @@ export const loginAndGenerateCouponAction = server$(async function(dni: string, 
     status: "active" as const,
     createdAt: new Date().toISOString(),
     usedAt: null,
-  };
-
-  await db.insert(coupons).values(newCoupon);
+  });
 
   return { success: true };
 });
