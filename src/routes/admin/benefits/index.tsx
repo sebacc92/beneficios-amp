@@ -1,11 +1,13 @@
-import { component$, useSignal, useComputed$, useTask$, $ } from "@builder.io/qwik";
+import { component$, useSignal, useComputed$, useTask$, $, Fragment } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuTicket, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone } from "@qwikest/icons/lucide";
+import { LuPlus, LuTicket, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone, LuKey } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
-import { customBenefits as customBenefitsTable } from "~/db/schema";
+import { customBenefits as customBenefitsTable, merchants as merchantsTable } from "~/db/schema";
 import { getFilters, ensureDbSeeded } from "~/server/cache";
+import { hashPassword } from "~/utils/crypto";
+import { ensureMerchantsTable } from "~/server/merchant-auth";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -33,7 +35,93 @@ export const useAdminFiltersLoader = routeLoader$(async (event) => {
   return await getFilters();
 });
 
+// Accesos de locales (login del comercio) por beneficio, indexados por slug.
+export const useBenefitAccessLoader = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user || user.role !== "admin") return {} as Record<string, { username: string; isActive: boolean }>;
+  try {
+    const db = getDB(event);
+    await ensureMerchantsTable(db);
+    const rows = await db.select().from(merchantsTable);
+    const map: Record<string, { username: string; isActive: boolean }> = {};
+    for (const m of rows) map[m.benefitSlug] = { username: m.username, isActive: m.isActive };
+    return map;
+  } catch (err) {
+    console.error("Failed to load benefit access:", err);
+    return {} as Record<string, { username: string; isActive: boolean }>;
+  }
+});
+
 // --- ACTIONS ---
+
+export const useSetBenefitAccessAction = routeAction$(
+  async (data, event) => {
+    const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return event.fail(403, { message: "No autorizado." });
+    try {
+      const db = getDB(event);
+      await ensureMerchantsTable(db);
+      const username = data.username.toLowerCase().trim();
+
+      // El usuario no puede estar tomado por OTRO local.
+      const [byUser] = await db.select().from(merchantsTable).where(eq(merchantsTable.username, username)).limit(1);
+      if (byUser && byUser.benefitSlug !== data.benefitSlug) {
+        return event.fail(409, { message: "Ese usuario ya está en uso por otro local." });
+      }
+
+      const [existing] = await db.select().from(merchantsTable).where(eq(merchantsTable.benefitSlug, data.benefitSlug)).limit(1);
+
+      if (existing) {
+        const values: any = { username, isActive: true };
+        if (data.password && data.password.trim()) values.passwordHash = await hashPassword(data.password.trim());
+        await db.update(merchantsTable).set(values).where(eq(merchantsTable.benefitSlug, data.benefitSlug));
+      } else {
+        if (!data.password || data.password.trim().length < 6) {
+          return event.fail(400, { message: "La contraseña debe tener al menos 6 caracteres." });
+        }
+        await db.insert(merchantsTable).values({
+          id: "loc-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
+          benefitSlug: data.benefitSlug,
+          username,
+          passwordHash: await hashPassword(data.password.trim()),
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error("Set benefit access error:", e);
+      return event.fail(500, { message: "Error al guardar el acceso." });
+    }
+  },
+  zod$({
+    benefitSlug: z.string(),
+    username: z.string().min(3, "El usuario debe tener al menos 3 caracteres."),
+    password: z.string().optional(),
+  })
+);
+
+export const useToggleBenefitAccessAction = routeAction$(
+  async (data, event) => {
+    const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return event.fail(403, { message: "No autorizado." });
+    const db = getDB(event);
+    await db.update(merchantsTable).set({ isActive: data.isActive === "true" }).where(eq(merchantsTable.benefitSlug, data.benefitSlug));
+    return { success: true };
+  },
+  zod$({ benefitSlug: z.string(), isActive: z.string() })
+);
+
+export const useRemoveBenefitAccessAction = routeAction$(
+  async (data, event) => {
+    const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return event.fail(403, { message: "No autorizado." });
+    const db = getDB(event);
+    await db.delete(merchantsTable).where(eq(merchantsTable.benefitSlug, data.benefitSlug));
+    return { success: true };
+  },
+  zod$({ benefitSlug: z.string() })
+);
 
 export const useCreateBenefitAction = routeAction$(
   async (data, requestEvent) => {
@@ -598,6 +686,11 @@ export default component$(() => {
   const editBenefitAction = useEditBenefitAction();
   const deleteBenefitAction = useDeleteBenefitAction();
   const toggleBenefitActiveAction = useToggleBenefitActiveAction();
+  const benefitAccess = useBenefitAccessLoader();
+  const setAccessAction = useSetBenefitAccessAction();
+  const toggleAccessAction = useToggleBenefitAccessAction();
+  const removeAccessAction = useRemoveBenefitAccessAction();
+  const accessForSlug = useSignal<string | null>(null);
 
   const isCreateBenefitOpen = useSignal(false);
   const editingBenefit = useSignal<any | null>(null);
@@ -1924,8 +2017,12 @@ export default component$(() => {
                   const locDesc = adminFilters.value.ubicaciones.find(l => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`;
                   const isActive = !(benefit.validUntil?.startsWith("draft|") || benefit.validUntil === "draft");
 
+                  const access = benefitAccess.value[benefit.slug];
+                  const isAccessOpen = accessForSlug.value === benefit.slug;
+
                   return (
-                    <tr key={benefit.id} class="hover:bg-slate-50 transition-colors">
+                    <Fragment key={benefit.id}>
+                    <tr class="hover:bg-slate-50 transition-colors">
                       <td class="px-6 py-4 font-bold text-slate-800">
                         <div class="flex items-center gap-2">
                           <span>{benefit.titulo}</span>
@@ -1964,6 +2061,29 @@ export default component$(() => {
                       </td>
                       <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center gap-1.5">
+                          {/* Local Access Button */}
+                          <button
+                            type="button"
+                            onClick$={() => {
+                              accessForSlug.value = isAccessOpen ? null : benefit.slug;
+                            }}
+                            class={[
+                              "p-2 rounded-full transition-all cursor-pointer relative",
+                              access
+                                ? "text-brand-green hover:bg-emerald-50"
+                                : "text-slate-400 hover:text-slate-600 hover:bg-slate-100",
+                            ]}
+                            title="Acceso del local"
+                          >
+                            <LuKey class="w-4 h-4" />
+                            {access && (
+                              <span class={[
+                                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white",
+                                access.isActive ? "bg-emerald-500" : "bg-slate-300",
+                              ]} />
+                            )}
+                          </button>
+
                           {/* Edit Button */}
                           <button
                             type="button"
@@ -2011,6 +2131,88 @@ export default component$(() => {
                         </div>
                       </td>
                     </tr>
+
+                    {isAccessOpen && (
+                      <tr class="bg-slate-50/70">
+                        <td colSpan={5} class="px-6 py-5">
+                          <div class="max-w-2xl">
+                            <div class="flex items-center justify-between mb-3">
+                              <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <LuKey class="w-3.5 h-3.5" /> Acceso del local — {benefit.titulo}
+                              </h4>
+                              {access && (
+                                <span class={[
+                                  "inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                  access.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500",
+                                ]}>
+                                  {access.isActive ? "Activo" : "Inactivo"}
+                                </span>
+                              )}
+                            </div>
+                            <p class="text-[11px] text-slate-400 font-medium mb-4">
+                              Con estas credenciales el local ingresa a <span class="font-mono">/comercios</span> y registra los usos de descuento de los agremiados.
+                            </p>
+
+                            <Form
+                              action={setAccessAction}
+                              onSubmitCompleted$={() => { if (setAccessAction.value?.success) accessForSlug.value = null; }}
+                              class="flex flex-col sm:flex-row sm:items-end gap-3"
+                            >
+                              <input type="hidden" name="benefitSlug" value={benefit.slug} />
+                              <div class="space-y-1.5 flex-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Usuario</label>
+                                <input
+                                  name="username"
+                                  type="text"
+                                  autoComplete="off"
+                                  value={access?.username || ""}
+                                  placeholder="usuario del local"
+                                  class="w-full text-sm font-semibold border border-slate-200 py-2.5 px-3.5 rounded-xl focus:outline-none focus:border-brand-green bg-white"
+                                />
+                              </div>
+                              <div class="space-y-1.5 flex-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                                  Contraseña {access && <span class="text-slate-300 normal-case font-bold">(dejar vacío para no cambiar)</span>}
+                                </label>
+                                <input
+                                  name="password"
+                                  type="text"
+                                  autoComplete="off"
+                                  placeholder={access ? "••••••" : "mín. 6 caracteres"}
+                                  class="w-full text-sm font-semibold border border-slate-200 py-2.5 px-3.5 rounded-xl focus:outline-none focus:border-brand-green bg-white"
+                                />
+                              </div>
+                              <button type="submit" disabled={setAccessAction.isRunning} class="px-5 py-2.5 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-extrabold uppercase tracking-wider shadow-md transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap">
+                                {setAccessAction.isRunning ? "Guardando..." : access ? "Actualizar" : "Crear acceso"}
+                              </button>
+                            </Form>
+
+                            {setAccessAction.value?.failed && (
+                              <p class="text-xs font-bold text-red-600 mt-2">{setAccessAction.value.message}</p>
+                            )}
+
+                            {access && (
+                              <div class="flex items-center gap-2 mt-3">
+                                <Form action={toggleAccessAction}>
+                                  <input type="hidden" name="benefitSlug" value={benefit.slug} />
+                                  <input type="hidden" name="isActive" value={access.isActive ? "false" : "true"} />
+                                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase tracking-wider text-slate-500 hover:bg-slate-200 transition-all">
+                                    {access.isActive ? "Desactivar" : "Activar"}
+                                  </button>
+                                </Form>
+                                <Form action={removeAccessAction}>
+                                  <input type="hidden" name="benefitSlug" value={benefit.slug} />
+                                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase tracking-wider text-red-500 hover:bg-red-50 transition-all">
+                                    Quitar acceso
+                                  </button>
+                                </Form>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })
               )}

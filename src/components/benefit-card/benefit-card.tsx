@@ -86,21 +86,21 @@ const getTimeAgo = (dateStr?: string) => {
     return (
       <Link
         href={`/beneficio/${benefit.url}`}
-        class="group block bg-[#091522] border border-[#d4af37]/35 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-[#d4af37]/15 hover:-translate-y-1.5 transition-all duration-300 relative h-[368px] select-none text-left"
+        class="group block bg-[#091522] border border-[#d4af37]/35 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-[#d4af37]/15 hover:-translate-y-1.5 transition-all duration-300 relative select-none text-left"
       >
         {/* Card Image */}
-        <div class="relative h-[180px] bg-slate-900 overflow-hidden flex items-center justify-center">
+        <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center">
           {desktopImageSrc ? (
-            <picture class="w-full h-full block">
+            <picture class="w-full h-full flex items-center justify-center">
               {mobileImageSrc && (
                 <source media="(max-width: 640px)" srcset={mobileImageSrc} />
               )}
               <img
                 src={desktopImageSrc}
                 alt={benefit.titulo}
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                width={320}
-                height={180}
+                class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                width={400}
+                height={400}
                 loading="lazy"
               />
             </picture>
@@ -156,21 +156,21 @@ const getTimeAgo = (dateStr?: string) => {
     return (
       <Link
         href={`/beneficio/${benefit.url}`}
-        class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative h-[396px] select-none text-left"
+        class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative select-none text-left"
       >
         {/* Card Image */}
-        <div class="relative h-[180px] bg-slate-100 overflow-hidden flex items-center justify-center">
+        <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center border-b border-slate-100">
           {desktopImageSrc ? (
-            <picture class="w-full h-full block">
+            <picture class="w-full h-full flex items-center justify-center">
               {mobileImageSrc && (
                 <source media="(max-width: 640px)" srcset={mobileImageSrc} />
               )}
               <img
                 src={desktopImageSrc}
                 alt={benefit.titulo}
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                width={320}
-                height={180}
+                class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                width={400}
+                height={400}
                 loading="lazy"
               />
             </picture>
@@ -230,18 +230,18 @@ const getTimeAgo = (dateStr?: string) => {
   return (
     <div class="bg-white border border-slate-100/80 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none text-left">
       {/* Image & floating elements */}
-      <div class="relative h-[180px] bg-slate-50 overflow-hidden flex items-center justify-center">
+      <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center border-b border-slate-100">
         {desktopImageSrc ? (
-          <picture class="w-full h-full block">
+          <picture class="w-full h-full flex items-center justify-center">
             {mobileImageSrc && (
               <source media="(max-width: 640px)" srcset={mobileImageSrc} />
             )}
             <img
               src={desktopImageSrc}
               alt={benefit.titulo}
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              width={320}
-              height={180}
+              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+              width={400}
+              height={400}
               loading="lazy"
             />
           </picture>

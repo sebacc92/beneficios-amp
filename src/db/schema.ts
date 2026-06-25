@@ -151,6 +151,19 @@ export const merchantRequests = sqliteTable("merchant_requests", {
   createdAt: text("created_at").notNull(),
 });
 
+// --- Local Access (credenciales de login del local, atadas a un beneficio) ---
+// Se guardan aparte de custom_benefits para sobrevivir a la sincronización con
+// la API de AMP (que borra/reinserta los beneficios). La unión es por slug,
+// que es estable entre sincronizaciones.
+export const merchants = sqliteTable("merchants", {
+  id: text("id").primaryKey(),
+  benefitSlug: text("benefit_slug").unique().notNull(), // beneficio = local
+  username: text("username").unique().notNull(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 // --- Coupon System ---
 export const coupons = sqliteTable("coupons", {
   id: text("id").primaryKey(),

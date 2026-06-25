@@ -433,22 +433,22 @@ export default component$(() => {
           <div class="lg:col-span-2 space-y-8">
             <div class="glass-card border rounded-2xl overflow-hidden shadow-md bg-white">
               {/* Feature Hero Image */}
-              <div class="relative h-64 sm:h-[400px] bg-brand-green-dark overflow-hidden flex items-center justify-center">
+              <div class="relative bg-slate-50 p-5 sm:p-8 flex items-center justify-center">
                 {imageUrl ? (
-                  <picture class="w-full h-full block">
+                  <picture class="relative w-full max-w-[440px] aspect-square rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center">
                     {imageMobileUrl && (
                       <source media="(max-width: 640px)" srcset={imageMobileUrl} />
                     )}
                     <img
                       src={imageUrl}
                       alt={benefit.titulo}
-                      class="w-full h-full object-cover"
+                      class="w-full h-full object-contain p-3"
                       width={800}
-                      height={400}
+                      height={800}
                     />
                   </picture>
                 ) : (
-                  <div class="flex flex-col items-center justify-center p-8 text-center h-full">
+                  <div class="w-full max-w-[440px] aspect-square rounded-2xl border border-slate-200 bg-brand-green-dark flex flex-col items-center justify-center p-8 text-center">
                     <span class="text-brand-gold text-6xl font-display font-black tracking-tight leading-none">
                       AMP<span class="text-white">+</span>
                     </span>

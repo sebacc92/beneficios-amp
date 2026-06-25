@@ -10,11 +10,11 @@ export const SiteFooter = component$(() => {
           <div class="col-span-1 md:col-span-2 space-y-4">
             <div class="flex items-center space-x-3.5">
               <img
-                src="/logo-beneficios_amp2.webp"
-                alt="Logo AMP"
-                width={156}
-                height={60}
-                class="h-[54px] w-auto object-contain brightness-95"
+                src="/g1259.png"
+                alt="Club de Beneficios AMP"
+                width={392}
+                height={38}
+                class="h-[38px] w-auto object-contain brightness-95"
               />
             </div>
             <p class="text-sm text-slate-500 max-w-sm font-medium">

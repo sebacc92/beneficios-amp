@@ -92,16 +92,16 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
         }}
       >
         <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between h-24">
+          <div class="flex items-center justify-between h-28">
             {/* Brand Logo */}
             <div class="flex items-center flex-shrink-0">
               <Link href="/" class="flex items-center group">
                 <img
-                  src="/logo-beneficios_amp2.webp"
+                  src="/Logo.png"
                   alt="Logo AMP"
-                  width={230}
-                  height={86}
-                  class="h-[86px] w-auto object-contain transition-all duration-300 group-hover:scale-105"
+                  width={255}
+                  height={98}
+                  class="h-[98px] w-auto object-contain transition-all duration-300 group-hover:scale-105"
                 />
               </Link>
             </div>

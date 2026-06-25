@@ -36,12 +36,17 @@ export default component$(() => {
   const location = useLocation();
   const user = useLayoutUser();
 
+  // El admin y el portal de comercios tienen su propio chrome (sin header/footer públicos).
   if (location.url.pathname.startsWith("/admin")) {
     return (
       <div class="min-h-screen w-full bg-slate-50 flex overflow-hidden">
         <Slot />
       </div>
     );
+  }
+
+  if (location.url.pathname.startsWith("/comercios")) {
+    return <Slot />;
   }
 
   return (
