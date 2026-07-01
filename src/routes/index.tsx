@@ -52,15 +52,43 @@ export const useBenefitsData = routeLoader$(async (event) => {
   let curatedRows = null;
   if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
     try {
-      const all = await searchBenefits({ limit: 60, requestEvent: event });
+      const all = await searchBenefits({ limit: 1000, requestEvent: event });
       const items = all.data;
-      const queryTerms = (settings?.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro").split(",").map(term => term.trim().toLowerCase()).filter(Boolean);
-      const cafecitos = items.filter(b => {
-        const tl = b.titulo.toLowerCase(); const dl = b.descripcion.toLowerCase(); const rl = b.resumen.toLowerCase();
-        return queryTerms.some(term => tl.includes(term) || dl.includes(term) || rl.includes(term) || b.categorias.some(c => c.descripcion.toLowerCase().includes(term)));
-      }).slice(0, 4);
+      
+      let cafecitos: Benefit[] = [];
+      if (settings?.campaignBenefitIds) {
+        const selectedSlugsOrIds = settings.campaignBenefitIds.split(",").map(s => s.trim()).filter(Boolean);
+        if (selectedSlugsOrIds.length > 0) {
+          const matchedBenefitsMap = new Map<string, Benefit>();
+          for (const b of items) {
+            matchedBenefitsMap.set(String(b.id), b);
+            matchedBenefitsMap.set(b.url, b);
+          }
+          cafecitos = selectedSlugsOrIds
+            .map(slugOrId => matchedBenefitsMap.get(slugOrId))
+            .filter((b): b is Benefit => !!b)
+            .slice(0, 8);
+        }
+      }
+
+      if (cafecitos.length === 0) {
+        const queryTerms = (settings?.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro").split(",").map(term => term.trim().toLowerCase()).filter(Boolean);
+        cafecitos = items.filter(b => {
+          const tl = b.titulo.toLowerCase(); const dl = b.descripcion.toLowerCase(); const rl = b.resumen.toLowerCase();
+          return queryTerms.some(term => tl.includes(term) || dl.includes(term) || rl.includes(term) || b.categorias.some(c => c.descripcion.toLowerCase().includes(term)));
+        }).slice(0, 4);
+      }
+      const parseDate = (dateStr?: string) => {
+        if (!dateStr) return 0;
+        const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
+        const date = new Date(normalized);
+        return isNaN(date.getTime()) ? 0 : date.getTime();
+      };
       const gold = items.filter(b => b.isFeatured).slice(0, 6);
-      const nuevos = items.filter(b => !b.isFeatured).slice(0, 6);
+      const nuevos = items
+        .filter(b => !b.isFeatured)
+        .sort((a, b) => parseDate(b.created_at) - parseDate(a.created_at))
+        .slice(0, 6);
       curatedRows = { gold, nuevos, cafecitos };
     } catch (e) { console.error("Failed to compile curated rows:", e); }
   }
@@ -106,6 +134,7 @@ export default component$(() => {
   const sponsorsData = useSponsorsData();
   const showPopup = useSignal(false);
 
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
     const isClosed = (window as any).__popupClosed;
     if (!isClosed && location.url.pathname === "/" && data.value.settings?.popupActive) {
@@ -155,33 +184,138 @@ export default component$(() => {
           />
 
           {/* Campaign Spotlight */}
-          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
-            <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left animate-fade-in-up">
-              <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-xl grid grid-cols-1 lg:grid-cols-4 gap-8 items-center relative overflow-hidden">
-                <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
-                <div class="absolute -left-16 -bottom-16 w-60 h-60 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
-                <div class="lg:col-span-1 space-y-5 relative z-10 text-white flex flex-col justify-center h-full">
-                  <div class="inline-flex items-center space-x-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span><span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">{settings?.campaignTag || "Selección Especial"}</span></div>
-                  <h2 class="text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight">{settings?.campaignEmoji || "🎁"} {settings?.campaignTitle || "Especial de Temporada"}</h2>
-                  <p class="text-sm text-slate-450 font-medium leading-relaxed">{settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}</p>
-                  <div class="pt-2"><Link href={`/beneficios?buscar=${encodeURIComponent((settings?.campaignQuery || "café").split(",")[0])}`} class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"><span>Ver todos</span><span class="text-sm">&rarr;</span></Link></div>
-                </div>
-                <div class="lg:col-span-3">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-                    {curatedRows.cafecitos.map((benefit: Benefit) => (
-                      <Link key={`coffee-${benefit.id}`} href={`/beneficio/${benefit.url}`} class="group block bg-slate-900/60 hover:bg-slate-900 border border-slate-800 rounded-3xl p-4 transition-all duration-300 hover:-translate-y-1 relative">
-                        <div class="relative h-28 rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
-                          {benefit.imagen ? (<img src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`} alt={benefit.titulo} class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" width={200} height={112} loading="lazy" />) : (<span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>)}
-                          <div class="absolute bottom-2 right-2 z-10"><span class="inline-flex items-center px-3 py-1 rounded-xl text-[11px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">{benefit.resumen.replace("Descuento del", "").trim()}</span></div>
+          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (() => {
+            const cafecitosCount = curatedRows.cafecitos.length;
+            let gridColsClass = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"; // default fallback
+            if (cafecitosCount === 1) {
+              gridColsClass = "grid-cols-1 max-w-sm mx-auto";
+            } else if (cafecitosCount === 2) {
+              gridColsClass = "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto";
+            } else if (cafecitosCount === 3) {
+              // 2 columnas en resoluciones medias (evita títulos truncados), 3 solo en pantallas grandes
+              gridColsClass = "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
+            } else {
+              gridColsClass = "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
+            }
+
+            return (
+              <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left animate-fade-in-up">
+                <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800/80 rounded-4xl sm:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-2xl flex flex-col xl:flex-row xl:items-stretch gap-8 xl:gap-12 relative overflow-hidden">
+                  <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
+                  <div class="absolute -left-16 -bottom-16 w-60 h-60 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
+                  
+                  {/* Left Column: Spotlight Info */}
+                  <div class="w-full xl:w-[320px] xl:shrink-0 flex flex-col justify-between space-y-6 relative z-10 text-white">
+                    <div class="space-y-5">
+                      {/* Tag pill */}
+                      <div class="inline-flex items-center space-x-2 bg-brand-gold/10 border border-brand-gold/20 rounded-full px-3.5 py-1.5 w-fit">
+                        <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
+                        <span class="text-[10px] font-black tracking-widest text-brand-gold uppercase">
+                          {settings?.campaignTag || "Selección Especial"}
+                        </span>
+                      </div>
+
+                      {/* Floating Emoji card + Title */}
+                      <div class="space-y-4">
+                        <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-lg shadow-black/25 animate-float">
+                          <span>{settings?.campaignEmoji || "🎁"}</span>
                         </div>
-                        <div class="mt-3.5 text-left"><h4 class="text-[11px] font-bold text-brand-gold uppercase tracking-wider truncate">{benefit.ubicacion[0]?.descripcion || "La Plata"}</h4><h3 class="text-sm font-display font-black text-slate-100 group-hover:text-white line-clamp-2 mt-1 leading-snug">{benefit.titulo}</h3></div>
+                        <h2 class="text-3xl sm:text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight text-balance">
+                          {settings?.campaignTitle || "Especial de Temporada"}
+                        </h2>
+                      </div>
+
+                      <p class="text-sm text-slate-400 font-medium leading-relaxed max-w-md">
+                        {settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}
+                      </p>
+                    </div>
+
+                    <div class="pt-2">
+                      <Link
+                        href={`/beneficios?buscar=${encodeURIComponent((settings?.campaignQuery || "café").split(",")[0])}`}
+                        class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                      >
+                        <span>Ver todos</span>
+                        <span class="transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
                       </Link>
-                    ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Dynamic grid of benefits */}
+                  <div class="w-full xl:flex-1 relative z-10 flex items-center">
+                    <div class={`grid gap-5 sm:gap-6 w-full ${gridColsClass}`}>
+                      {curatedRows.cafecitos.map((benefit: Benefit) => {
+                        const discountText = benefit.resumen.replace("Descuento del", "").trim();
+                        const isLongDiscount = discountText.length > 12;
+
+                        return (
+                          <Link
+                            key={`coffee-${benefit.id}`}
+                            href={`/beneficio/${benefit.url}`}
+                            class="group flex flex-col justify-between h-full bg-slate-950/40 hover:bg-slate-900/70 border border-white/5 hover:border-brand-gold/30 rounded-3xl p-4 transition-all duration-350 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(212,163,23,0.12)] relative"
+                          >
+                            <div class="flex h-full flex-col">
+                              {/* Card Image Container */}
+                              <div class="relative aspect-video rounded-2xl overflow-hidden bg-slate-950/80 flex items-center justify-center p-3">
+                                {benefit.imagen ? (
+                                  <img
+                                    src={
+                                      benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/')
+                                        ? benefit.imagen
+                                        : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`
+                                    }
+                                    alt={benefit.titulo}
+                                    class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-500"
+                                    width={200}
+                                    height={112}
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>
+                                )}
+
+                                {/* Marco consistente + viñeta que integra logos sobre fondo blanco con el tono oscuro */}
+                                <div class="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 [background:radial-gradient(120%_120%_at_50%_10%,transparent_58%,rgba(2,6,23,0.6)_100%)]" />
+
+                                {/* Overlay discount badge (only if short) */}
+                                <div class="absolute bottom-2 right-2 z-10">
+                                  <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">
+                                    {isLongDiscount ? "Promo" : discountText}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Bloque de texto/badges: altura reservada y alineado abajo para que los títulos coincidan */}
+                              <div class="mt-3.5 flex flex-1 flex-col justify-end gap-2 min-h-[6.5rem]">
+                                {/* Long discount tag: cada elemento en su línea, permite 2 líneas sin pisar la ubicación */}
+                                {isLongDiscount && (
+                                  <div class="flex items-start gap-1.5 self-start bg-brand-gold/10 border border-brand-gold/20 rounded-xl px-2.5 py-1.5">
+                                    <span class="text-brand-gold text-[10px] leading-tight mt-px">✨</span>
+                                    <span class="text-brand-gold text-[10px] font-extrabold uppercase tracking-wide line-clamp-2 leading-tight">
+                                      {discountText}
+                                    </span>
+                                  </div>
+                                )}
+
+                                <div class="text-left space-y-1">
+                                  <h4 class="text-[10px] font-extrabold text-brand-gold uppercase tracking-wider line-clamp-1">
+                                    {benefit.ubicacion[0]?.descripcion || "La Plata"}
+                                  </h4>
+                                  <h3 class="text-sm font-display font-bold text-slate-200 group-hover:text-white line-clamp-2 leading-snug min-h-[2.5rem]">
+                                    {benefit.titulo}
+                                  </h3>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </section>
-          )}
+              </section>
+            );
+          })()}
 
           {/* Editorial Cards + Modals */}
           <EditorialCards user={user} />

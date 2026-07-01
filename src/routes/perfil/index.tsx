@@ -1,7 +1,8 @@
-import { component$, useSignal } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$, $ } from "@builder.io/qwik";
 import {
   routeLoader$,
   routeAction$,
+  server$,
   Form,
   Link,
   z,
@@ -13,6 +14,7 @@ import { getDB } from "~/db";
 import { users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuShield, LuBell, LuTicket } from "@qwikest/icons/lucide";
+import { getVapidPublicKey, savePushSubscription, removePushSubscription } from "~/server/webpush";
 
 // Loader to retrieve the logged-in user from the sharedMap (populated by middleware)
 export const useUserLoader = routeLoader$(async (event) => {
@@ -57,14 +59,115 @@ export const useLogoutAction = routeAction$(async (_, requestEvent) => {
   throw requestEvent.redirect(302, "/login");
 });
 
+// Clave pública VAPID para suscribir el navegador.
+export const usePushKey = routeLoader$((event) => {
+  return getVapidPublicKey(event);
+});
+
+// Guarda la suscripción push del navegador, atada al usuario logueado.
+export const pushSubscribeServer = server$(async function (subscriptionJson: string) {
+  const user = this.sharedMap.get("user") as AuthenticatedUser | undefined;
+  try {
+    await savePushSubscription(this, subscriptionJson, user?.id || null);
+    return { success: true };
+  } catch (err) {
+    console.error("pushSubscribe error:", err);
+    return { success: false };
+  }
+});
+
+export const pushUnsubscribeServer = server$(async function (endpoint: string) {
+  try {
+    await removePushSubscription(this, endpoint);
+    return { success: true };
+  } catch (err) {
+    console.error("pushUnsubscribe error:", err);
+    return { success: false };
+  }
+});
+
+// Convierte la clave pública VAPID (base64url) al formato que espera el navegador.
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 export default component$(() => {
   const userLoader = useUserLoader();
   const updateAction = useUpdateProfileAction();
   const logoutAction = useLogoutAction();
+  const pushKey = usePushKey();
 
   const user = userLoader.value;
   const showEditForm = useSignal(false);
-  const showPushPrompt = useSignal(false);
+
+  // Estado real de notificaciones push.
+  const pushSupported = useSignal(true);
+  const pushEnabled = useSignal(false);
+  const pushBusy = useSignal(false);
+  const pushError = useSignal<string | null>(null);
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(async () => {
+    if (
+      typeof navigator === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      typeof window === "undefined" ||
+      !("PushManager" in window) ||
+      !pushKey.value
+    ) {
+      pushSupported.value = false;
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      pushEnabled.value = !!sub && Notification.permission === "granted";
+    } catch {
+      /* ignore */
+    }
+  });
+
+  const togglePush = $(async () => {
+    if (pushBusy.value || !pushSupported.value) return;
+    pushError.value = null;
+    pushBusy.value = true;
+    try {
+      if (!pushEnabled.value) {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") {
+          pushError.value = "Necesitás permitir las notificaciones en el navegador.";
+          return;
+        }
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(pushKey.value),
+        });
+        const res = await pushSubscribeServer(JSON.stringify(sub.toJSON()));
+        if (res.success) pushEnabled.value = true;
+        else pushError.value = "No se pudo guardar la suscripción.";
+      } else {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub) {
+          await pushUnsubscribeServer(sub.endpoint);
+          await sub.unsubscribe();
+        }
+        pushEnabled.value = false;
+      }
+    } catch (err) {
+      console.error("togglePush error:", err);
+      pushError.value = "Ocurrió un error al cambiar las notificaciones.";
+    } finally {
+      pushBusy.value = false;
+    }
+  });
 
   return (
     <div class="bg-slate-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8 font-sans">
@@ -166,32 +269,45 @@ export default component$(() => {
               </div>
             </div>
 
-            {/* Simulated Push Alert Switch */}
+            {/* Push Notifications Switch (real Web Push) */}
             <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-3">
               <div class="flex items-center justify-between">
                 <div class="space-y-0.5">
                   <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Notificaciones Push</h3>
-                  <p class="text-[10px] text-slate-400 font-medium">Alertas de cupones por expirar.</p>
+                  <p class="text-[10px] text-slate-400 font-medium">Avisos de nuevos beneficios.</p>
                 </div>
                 <button
-                  onClick$={() => (showPushPrompt.value = !showPushPrompt.value)}
-                  class={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
-                    showPushPrompt.value ? "bg-brand-green" : "bg-slate-300"
+                  type="button"
+                  disabled={pushBusy.value || !pushSupported.value}
+                  onClick$={togglePush}
+                  class={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                    pushEnabled.value ? "bg-brand-green" : "bg-slate-300"
                   }`}
                 >
                   <span
                     class={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      showPushPrompt.value ? "translate-x-5.5" : "translate-x-1"
+                      pushEnabled.value ? "translate-x-5.5" : "translate-x-1"
                     }`}
                   />
                 </button>
               </div>
-              {showPushPrompt.value && (
-                <div class="inline-flex items-start gap-1.5 rounded-xl bg-amber-50 border border-amber-100 text-[10px] font-semibold text-amber-800 p-3 leading-relaxed animate-fade-in">
-                  <LuBell class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
-                  <span>¡Notificaciones activadas! Te avisaremos cuando agreguemos nuevos beneficios en tu área.</span>
+
+              {!pushSupported.value ? (
+                <div class="inline-flex items-start gap-1.5 rounded-xl bg-slate-50 border border-slate-150 text-[10px] font-semibold text-slate-500 p-3 leading-relaxed">
+                  <LuBell class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+                  <span>Tu navegador no soporta notificaciones. En iPhone, agregá la app a la pantalla de inicio para habilitarlas.</span>
                 </div>
-              )}
+              ) : pushError.value ? (
+                <div class="inline-flex items-start gap-1.5 rounded-xl bg-red-50 border border-red-100 text-[10px] font-semibold text-red-700 p-3 leading-relaxed animate-fade-in">
+                  <LuBell class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-500" />
+                  <span>{pushError.value}</span>
+                </div>
+              ) : pushEnabled.value ? (
+                <div class="inline-flex items-start gap-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-[10px] font-semibold text-emerald-800 p-3 leading-relaxed animate-fade-in">
+                  <LuBell class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-600" />
+                  <span>¡Notificaciones activadas! Te avisaremos cuando agreguemos nuevos beneficios.</span>
+                </div>
+              ) : null}
             </div>
           </div>
 

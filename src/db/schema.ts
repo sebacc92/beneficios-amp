@@ -23,6 +23,7 @@ export const siteSettings = sqliteTable("site_settings", {
   campaignEmoji: text("campaign_emoji"),
   campaignTag: text("campaign_tag"),
   campaignQuery: text("campaign_query"),
+  campaignBenefitIds: text("campaign_benefit_ids"),
   updatedAt: text("updated_at"), // Store ISO timestamps as string for full edge-compatibility
 });
 
@@ -162,6 +163,38 @@ export const merchants = sqliteTable("merchants", {
   passwordHash: text("password_hash").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
   createdAt: text("created_at").notNull(),
+});
+
+// --- Web Push: suscripciones de notificaciones ---
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"), // agremiado suscripto (si está logueado)
+  endpoint: text("endpoint").unique().notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// --- Web Push: última notificación enviada (la lee el Service Worker) ---
+export const pushMessages = sqliteTable("push_messages", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  url: text("url").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// --- Sugerencias / Contacto (formulario público de sugerencias) ---
+export const suggestions = sqliteTable("suggestions", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  email: text("email").notNull(),
+  telefono: text("telefono"),
+  tipo: text("tipo").notNull(), // "Sugerir Comercio" | "Problema Comercio" | "Consulta General" | "Otro"
+  comercio: text("comercio"),
+  mensaje: text("mensaje").notNull(),
+  status: text("status", { enum: ["nuevo", "leido", "resuelto"] }).default("nuevo").notNull(),
+  createdAt: text("created_at").notNull(), // ISO Date String
 });
 
 // --- Coupon System ---

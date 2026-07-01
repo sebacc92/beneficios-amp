@@ -62,7 +62,71 @@ const getTimeAgo = (dateStr?: string) => {
     return `Hace ${diffMonths} meses`;
   }
   return `Hace ${Math.floor(diffMonths / 12)} años`;
-};export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard" }) => {
+};
+
+// Placeholder de marca para beneficios sin imagen: el nombre del comercio se
+// presenta como un tratamiento tipográfico sobre fondo de marca (logo-less).
+const brandPlaceholder = (title: string, category: string, tone: "light" | "gold" = "light") => (
+  <div
+    class={[
+      "flex flex-col items-center justify-center h-full w-full p-5 text-center relative overflow-hidden",
+      tone === "gold"
+        ? "bg-gradient-to-br from-slate-950 to-slate-900"
+        : "bg-gradient-to-br from-brand-green-dark to-brand-green",
+    ]}
+  >
+    <span
+      class={[
+        "absolute -right-5 -bottom-8 font-display font-black text-[8rem] leading-none select-none pointer-events-none",
+        tone === "gold" ? "text-brand-gold/10" : "text-white/10",
+      ]}
+    >
+      +
+    </span>
+    <span class="relative font-display font-black leading-tight line-clamp-3 text-white text-lg">
+      {title}
+    </span>
+    <span
+      class={[
+        "relative mt-2 text-[10px] font-bold uppercase tracking-widest",
+        tone === "gold" ? "text-brand-gold/80" : "text-white/65",
+      ]}
+    >
+      {category}
+    </span>
+  </div>
+);
+
+// Encuadre unificado del logo/imagen del comercio. Fuente mixta (logos PNG y
+// fotos de fachada/producto), por eso priorizamos object-contain para no
+// arriesgar recortes en ningún caso, con padding interno consistente para
+// emparejar la presentación visual entre imágenes de distinta proporción.
+const benefitImage = (
+  desktopImageSrc: string,
+  mobileImageSrc: string,
+  title: string,
+  category: string,
+  tone: "light" | "gold",
+) =>
+  desktopImageSrc ? (
+    <picture class="w-full h-full flex items-center justify-center p-5">
+      {mobileImageSrc && (
+        <source media="(max-width: 640px)" srcset={mobileImageSrc} />
+      )}
+      <img
+        src={desktopImageSrc}
+        alt={title}
+        class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
+        width={400}
+        height={400}
+        loading="lazy"
+      />
+    </picture>
+  ) : (
+    brandPlaceholder(title, category, tone)
+  );
+
+export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard" }) => {
   const isLocked = false;
   const desktopImageSrc = benefit.imagen
     ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") 
@@ -78,8 +142,15 @@ const getTimeAgo = (dateStr?: string) => {
 
   const primaryCat = benefit.categorias?.[0]?.descripcion || "Beneficios";
   const primaryLoc = benefit.ubicacion?.[0]?.descripcion || "La Plata";
-  const discountText = benefit.resumen || "Exclusivo";
-  const formattedDiscount = discountText.replace("Descuento del", "").trim();
+
+  // Badge corto = facet estructurado de oferta ("10%", "20%", "Promociones").
+  // El resumen (frase completa) va como línea de texto aparte, con line-clamp.
+  const formattedDiscount = (benefit.resumen || "Exclusivo").replace("Descuento del", "").trim();
+  const offerLabel = (benefit.ofertas?.[0]?.descripcion || "").trim() || formattedDiscount || "Beneficio";
+  const resumenText = (benefit.resumen || "")
+    .replace(/^Descuentos?\s+del\s*/i, "")
+    .replace(/^Bonificaci[oó]n\s+del\s*/i, "")
+    .trim();
 
   // --- 1. VARIANT: GOLD ---
   if (variant === "gold") {
@@ -90,28 +161,7 @@ const getTimeAgo = (dateStr?: string) => {
       >
         {/* Card Image */}
         <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center">
-          {desktopImageSrc ? (
-            <picture class="w-full h-full flex items-center justify-center">
-              {mobileImageSrc && (
-                <source media="(max-width: 640px)" srcset={mobileImageSrc} />
-              )}
-              <img
-                src={desktopImageSrc}
-                alt={benefit.titulo}
-                class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                width={400}
-                height={400}
-                loading="lazy"
-              />
-            </picture>
-          ) : (
-            <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-950 to-slate-900">
-              <span class="text-brand-gold font-display font-black text-2xl">AMP+ GOLD</span>
-              <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
-                {primaryCat}
-              </span>
-            </div>
-          )}
+          {benefitImage(desktopImageSrc, mobileImageSrc, benefit.titulo, primaryCat, "gold")}
 
           {/* Floating Badges */}
           <div class="absolute top-3.5 left-3.5 z-10">
@@ -139,7 +189,7 @@ const getTimeAgo = (dateStr?: string) => {
           <div class="flex items-center justify-between pt-3.5 border-t border-slate-800/80 mt-auto">
             <span class="text-[12px] font-black text-brand-gold/75 uppercase tracking-wider">Membresía Gold</span>
             <span class="inline-flex items-center px-4 py-1.5 rounded-xl text-[14.5px] font-black bg-brand-gold text-slate-950 shadow-md uppercase tracking-wide border border-[#d4af37]/30">
-              {formattedDiscount}
+              {offerLabel}
             </span>
           </div>
         </div>
@@ -159,29 +209,8 @@ const getTimeAgo = (dateStr?: string) => {
         class="group block bg-white border border-slate-100 rounded-[1.8rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative select-none text-left"
       >
         {/* Card Image */}
-        <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center border-b border-slate-100">
-          {desktopImageSrc ? (
-            <picture class="w-full h-full flex items-center justify-center">
-              {mobileImageSrc && (
-                <source media="(max-width: 640px)" srcset={mobileImageSrc} />
-              )}
-              <img
-                src={desktopImageSrc}
-                alt={benefit.titulo}
-                class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                width={400}
-                height={400}
-                loading="lazy"
-              />
-            </picture>
-          ) : (
-            <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-slate-50 to-slate-100">
-              <span class="text-brand-green-dark font-display font-black text-2xl">AMP+</span>
-              <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
-                {primaryCat}
-              </span>
-            </div>
-          )}
+        <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center">
+          {benefitImage(desktopImageSrc, mobileImageSrc, benefit.titulo, primaryCat, "light")}
 
           {/* Floating Badges */}
           <div class="absolute top-3.5 left-3.5 z-10 flex items-center justify-between w-[calc(100%-1.75rem)]">
@@ -206,19 +235,12 @@ const getTimeAgo = (dateStr?: string) => {
             </h4>
           </div>
           <div class="flex items-center justify-between pt-3.5 border-t border-slate-100 mt-auto">
-            <div class="flex items-center space-x-2 text-left">
-              <div class="w-7.5 h-7.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">Inicio</span>
-                <span class="text-[12px] font-bold text-slate-650 tracking-tight mt-0.5 leading-none">{formattedDate}</span>
-              </div>
+            <div class="flex flex-col text-left">
+              <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">Inicio</span>
+              <span class="text-[12px] font-bold text-slate-650 tracking-tight mt-0.5 leading-none">{formattedDate}</span>
             </div>
             <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-black bg-emerald-50 text-emerald-705 border border-emerald-100/70 shadow-sm uppercase tracking-wide">
-              {formattedDiscount}
+              {offerLabel}
             </span>
           </div>
         </div>
@@ -230,27 +252,8 @@ const getTimeAgo = (dateStr?: string) => {
   return (
     <div class="bg-white border border-slate-100/80 rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group shadow-sm select-none text-left">
       {/* Image & floating elements */}
-      <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center border-b border-slate-100">
-        {desktopImageSrc ? (
-          <picture class="w-full h-full flex items-center justify-center">
-            {mobileImageSrc && (
-              <source media="(max-width: 640px)" srcset={mobileImageSrc} />
-            )}
-            <img
-              src={desktopImageSrc}
-              alt={benefit.titulo}
-              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-              width={400}
-              height={400}
-              loading="lazy"
-            />
-          </picture>
-        ) : (
-          <div class="flex flex-col items-center justify-center p-6 text-center">
-            <span class="text-brand-green font-display font-black text-2xl">AMP+</span>
-            <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">{primaryCat}</span>
-          </div>
-        )}
+      <div class="relative aspect-square bg-white overflow-hidden flex items-center justify-center">
+        {benefitImage(desktopImageSrc, mobileImageSrc, benefit.titulo, primaryCat, "light")}
 
         {/* Exclusive Gold locking label */}
         {isLocked && (
@@ -265,7 +268,7 @@ const getTimeAgo = (dateStr?: string) => {
         {/* Floating Offer Badge */}
         <div class="absolute top-3.5 right-3.5 z-10">
           <span class="inline-flex items-center px-4 py-2 rounded-2xl text-[15px] font-black bg-brand-gold text-brand-green-dark border-2 border-brand-gold/60 shadow-lg uppercase tracking-wider">
-            {formattedDiscount}
+            {offerLabel}
           </span>
         </div>
 
@@ -293,6 +296,13 @@ const getTimeAgo = (dateStr?: string) => {
           <h3 class="text-[20px] font-display font-black text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-green transition-colors duration-300">
             {benefit.titulo}
           </h3>
+
+          {/* Resumen del beneficio (frase completa, antes rompía el badge) */}
+          {resumenText && (
+            <p class="text-[13.5px] font-black text-brand-green uppercase tracking-tight leading-snug line-clamp-2 min-h-10">
+              {resumenText}
+            </p>
+          )}
 
           {/* Short descriptions */}
           <p class="text-[14.5px] text-slate-550 leading-relaxed font-medium line-clamp-3">

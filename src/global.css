@@ -278,12 +278,12 @@ html {
 .animate-marquee {
   display: flex;
   width: max-content;
-  animation: marquee 30s linear infinite;
+  animation: marquee 60s linear infinite;
 }
 
 @media (max-width: 768px) {
   .animate-marquee {
-    animation-duration: 20s;
+    animation-duration: 40s;
   }
 }
 

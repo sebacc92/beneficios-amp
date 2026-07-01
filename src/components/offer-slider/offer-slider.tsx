@@ -49,6 +49,7 @@ export const OfferSlider = component$<OfferSliderProps>(({
     return getVal(b.descripcion) - getVal(a.descripcion);
   });
 
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track, cleanup }) => {
     track(() => sortedList.length);
 

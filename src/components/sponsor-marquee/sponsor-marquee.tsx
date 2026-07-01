@@ -18,6 +18,30 @@ interface SponsorMarqueeProps {
   sponsors: Sponsor[];
 }
 
+// Celda de tamaño fijo para unificar el espacio visual de cada logo,
+// sin importar la proporción de la imagen original.
+const LOGO_CELL = "flex items-center justify-center shrink-0 w-[320px] h-[180px] p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer";
+// La imagen se contiene dentro de la celda manteniendo su proporción real.
+const LOGO_IMG = "max-w-full max-h-32 w-auto object-contain filter grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:brightness-105 transition-all duration-300";
+
+const SponsorLogo = ({ sponsor, ariaHidden }: { sponsor: Sponsor; ariaHidden?: boolean }) => (
+  <a
+    href={sponsor.linkUrl || "#"}
+    target={sponsor.linkUrl ? "_blank" : undefined}
+    rel={sponsor.linkUrl ? "noopener noreferrer" : undefined}
+    class={LOGO_CELL}
+    aria-hidden={ariaHidden ? "true" : undefined}
+  >
+    <img
+      src={sponsor.imageUrl}
+      alt={sponsor.name}
+      width={320}
+      height={128}
+      class={LOGO_IMG}
+    />
+  </a>
+);
+
 const MockBrands = [
   { name: "Dazzler Hoteles", label: "DAZZLER HOTELES", icon: "hotel" },
   { name: "Tred Gimnasio", label: "TRED GIMNASIO", icon: "dumbbell" },
@@ -54,51 +78,22 @@ export const SponsorMarquee = component$<SponsorMarqueeProps>(({ sponsors }) => 
           {hasSponsors ? (
             <>
               {sponsors.map((sp) => (
-                <a
-                  key={`sp-a-${sp.id}`}
-                  href={sp.linkUrl || "#"}
-                  target={sp.linkUrl ? "_blank" : undefined}
-                  rel={sp.linkUrl ? "noopener noreferrer" : undefined}
-                  class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
-                >
-                  <img
-                    src={sp.imageUrl}
-                    alt={sp.name}
-                    width={220}
-                    height={80}
-                    class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
-                  />
-                </a>
+                <SponsorLogo key={`sp-a-${sp.id}`} sponsor={sp} />
               ))}
               {sponsors.length > 4 && sponsors.map((sp) => (
-                <a
-                  key={`sp-b-${sp.id}`}
-                  href={sp.linkUrl || "#"}
-                  target={sp.linkUrl ? "_blank" : undefined}
-                  rel={sp.linkUrl ? "noopener noreferrer" : undefined}
-                  class="flex items-center justify-center p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer min-w-[220px] h-[110px]"
-                  aria-hidden="true"
-                >
-                  <img
-                    src={sp.imageUrl}
-                    alt={sp.name}
-                    width={220}
-                    height={80}
-                    class="h-20 max-w-[220px] object-contain filter hover:brightness-105 transition-all duration-300"
-                  />
-                </a>
+                <SponsorLogo key={`sp-b-${sp.id}`} sponsor={sp} ariaHidden />
               ))}
             </>
           ) : (
             <>
               {MockBrands.map((mock, idx) => (
-                <div key={`mock-a-${idx}`} class="flex items-center space-x-3 p-2 hover:scale-110 transition-all duration-300 cursor-default group relative min-w-[220px] h-[110px] justify-center">
+                <div key={`mock-a-${idx}`} class="flex items-center justify-center space-x-3 shrink-0 w-[320px] h-[180px] p-2 hover:scale-110 transition-all duration-300 cursor-default group relative">
                   <MockIcon icon={mock.icon} />
                   <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
                 </div>
               ))}
               {MockBrands.map((mock, idx) => (
-                <div key={`mock-b-${idx}`} class="flex items-center space-x-3 p-2 hover:scale-110 transition-all duration-300 cursor-default group relative min-w-[220px] h-[110px] justify-center" aria-hidden="true">
+                <div key={`mock-b-${idx}`} class="flex items-center justify-center space-x-3 shrink-0 w-[320px] h-[180px] p-2 hover:scale-110 transition-all duration-300 cursor-default group relative" aria-hidden="true">
                   <MockIcon icon={mock.icon} />
                   <span class="text-brand-green font-display font-black text-lg tracking-wider uppercase">{mock.label}</span>
                 </div>

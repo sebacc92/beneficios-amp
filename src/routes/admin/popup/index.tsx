@@ -196,9 +196,9 @@ export default component$(() => {
                   <div class="flex items-center gap-4 font-sans">
                     <div class="w-16 h-16 bg-slate-100 rounded-2xl border border-slate-250 flex items-center justify-center overflow-hidden flex-shrink-0">
                       {previewUrl.value ? (
-                        <img src={previewUrl.value} alt="Preview" class="w-full h-full object-cover" />
+                        <img src={previewUrl.value} alt="Preview" class="w-full h-full object-cover" width={400} height={300} />
                       ) : popupImageUrlSig.value ? (
-                        <img src={popupImageUrlSig.value} alt="Current" class="w-full h-full object-cover" />
+                        <img src={popupImageUrlSig.value} alt="Current" class="w-full h-full object-cover" width={400} height={300} />
                       ) : (
                         <LuImage class="w-7 h-7 text-slate-400" />
                       )}
@@ -317,9 +317,9 @@ export default component$(() => {
                 {/* Modal Promo Image */}
                 <div class="relative w-full aspect-[16/10] bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                   {previewUrl.value ? (
-                    <img src={previewUrl.value} alt="Preview" class="w-full h-full object-cover" />
+                    <img src={previewUrl.value} alt="Preview" class="w-full h-full object-cover" width={400} height={300} />
                   ) : popupImageUrlSig.value ? (
-                    <img src={popupImageUrlSig.value} alt="Popup Image" class="w-full h-full object-cover" />
+                    <img src={popupImageUrlSig.value} alt="Popup Image" class="w-full h-full object-cover" width={400} height={300} />
                   ) : (
                     <div class="flex flex-col items-center justify-center text-slate-400 p-4">
                       <svg class="w-8 h-8 opacity-50 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">

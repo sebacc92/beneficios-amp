@@ -28,6 +28,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
   });
 
   // Auto-play with 6s interval, pauses on hover
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ cleanup }) => {
     if (slides.length <= 1) return;
 

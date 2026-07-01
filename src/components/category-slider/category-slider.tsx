@@ -77,6 +77,7 @@ export const CategorySlider = component$<CategorySliderProps>(({
     ? categorias.filter((c) => (c.beneficios_count || 0) > 0)
     : categorias;
 
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track, cleanup }) => {
     track(() => displayList.length);
 

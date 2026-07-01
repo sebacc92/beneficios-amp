@@ -44,6 +44,7 @@ export const Chatbot = component$(() => {
   );
 
   // Fetch settings from server on mount
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(async () => {
     try {
       const res = await fetch("/api/chat");
@@ -64,6 +65,7 @@ export const Chatbot = component$(() => {
   });
 
   // Session ID initialization
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
     let sId = sessionStorage.getItem("chatbot_session_id");
     if (!sId) {

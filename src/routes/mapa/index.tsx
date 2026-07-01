@@ -36,6 +36,7 @@ export default component$(() => {
   const markersGroupRef = useSignal<any>(null);
 
   // Sync state signals to URL parameters without reloading
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track }) => {
     track(() => searchQuery.value);
     track(() => selectedCategory.value);
@@ -67,6 +68,7 @@ export default component$(() => {
   });
 
   // Loader for Leaflet JS and CSS stylesheets
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
     const checkAndLoad = () => {
       if (typeof window !== "undefined" && (window as any).L) {
@@ -95,6 +97,7 @@ export default component$(() => {
   });
 
   // Initialize the Leaflet map object
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track }) => {
     track(() => isMapLoaded.value);
 
@@ -128,6 +131,7 @@ export default component$(() => {
   });
 
   // Re-build markers dynamically based on filter values
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track }) => {
     track(() => isMapLoaded.value);
     track(() => searchQuery.value);

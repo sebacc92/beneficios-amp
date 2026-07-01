@@ -239,6 +239,16 @@ export default component$(() => {
                               <input type="hidden" name="id" value={session.id} />
                               <button
                                 type="submit"
+                                preventdefault:click
+                                onClick$={(e, el) => {
+                                  if (
+                                    confirm(
+                                      "¿Estás seguro de eliminar esta conversación permanentemente de la auditoría local? Esto no se puede deshacer."
+                                    )
+                                  ) {
+                                    (el.closest("form") as HTMLFormElement).requestSubmit();
+                                  }
+                                }}
                                 class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-all cursor-pointer"
                               >
                                 <LuTrash2 class="w-4 h-4" />

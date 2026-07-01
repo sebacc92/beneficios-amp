@@ -68,6 +68,9 @@ export default tseslint.config(
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      // Sugerencia de optimización de imágenes locales (ESM ?jsx): los logos se
+      // sirven desde /public con <img> y width/height explícitos a propósito.
+      "qwik/jsx-img": "off",
     },
   },
 );

@@ -557,6 +557,14 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
     filtered = filtered.filter(b => b.isPremiumOnly);
   }
 
+  // Orden consistente: destacados primero, luego alfabético por título.
+  filtered = [...filtered].sort((a, b) => {
+    const fa = a.isFeatured ? 1 : 0;
+    const fb = b.isFeatured ? 1 : 0;
+    if (fa !== fb) return fb - fa;
+    return a.titulo.localeCompare(b.titulo, "es", { sensitivity: "base" });
+  });
+
   const total = filtered.length;
   const totalPages = Math.ceil(total / limit);
   const offset = (page - 1) * limit;

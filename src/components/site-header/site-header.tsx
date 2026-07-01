@@ -44,9 +44,11 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
     if (!showSuggestions.value || suggestions.value.length === 0) return;
 
     if (ev.key === "ArrowDown") {
+      // eslint-disable-next-line qwik/no-async-prevent-default
       ev.preventDefault();
       activeIndex.value = (activeIndex.value + 1) % suggestions.value.length;
     } else if (ev.key === "ArrowUp") {
+      // eslint-disable-next-line qwik/no-async-prevent-default
       ev.preventDefault();
       activeIndex.value = (activeIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
     } else if (ev.key === "Escape") {
@@ -54,6 +56,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
       activeIndex.value = -1;
     } else if (ev.key === "Enter") {
       if (activeIndex.value >= 0 && activeIndex.value < suggestions.value.length) {
+        // eslint-disable-next-line qwik/no-async-prevent-default
         ev.preventDefault();
         const selected = suggestions.value[activeIndex.value];
         showSuggestions.value = false;

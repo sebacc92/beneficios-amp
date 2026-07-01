@@ -93,6 +93,15 @@ export default component$(() => {
       ),
     },
     {
+      path: "/admin/suggestions",
+      label: "Sugerencias",
+      icon: (
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        </svg>
+      ),
+    },
+    {
       path: "/admin/popup",
       label: "Popup Inicial",
       icon: (
@@ -126,14 +135,16 @@ export default component$(() => {
       {/* 1. Left Sidebar Navigation Panel */}
       <aside class="w-72 bg-[#0b1329] text-slate-300 flex flex-col flex-shrink-0 h-full select-none border-r border-slate-900 shadow-xl">
         {/* Brand Header */}
-        <div class="px-6 py-7 border-b border-slate-800 flex items-center space-x-3.5 bg-[#080E1C]">
-          <img
-            src="/logo-beneficios_amp2.webp"
-            alt="AMP Logo"
-            width={120}
-            height={48}
-            class="h-[44px] w-auto object-contain"
-          />
+        <div class="px-6 py-6 border-b border-slate-800 bg-[#080E1C] flex items-center">
+          <div class="bg-white rounded-2xl px-5 py-3.5 shadow-md w-full flex items-center justify-center">
+            <img
+              src="/Logo-amp+.png"
+              alt="AMP+ Logo"
+              width={160}
+              height={58}
+              class="h-9 w-auto object-contain"
+            />
+          </div>
         </div>
 
 

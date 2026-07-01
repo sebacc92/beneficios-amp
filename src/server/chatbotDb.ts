@@ -25,6 +25,7 @@ export interface ChatbotSettings {
   campaignEmoji: string | null;
   campaignTag: string | null;
   campaignQuery: string | null;
+  campaignBenefitIds: string | null;
   updatedAt: string | null;
 }
 
@@ -68,6 +69,7 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   campaignEmoji: "☕",
   campaignTag: "SELECCIÓN GOURMET",
   campaignQuery: "cafe,café,desayuno,factura,gastronomia,gastro",
+  campaignBenefitIds: null,
   updatedAt: null,
 };
 
@@ -92,6 +94,9 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
   } catch (e) {}
   try {
     await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_query TEXT DEFAULT 'cafe,café,desayuno,factura,gastronomia,gastro'`);
+  } catch (e) {}
+  try {
+    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_benefit_ids TEXT`);
   } catch (e) {}
 
   try {
@@ -124,6 +129,7 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       campaignEmoji: settings.campaignEmoji || "☕",
       campaignTag: settings.campaignTag || "SELECCIÓN GOURMET",
       campaignQuery: settings.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro",
+      campaignBenefitIds: settings.campaignBenefitIds || null,
       updatedAt: settings.updatedAt,
     };
   } catch (err) {
@@ -156,6 +162,7 @@ export async function saveSettings(requestEvent: RequestEventBase, settings: Cha
     campaignEmoji: settings.campaignEmoji,
     campaignTag: settings.campaignTag,
     campaignQuery: settings.campaignQuery,
+    campaignBenefitIds: settings.campaignBenefitIds,
     updatedAt: new Date().toISOString(),
   };
 

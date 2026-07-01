@@ -1,8 +1,10 @@
 import { component$, useSignal } from "@builder.io/qwik";
 import { routeAction$, Form, type DocumentHead } from "@builder.io/qwik-city";
+import { getDB } from "~/db";
+import { suggestions } from "~/db/schema";
 
 // Server action to process form submission with robust programmatic validation
-export const useSubmitSuggestion = routeAction$(async (data) => {
+export const useSubmitSuggestion = routeAction$(async (data, requestEvent) => {
   const nombre = String(data.nombre || "").trim();
   const email = String(data.email || "").trim();
   const telefono = String(data.telefono || "").trim();
@@ -46,23 +48,41 @@ export const useSubmitSuggestion = routeAction$(async (data) => {
     };
   }
 
-  // Visual simulation of a database save or forwarding to official API
-  console.log("[Suggestion Action] New submission received:", {
-    nombre,
-    email,
-    telefono,
-    tipo,
-    comercio,
-    mensaje,
-    submittedAt: new Date().toISOString()
-  });
+  // Persist the suggestion to the database
+  try {
+    const db = getDB(requestEvent);
 
-  // Delay slightly to simulate server processing for satisfying loading spinner animations
-  await new Promise((resolve) => setTimeout(resolve, 800));
+    // Self-provision the table so it works even before running `drizzle-kit push`
+    try {
+      const { sql } = await import("drizzle-orm");
+      await db.run(
+        sql`CREATE TABLE IF NOT EXISTS suggestions (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, email TEXT NOT NULL, telefono TEXT, tipo TEXT NOT NULL, comercio TEXT, mensaje TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'nuevo', created_at TEXT NOT NULL)`
+      );
+    } catch {
+      console.info("suggestions table check completed.");
+    }
 
-  return {
-    success: true
-  };
+    const id = crypto.randomUUID();
+    await db.insert(suggestions).values({
+      id,
+      nombre,
+      email,
+      telefono: telefono || null,
+      tipo,
+      comercio: comercio || null,
+      mensaje,
+      status: "nuevo",
+      createdAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error inserting suggestion:", err);
+    return {
+      success: false,
+      errors: { mensaje: "Hubo un error al enviar tu mensaje. Intentá nuevamente." },
+    };
+  }
 });
 
 export default component$(() => {
@@ -91,7 +111,7 @@ export default component$(() => {
 
         {action.value?.success ? (
           /* C. Success Screen state */
-          <div class="glass-card border rounded-3xl p-8 sm:p-12 text-center shadow-lg bg-white space-y-6 animate-pulse-slow">
+          <div class="border border-slate-200/70 rounded-3xl p-8 sm:p-12 text-center shadow-lg bg-white space-y-6">
             <div class="w-20 h-20 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-emerald-500 shadow-sm">
               <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -118,7 +138,7 @@ export default component$(() => {
           </div>
         ) : (
           /* D. Main Interactive Suggestions Form */
-          <div class="glass-card border rounded-3xl p-6 sm:p-10 shadow-lg bg-white">
+          <div class="border border-slate-200/70 rounded-3xl p-6 sm:p-10 shadow-lg bg-white">
             <Form action={action} class="space-y-6">
               
               {/* Row 1: Nombre & Correo */}
