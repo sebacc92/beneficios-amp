@@ -1,8 +1,64 @@
 import { component$, Slot } from "@builder.io/qwik";
 import { Link, useLocation, routeLoader$ } from "@builder.io/qwik-city";
+import type { RequestHandler } from "@builder.io/qwik-city";
+import { eq } from "drizzle-orm";
+import { getDB } from "~/db";
+import { users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { verifyAdminSessionToken, ADMIN_SESSION_COOKIE } from "~/server/admin-auth";
 
-// Loader to fetch the authenticated user (our mock admin)
+// Barrera de seguridad: corre en el servidor antes de renderizar cualquier
+// página del panel. Valida la firma HMAC de la cookie (no se puede falsificar
+// sin AUTH_SECRET) y que el usuario siga existiendo con rol admin.
+export const onRequest: RequestHandler = async (event) => {
+  const { cookie, url, redirect, env, sharedMap } = event;
+  const currentPath = url.pathname.replace(/\/$/, "");
+  const isLoginPage = currentPath === "/admin/login";
+
+  const userId = await verifyAdminSessionToken(
+    env,
+    cookie.get(ADMIN_SESSION_COOKIE)?.value
+  );
+
+  let adminUser: AuthenticatedUser | null = null;
+  if (userId !== null) {
+    try {
+      const db = getDB(event);
+      const [record] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (record && record.role === "admin") {
+        adminUser = {
+          id: record.id,
+          name: record.name,
+          email: record.email,
+          matricula: record.matricula,
+          role: record.role,
+          avatarUrl: record.avatarUrl,
+          premiumExpiresAt: record.premiumExpiresAt,
+          createdAt: record.createdAt,
+        };
+      }
+    } catch (err) {
+      console.error("[admin-auth] Failed to resolve admin session:", err);
+    }
+  }
+
+  if (!adminUser && !isLoginPage) {
+    throw redirect(302, "/admin/login");
+  }
+  if (adminUser && isLoginPage) {
+    throw redirect(302, "/admin");
+  }
+  if (adminUser) {
+    // Disponible para todos los loaders/actions del panel vía sharedMap.
+    sharedMap.set("user", adminUser);
+  }
+};
+
+// Loader to fetch the authenticated admin user
 export const useAdminUser = routeLoader$((event) => {
   return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
 });
@@ -11,6 +67,11 @@ export default component$(() => {
   const location = useLocation();
   const userLoader = useAdminUser();
   const user = userLoader.value;
+
+  // La página de login se renderiza sin el shell del panel.
+  if (location.url.pathname.startsWith("/admin/login")) {
+    return <Slot />;
+  }
 
   // Active tab helper based on path
   const currentPath = location.url.pathname;
@@ -44,6 +105,15 @@ export default component$(() => {
       icon: (
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+        </svg>
+      ),
+    },
+    {
+      path: "/admin/galeria",
+      label: "Galería de Fotos",
+      icon: (
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18h18a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 6v10.5A1.5 1.5 0 003 18zm10.5-10.5h.008v.008h-.008V7.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
         </svg>
       ),
     },
@@ -204,6 +274,18 @@ export default component$(() => {
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
             <span>Volver al Sitio</span>
+          </Link>
+
+          {/* Logout Action */}
+          <Link
+            href="/admin/logout"
+            prefetch={false}
+            class="flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl border border-slate-800 hover:bg-red-950/40 hover:border-red-900 text-xs font-extrabold text-slate-400 hover:text-red-400 uppercase tracking-wider transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3-3h-12m12 0l-3-3m3 3l-3 3" />
+            </svg>
+            <span>Cerrar Sesión</span>
           </Link>
         </div>
       </aside>

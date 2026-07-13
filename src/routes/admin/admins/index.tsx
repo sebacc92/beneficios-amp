@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users as usersTable } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { hashPassword, verifyPassword } from "~/server/admin-auth";
 import { LuPlus, LuLock } from "@qwikest/icons/lucide";
 
 // --- SECURITY & LOADERS ---
@@ -11,7 +12,7 @@ import { LuPlus, LuLock } from "@qwikest/icons/lucide";
 export const useAdminUsersLoader = routeLoader$(async (event) => {
   const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
   if (!user || user.role !== "admin") {
-    throw event.redirect(302, "/login");
+    throw event.redirect(302, "/admin/login");
   }
   try {
     const db = getDB(event);
@@ -42,20 +43,32 @@ export const useChangePasswordAction = routeAction$(
     if (!currentUser || currentUser.role !== "admin") {
       return requestEvent.fail(403, { message: "No autorizado." });
     }
-    // Security: Only allow changing own password
-    if (currentUser.id !== data.userId) {
-      return requestEvent.fail(403, { message: "Solo tenés autorización para cambiar tu propia contraseña." });
-    }
 
     try {
       const db = getDB(requestEvent);
-      const { hashPassword } = await import("~/utils/crypto");
-      const passwordHash = await hashPassword(data.newPassword);
+
+      // Sólo se puede cambiar la contraseña propia, verificando la actual.
+      const [record] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, currentUser.id))
+        .limit(1);
+      if (!record) {
+        return requestEvent.fail(404, { message: "Usuario no encontrado." });
+      }
+
+      const { ok } = await verifyPassword(data.currentPassword, record.passwordHash);
+      if (!ok) {
+        return requestEvent.fail(400, { message: "La contraseña actual es incorrecta." });
+      }
+      if (data.currentPassword === data.newPassword) {
+        return requestEvent.fail(400, { message: "La nueva contraseña debe ser distinta a la actual." });
+      }
 
       await db
         .update(usersTable)
-        .set({ passwordHash })
-        .where(eq(usersTable.id, data.userId));
+        .set({ passwordHash: await hashPassword(data.newPassword) })
+        .where(eq(usersTable.id, currentUser.id));
 
       return { success: true };
     } catch (err: any) {
@@ -64,7 +77,7 @@ export const useChangePasswordAction = routeAction$(
     }
   },
   zod$({
-    userId: z.string(),
+    currentPassword: z.string().min(1, "Ingresá tu contraseña actual."),
     newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
   })
 );
@@ -93,7 +106,6 @@ export const useRegisterAdminAction = routeAction$(
         });
       }
 
-      const { hashPassword } = await import("~/utils/crypto");
       const passwordHash = await hashPassword(data.password);
       const userId = "usr-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
@@ -301,13 +313,21 @@ export default component$(() => {
                               }}
                               class="flex items-center justify-center gap-2"
                             >
-                              <input type="hidden" name="userId" value={userItem.id} />
+                              <input
+                                type="password"
+                                name="currentPassword"
+                                required
+                                autoComplete="current-password"
+                                placeholder="Clave actual"
+                                class="bg-slate-50 border border-slate-200 rounded-lg text-xs px-2.5 py-1.5 focus:border-brand-green focus:bg-white focus:outline-none w-32 font-semibold"
+                              />
                               <input
                                 type="password"
                                 name="newPassword"
                                 required
+                                autoComplete="new-password"
                                 placeholder="Nueva clave"
-                                class="bg-slate-50 border border-slate-200 rounded-lg text-xs px-2.5 py-1.5 focus:border-brand-green focus:bg-white focus:outline-none w-36 font-semibold"
+                                class="bg-slate-50 border border-slate-200 rounded-lg text-xs px-2.5 py-1.5 focus:border-brand-green focus:bg-white focus:outline-none w-32 font-semibold"
                               />
                               <button
                                 type="submit"

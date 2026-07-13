@@ -48,21 +48,7 @@ export const onRequest: RequestHandler = async (event) => {
     }
   }
 
-  // TEMPORAL: Bypassing auth checks for easy testing ONLY for admin routes.
-  const currentUser = event.sharedMap.get("user") as AuthenticatedUser | null;
-  if (event.url.pathname.startsWith("/admin") && (!currentUser || currentUser.role !== "admin")) {
-    const mockAdmin: AuthenticatedUser = {
-      id: "mock-admin-id",
-      name: "Administrador",
-      email: "admin@amepla.org.ar",
-      matricula: "12345",
-      role: "admin",
-      avatarUrl: null,
-      premiumExpiresAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    event.sharedMap.set("user", mockAdmin);
-  }
-
+  // Las rutas /admin se protegen con sesión firmada (HMAC) en el onRequest
+  // de src/routes/admin/layout.tsx — acá no se inyecta ningún usuario.
   await event.next();
 };

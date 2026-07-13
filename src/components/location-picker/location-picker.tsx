@@ -1,4 +1,4 @@
-import { component$, useSignal, useVisibleTask$, $, type Signal } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$, $, type Signal, sync$ } from "@builder.io/qwik";
 import { server$ } from "@builder.io/qwik-city";
 
 interface LocationPickerProps {
@@ -328,12 +328,10 @@ export const LocationPicker = component$<LocationPickerProps>(({ lat, lng, mapId
   const onKeyDown = $((e: KeyboardEvent) => {
     if (showSuggestions.value && suggestions.value.length) {
       if (e.key === "ArrowDown") {
-        e.preventDefault();
         activeIndex.value = (activeIndex.value + 1) % suggestions.value.length;
         return;
       }
       if (e.key === "ArrowUp") {
-        e.preventDefault();
         activeIndex.value = (activeIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
         return;
       }
@@ -342,7 +340,6 @@ export const LocationPicker = component$<LocationPickerProps>(({ lat, lng, mapId
         return;
       }
       if (e.key === "Enter") {
-        e.preventDefault();
         if (activeIndex.value >= 0) {
           selectSuggestion(suggestions.value[activeIndex.value]);
           return;
@@ -350,7 +347,6 @@ export const LocationPicker = component$<LocationPickerProps>(({ lat, lng, mapId
       }
     }
     if (e.key === "Enter") {
-      e.preventDefault();
       searchAddress();
     }
   });
@@ -362,8 +358,21 @@ export const LocationPicker = component$<LocationPickerProps>(({ lat, lng, mapId
           <input
             type="text"
             value={addr.value}
+            data-has-suggestions={showSuggestions.value && suggestions.value.length > 0}
             onInput$={(e) => onAddressInput((e.target as HTMLInputElement).value)}
-            onKeyDown$={onKeyDown}
+            onKeyDown$={[
+              sync$((e: any) => {
+                const target = e.target as HTMLInputElement;
+                const hasSuggestions = target.getAttribute("data-has-suggestions") === "true";
+                if (
+                  e.key === "Enter" ||
+                  ((e.key === "ArrowDown" || e.key === "ArrowUp") && hasSuggestions)
+                ) {
+                  e.preventDefault();
+                }
+              }),
+              onKeyDown,
+            ]}
             onFocus$={() => { if (suggestions.value.length) showSuggestions.value = true; }}
             onBlur$={() => { setTimeout(() => (showSuggestions.value = false), 200); }}
             placeholder="Dirección (ej: Av. Divisadero 1470, Cariló)"

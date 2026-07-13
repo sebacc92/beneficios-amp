@@ -1,6 +1,6 @@
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
+import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded, ensureGalleryTable } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
@@ -10,9 +10,10 @@ import { CuratedRow } from "~/components/curated-row/curated-row";
 import { EditorialCards } from "~/components/editorial-cards/editorial-cards";
 import { SponsorMarquee } from "~/components/sponsor-marquee/sponsor-marquee";
 import { PopupModal } from "~/components/popup-modal/popup-modal";
+import { Gallery } from "~/components/gallery/gallery";
 import { getSettings } from "~/server/chatbotDb";
 import { getDB } from "~/db";
-import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
+import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, galleryImages as galleryImagesTable, merchantRequests } from "~/db/schema";
 import { asc, eq } from "drizzle-orm";
 
 // Loader to fetch sponsors sorted by display order (y)
@@ -22,6 +23,22 @@ export const useSponsorsData = routeLoader$(async (event) => {
     return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y);
   } catch (err) {
     console.error("Failed to load sponsors on home:", err);
+    return [];
+  }
+});
+
+// Loader to fetch active gallery images sorted by display order
+export const useGalleryData = routeLoader$(async (event) => {
+  try {
+    const db = getDB(event);
+    await ensureGalleryTable(db);
+    return await db
+      .select()
+      .from(galleryImagesTable)
+      .where(eq(galleryImagesTable.isActive, 1))
+      .orderBy(asc(galleryImagesTable.orderIndex));
+  } catch (err) {
+    console.error("Failed to load gallery images on home:", err);
     return [];
   }
 });
@@ -132,6 +149,7 @@ export default component$(() => {
   const data = useBenefitsData();
   const user = useLayoutUser();
   const sponsorsData = useSponsorsData();
+  const galleryData = useGalleryData();
   const showPopup = useSignal(false);
 
   // eslint-disable-next-line qwik/no-use-visible-task
@@ -256,7 +274,7 @@ export default component$(() => {
                           >
                             <div class="flex h-full flex-col">
                               {/* Card Image Container */}
-                              <div class="relative aspect-video rounded-2xl overflow-hidden bg-slate-950/80 flex items-center justify-center p-3">
+                              <div class="relative aspect-video rounded-2xl overflow-hidden bg-white flex items-center justify-center p-3">
                                 {benefit.imagen ? (
                                   <img
                                     src={
@@ -274,8 +292,8 @@ export default component$(() => {
                                   <span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>
                                 )}
 
-                                {/* Marco consistente + viñeta que integra logos sobre fondo blanco con el tono oscuro */}
-                                <div class="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 [background:radial-gradient(120%_120%_at_50%_10%,transparent_58%,rgba(2,6,23,0.6)_100%)]" />
+                                {/* Marco consistente sobre fondo blanco para integrar los logos con la tarjeta */}
+                                <div class="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
 
                                 {/* Overlay discount badge (only if short) */}
                                 <div class="absolute bottom-2 right-2 z-10">
@@ -322,6 +340,9 @@ export default component$(() => {
 
           {/* Sponsors Marquee */}
           <SponsorMarquee sponsors={sponsorsData.value as any} />
+
+          {/* Photo Gallery */}
+          {galleryData.value.length > 0 && <Gallery images={galleryData.value} />}
         </>
       )}
 

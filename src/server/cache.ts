@@ -402,6 +402,21 @@ export async function ensureHeroSlidesSeeded(db: any) {
   }
 }
 
+/** Crea la tabla `gallery_images` en runtime (patrón de seeding del proyecto). */
+export async function ensureGalleryTable(db: any) {
+  const { sql } = await import("drizzle-orm");
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS gallery_images (
+      id TEXT PRIMARY KEY,
+      image_url TEXT NOT NULL,
+      title TEXT,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    )
+  `);
+}
+
 // Transforms DB custom benefits schema into standard cached Benefit interface elements
 export async function getCustomBenefits(requestEvent: RequestEventBase): Promise<Benefit[]> {
   try {

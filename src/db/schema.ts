@@ -197,6 +197,16 @@ export const suggestions = sqliteTable("suggestions", {
   createdAt: text("created_at").notNull(), // ISO Date String
 });
 
+// --- Photo Gallery ---
+export const galleryImages = sqliteTable("gallery_images", {
+  id: text("id").primaryKey(),
+  imageUrl: text("image_url").notNull(),
+  title: text("title"),
+  orderIndex: integer("order_index").default(0).notNull(),
+  isActive: integer("is_active").default(1).notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 // --- Coupon System ---
 export const coupons = sqliteTable("coupons", {
   id: text("id").primaryKey(),
