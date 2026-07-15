@@ -1,4 +1,4 @@
-import { component$, useSignal, $ } from "@builder.io/qwik";
+import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, Link, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuImage, LuSmartphone, LuSparkles, LuChevronLeft } from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters } from "~/server/cache";
 import { mergeContacts, splitContacts } from "~/utils/benefit-contacts";
+import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -396,6 +397,27 @@ export default component$(() => {
     adminFilters.value.ubicaciones.find((l) => l.id === benefit.value.locationId)?.descripcion || "La Plata"
   );
 
+  // Descuento: badge autogenerado desde la oferta, con override manual.
+  const initialOfferDesc =
+    adminFilters.value.ofertas.find((o) => o.id === benefit.value.offerId)?.descripcion || "";
+  const editOfferDesc = useSignal(initialOfferDesc);
+  const editResumen = useSignal(benefit.value.resumen || "");
+  // Si el resumen guardado no coincide con el autogenerado, arranca en modo manual.
+  const editOverrideResumen = useSignal(
+    (benefit.value.resumen || "").trim() !== deriveDiscountBadge(initialOfferDesc).trim()
+  );
+
+  // Sincroniza el badge con la oferta cuando NO hay override manual.
+  useTask$(({ track }) => {
+    track(() => editOfferDesc.value);
+    track(() => editOverrideResumen.value);
+    if (!editOverrideResumen.value) {
+      const badge = deriveDiscountBadge(editOfferDesc.value);
+      editResumen.value = badge;
+      editPreviewResumen.value = badge;
+    }
+  });
+
   // Change handler with client-side canvas optimization (Desktop)
   const handleEditImageChange = $((event: Event) => {
     const element = event.target as HTMLInputElement;
@@ -572,16 +594,53 @@ export default component$(() => {
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
+              <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={editOverrideResumen.value}
+                  onChange$={(e) => { editOverrideResumen.value = (e.target as HTMLInputElement).checked; }}
+                  class="accent-brand-green w-3.5 h-3.5"
+                />
+                Personalizar texto
+              </label>
+            </div>
             <input
               type="text"
               name="resumen"
               required
-              value={benefit.value.resumen}
+              readOnly={!editOverrideResumen.value}
               placeholder="Ej: 20% de descuento"
-              onInput$={(e) => { editPreviewResumen.value = (e.target as HTMLInputElement).value; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+              value={editResumen.value}
+              onInput$={(e) => {
+                editResumen.value = (e.target as HTMLInputElement).value;
+                editPreviewResumen.value = (e.target as HTMLInputElement).value;
+              }}
+              class={[
+                "w-full text-slate-800 text-sm px-4 py-3 rounded-2xl border transition-all focus:outline-none",
+                editOverrideResumen.value
+                  ? "bg-white border-slate-200 focus:border-brand-green"
+                  : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed",
+              ]}
             />
+            {!editOverrideResumen.value ? (
+              <p class="text-[10px] text-slate-400 font-medium">Se genera automáticamente desde la oferta seleccionada.</p>
+            ) : (
+              (() => {
+                const textPct = pctFromText(editResumen.value);
+                const offerPct = pctFromText(deriveDiscountBadge(editOfferDesc.value));
+                if (textPct && offerPct && textPct !== offerPct) {
+                  return (
+                    <p class="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                      <span>⚠</span>
+                      El texto dice {textPct}% pero la oferta seleccionada es {offerPct}%.
+                    </p>
+                  );
+                }
+                return <p class="text-[10px] text-slate-400 font-medium">Texto personalizado.</p>;
+              })()
+            )}
           </div>
         </div>
 
@@ -657,6 +716,7 @@ export default component$(() => {
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
             <select
               name="offerId"
+              onChange$={(e, el) => { editOfferDesc.value = el.options[el.selectedIndex].text; }}
               class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
             >
               {adminFilters.value.ofertas.map((off) => (

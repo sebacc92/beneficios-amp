@@ -6,6 +6,7 @@ import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters } from "~/server/cache";
 import { mergeContacts } from "~/utils/benefit-contacts";
+import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -345,11 +346,29 @@ export default component$(() => {
   const createPreviewCategory = useSignal("");
   const createPreviewLocation = useSignal("");
 
+  // Descuento: el badge (resumen) se autogenera desde la oferta seleccionada,
+  // salvo que se active "personalizar texto".
+  const createOfferDesc = useSignal("");
+  const createResumen = useSignal("");
+  const createOverrideResumen = useSignal(false);
+
   useTask$(({ track }) => {
     track(() => adminFilters.value);
     if (adminFilters.value) {
       if (!createPreviewCategory.value) createPreviewCategory.value = adminFilters.value.categorias[0]?.descripcion || "Categoría";
       if (!createPreviewLocation.value) createPreviewLocation.value = adminFilters.value.ubicaciones[0]?.descripcion || "La Plata";
+      if (!createOfferDesc.value) createOfferDesc.value = adminFilters.value.ofertas[0]?.descripcion || "";
+    }
+  });
+
+  // Sincroniza el badge con la oferta cuando NO hay override manual.
+  useTask$(({ track }) => {
+    track(() => createOfferDesc.value);
+    track(() => createOverrideResumen.value);
+    if (!createOverrideResumen.value) {
+      const badge = deriveDiscountBadge(createOfferDesc.value);
+      createResumen.value = badge;
+      createPreviewResumen.value = badge;
     }
   });
 
@@ -524,15 +543,53 @@ export default component$(() => {
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
+              <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={createOverrideResumen.value}
+                  onChange$={(e) => { createOverrideResumen.value = (e.target as HTMLInputElement).checked; }}
+                  class="accent-brand-green w-3.5 h-3.5"
+                />
+                Personalizar texto
+              </label>
+            </div>
             <input
               type="text"
               name="resumen"
               required
+              readOnly={!createOverrideResumen.value}
               placeholder="Ej: 20% de descuento"
-              onInput$={(e) => { createPreviewResumen.value = (e.target as HTMLInputElement).value; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+              value={createResumen.value}
+              onInput$={(e) => {
+                createResumen.value = (e.target as HTMLInputElement).value;
+                createPreviewResumen.value = (e.target as HTMLInputElement).value;
+              }}
+              class={[
+                "w-full text-slate-800 text-sm px-4 py-3 rounded-2xl border transition-all focus:outline-none",
+                createOverrideResumen.value
+                  ? "bg-white border-slate-200 focus:border-brand-green"
+                  : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed",
+              ]}
             />
+            {!createOverrideResumen.value ? (
+              <p class="text-[10px] text-slate-400 font-medium">Se genera automáticamente desde la oferta seleccionada.</p>
+            ) : (
+              (() => {
+                const textPct = pctFromText(createResumen.value);
+                const offerPct = pctFromText(deriveDiscountBadge(createOfferDesc.value));
+                if (textPct && offerPct && textPct !== offerPct) {
+                  return (
+                    <p class="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                      <span>⚠</span>
+                      El texto dice {textPct}% pero la oferta seleccionada es {offerPct}%.
+                    </p>
+                  );
+                }
+                return <p class="text-[10px] text-slate-400 font-medium">Texto personalizado.</p>;
+              })()
+            )}
           </div>
         </div>
 
@@ -605,6 +662,7 @@ export default component$(() => {
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
             <select
               name="offerId"
+              onChange$={(e, el) => { createOfferDesc.value = el.options[el.selectedIndex].text; }}
               class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
             >
               {adminFilters.value.ofertas.map((off) => (
