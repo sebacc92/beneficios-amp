@@ -48,6 +48,8 @@ export interface Benefit {
   pdfUrl?: string | null; // PDF file document URL or path
   imagenMobile?: string | null; // Mobile image URL or path
   galeria?: string[]; // Extra gallery image URLs
+  validUntil?: string | null; // Vigencia (fecha de vencimiento) si aplica
+  terms?: string | null; // Términos y condiciones
   isActive?: boolean;
 }
 
@@ -478,6 +480,8 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
         imagenMobile: cb.imagenMobile || null,
+        validUntil: cleanValidUntil || null,
+        terms: cb.terms || null,
         created_at: cb.createdAt,
         isActive,
       } as Benefit;
