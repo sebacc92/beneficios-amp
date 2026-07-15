@@ -35,6 +35,7 @@ export const onRequest: RequestHandler = async (event) => {
           name: record.name,
           email: record.email,
           matricula: record.matricula,
+          dni: record.dni,
           role: record.role,
           avatarUrl: record.avatarUrl,
           premiumExpiresAt: record.premiumExpiresAt,

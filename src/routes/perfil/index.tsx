@@ -15,6 +15,7 @@ import { users } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuShield, LuBell, LuTicket } from "@qwikest/icons/lucide";
 import { getVapidPublicKey, savePushSubscription, removePushSubscription } from "~/server/webpush";
+import { makeCredentialToken } from "~/server/credential-token";
 
 // Loader to retrieve the logged-in user from the sharedMap (populated by middleware)
 export const useUserLoader = routeLoader$(async (event) => {
@@ -23,6 +24,22 @@ export const useUserLoader = routeLoader$(async (event) => {
     throw event.redirect(302, "/login");
   }
   return user;
+});
+
+// URL absoluta de verificación (QR del carnet). El token va cifrado: nunca
+// expone el DNI/matrícula ni permite enumerar beneficiarios.
+export const useCredentialVerifyUrl = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user) return null;
+  const idKey = (user.dni || user.matricula || "").trim();
+  if (!idKey) return null;
+  const token = await makeCredentialToken(event.env, {
+    d: idKey,
+    m: user.matricula,
+    n: user.name,
+    iat: Date.now(),
+  });
+  return `${event.url.origin}/verificar/${token}`;
 });
 
 // Action to update user profile details
@@ -101,6 +118,7 @@ export default component$(() => {
   const updateAction = useUpdateProfileAction();
   const logoutAction = useLogoutAction();
   const pushKey = usePushKey();
+  const verifyUrl = useCredentialVerifyUrl();
 
   const user = userLoader.value;
   const showEditForm = useSignal(false);
@@ -255,19 +273,41 @@ export default component$(() => {
                     <div class="font-bold text-xs tracking-widest">{user.matricula || "S/M"}</div>
                   </div>
                   
-                  {/* QR Mockup inside Card */}
-                  <div class="w-9 h-9 bg-white rounded-md p-0.5 flex items-center justify-center border border-slate-200">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=AMP:${user.id}`}
-                      alt="QR Credential"
-                      width={32}
-                      height={32}
-                      class="object-contain"
-                    />
-                  </div>
+                  {/* QR chico dentro de la tarjeta (apunta a la verificación real) */}
+                  {verifyUrl.value && (
+                    <div class="w-9 h-9 bg-white rounded-md p-0.5 flex items-center justify-center border border-slate-200">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&margin=2&data=${encodeURIComponent(verifyUrl.value)}`}
+                        alt="QR de verificación"
+                        width={32}
+                        height={32}
+                        class="object-contain"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* QR de verificación grande y escaneable */}
+            {verifyUrl.value && (
+              <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col items-center text-center space-y-3">
+                <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wide">QR de Verificación</h3>
+                {/* Fondo blanco + padding = quiet zone; alto contraste negro/blanco */}
+                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-inner">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=16&ecc=M&color=000000&bgcolor=ffffff&data=${encodeURIComponent(verifyUrl.value)}`}
+                    alt="Código QR para verificar la credencial"
+                    width={240}
+                    height={240}
+                    class="w-[240px] h-[240px] object-contain"
+                  />
+                </div>
+                <p class="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[240px]">
+                  Mostrá este código en el comercio. Al escanearlo se verifica tu credencial en tiempo real contra el padrón de la AMP.
+                </p>
+              </div>
+            )}
 
             {/* Push Notifications Switch (real Web Push) */}
             <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-3">

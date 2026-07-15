@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   name: string;
   email: string;
   matricula: string | null;
+  dni: string | null;
   role: "admin" | "member" | "premium";
   avatarUrl: string | null;
   premiumExpiresAt: string | null;
@@ -32,6 +33,7 @@ export const onRequest: RequestHandler = async (event) => {
           name: userRecord.name,
           email: userRecord.email,
           matricula: userRecord.matricula,
+          dni: userRecord.dni,
           role: userRecord.role as any,
           avatarUrl: userRecord.avatarUrl,
           premiumExpiresAt: userRecord.premiumExpiresAt,
