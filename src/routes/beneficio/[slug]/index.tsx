@@ -1,7 +1,11 @@
 import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
-import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
+import { routeLoader$, Link, type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { getBenefitBySlug, getBenefits, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
+import { LuLock } from "@qwikest/icons/lucide";
+import { and, eq } from "drizzle-orm";
+import { getDB } from "~/db";
+import { coupons } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
@@ -69,10 +73,121 @@ export const useBenefitData = routeLoader$(async (event) => {
   // Extract contact links for quick-action buttons
   const extractedContacts = extractContacts(benefit.descripcion);
 
+  // If the member already generated a coupon for this benefit, reuse it
+  let activeCoupon: {
+    id: string;
+    code: string;
+    status: string;
+    createdAt: string;
+  } | null = null;
+
+  if (user) {
+    try {
+      const db = getDB(event);
+      const [couponRecord] = await db
+        .select()
+        .from(coupons)
+        .where(
+          and(
+            eq(coupons.userId, user.id),
+            eq(coupons.benefitId, String(benefit.id)),
+            eq(coupons.status, "active")
+          )
+        )
+        .limit(1);
+
+      if (couponRecord) {
+        activeCoupon = {
+          id: couponRecord.id,
+          code: couponRecord.code,
+          status: couponRecord.status,
+          createdAt: couponRecord.createdAt,
+        };
+      }
+    } catch (err) {
+      console.error("Error fetching active coupon:", err);
+    }
+  }
+
   return {
     benefit,
     similar,
     contacts: extractedContacts,
+    activeCoupon,
+  };
+});
+
+// Genera (o reutiliza) un cupón activo para el agremiado logueado y lo
+// registra en la tabla `coupons` para su seguimiento desde el panel admin.
+export const generateCouponAction = server$(async function (
+  benefitId: string,
+  benefitTitle: string,
+  benefitResumen: string
+) {
+  const user = this.sharedMap.get("user") as AuthenticatedUser | null;
+  if (!user) {
+    throw new Error("No estás autenticado");
+  }
+
+  const db = getDB(this);
+
+  // Reutilizar un cupón activo si ya existe
+  const [existing] = await db
+    .select()
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.userId, user.id),
+        eq(coupons.benefitId, benefitId),
+        eq(coupons.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return {
+      id: existing.id,
+      code: existing.code,
+      status: existing.status,
+      createdAt: existing.createdAt,
+    };
+  }
+
+  // Generar código único de 6 dígitos
+  let code = "";
+  let attempts = 0;
+  while (attempts < 10) {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    const [dup] = await db
+      .select()
+      .from(coupons)
+      .where(eq(coupons.code, code))
+      .limit(1);
+    if (!dup) break;
+    attempts++;
+  }
+
+  const newCoupon = {
+    id: crypto.randomUUID(),
+    code,
+    benefitId,
+    benefitTitle,
+    benefitResumen,
+    userId: user.id,
+    userName: user.name,
+    userMatricula: user.matricula || "",
+    status: "active" as const,
+    createdAt: new Date().toISOString(),
+    usedAt: null,
+  };
+
+  await db.insert(coupons).values(newCoupon);
+
+  return {
+    id: newCoupon.id,
+    code: newCoupon.code,
+    status: newCoupon.status,
+    createdAt: newCoupon.createdAt,
   };
 });
 
@@ -81,6 +196,222 @@ export default component$(() => {
   const isMapLoaded = useSignal(false);
   const showToast = useSignal(false);
   const user = useLayoutUser();
+
+  const generatedCoupon = useSignal<{
+    id: string;
+    code: string;
+    status: string;
+    createdAt: string;
+  } | null>(data.value?.activeCoupon || null);
+  const isDownloading = useSignal(false);
+
+  // Imagen actualmente mostrada en el hero (galería). null = imagen principal.
+  const activeImageUrl = useSignal<string | null>(null);
+
+  // Genera el cupón (si hace falta) y descarga un PDF con diseño de voucher.
+  const handleDownloadCoupon = $(async () => {
+    if (isDownloading.value || !data.value || !user.value) return;
+    isDownloading.value = true;
+    try {
+      const { benefit } = data.value;
+
+      // 1. Asegurar que existe un cupón activo para este agremiado
+      const coupon =
+        generatedCoupon.value ||
+        (await generateCouponAction(
+          String(benefit.id),
+          benefit.titulo,
+          benefit.resumen
+        ));
+      generatedCoupon.value = coupon;
+
+      // 2. Cargar jsPDF bajo demanda desde CDN (como el mapa Leaflet)
+      const loadJsPDF = () =>
+        new Promise<any>((resolve, reject) => {
+          const w = window as any;
+          if (w.jspdf?.jsPDF) return resolve(w.jspdf.jsPDF);
+          const script = document.createElement("script");
+          script.src =
+            "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+          script.onload = () =>
+            w.jspdf?.jsPDF
+              ? resolve(w.jspdf.jsPDF)
+              : reject(new Error("jsPDF no disponible"));
+          script.onerror = () => reject(new Error("No se pudo cargar jsPDF"));
+          document.head.appendChild(script);
+        });
+
+      // 3. Utilidad: URL de imagen -> PNG dataURL (para logo webp y QR)
+      const toPngDataUrl = (src: string) =>
+        new Promise<string | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            try {
+              const canvas = document.createElement("canvas");
+              canvas.width = img.naturalWidth || 300;
+              canvas.height = img.naturalHeight || 300;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) return resolve(null);
+              ctx.drawImage(img, 0, 0);
+              resolve(canvas.toDataURL("image/png"));
+            } catch {
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = src;
+        });
+
+      const validateUrl = `${window.location.origin}/validar-cupon?code=${coupon.code}`;
+      const [jsPDF, logoData, qrData] = await Promise.all([
+        loadJsPDF(),
+        toPngDataUrl("/logo-beneficios_amp2.webp"),
+        toPngDataUrl(
+          `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${encodeURIComponent(
+            validateUrl
+          )}`
+        ),
+      ]);
+
+      // 4. Dibujar el voucher (A4 vertical, unidades en mm)
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const GREEN_DARK: [number, number, number] = [7, 47, 29];
+      const GREEN: [number, number, number] = [10, 68, 42];
+      const GOLD: [number, number, number] = [212, 163, 23];
+      const SLATE: [number, number, number] = [100, 116, 139];
+      const SLATE_DARK: [number, number, number] = [30, 41, 59];
+
+      const pageW = 210;
+      const m = 18; // margen exterior
+      const cardX = m;
+      const cardW = pageW - m * 2;
+      const cardY = 22;
+      let y = cardY;
+
+      // Marco tipo ticket (borde punteado)
+      doc.setDrawColor(...GREEN);
+      doc.setLineWidth(0.6);
+      doc.setLineDashPattern([1.6, 1.4], 0);
+      doc.roundedRect(cardX, cardY, cardW, 232, 5, 5, "S");
+      doc.setLineDashPattern([], 0);
+
+      // Cabecera verde
+      y += 12;
+      doc.setFillColor(...GREEN_DARK);
+      doc.roundedRect(cardX + 8, y, cardW - 16, 26, 3, 3, "F");
+      if (logoData) {
+        try {
+          doc.addImage(logoData, "PNG", cardX + 14, y + 5, 34, 16, undefined, "FAST");
+        } catch { /* ignore logo errors */ }
+      }
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text("AMP+ Club de Beneficios", cardX + cardW - 12, y + 12, { align: "right" });
+      doc.setFontSize(8);
+      doc.setTextColor(...GOLD);
+      doc.text("CUPÓN DE DESCUENTO OFICIAL", cardX + cardW - 12, y + 18, { align: "right" });
+      y += 26 + 12;
+
+      // Título del beneficio
+      doc.setTextColor(...SLATE_DARK);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(19);
+      const titleLines = doc.splitTextToSize(benefit.titulo, cardW - 24);
+      doc.text(titleLines, pageW / 2, y, { align: "center" });
+      y += titleLines.length * 8 + 4;
+
+      // Píldora de descuento (dorada)
+      const resumen = (benefit.resumen || "Beneficio").trim();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      const pillW = Math.min(cardW - 24, doc.getTextWidth(resumen) + 22);
+      const pillX = (pageW - pillW) / 2;
+      doc.setFillColor(...GOLD);
+      doc.roundedRect(pillX, y, pillW, 12, 6, 6, "F");
+      doc.setTextColor(...GREEN_DARK);
+      doc.text(resumen, pageW / 2, y + 8, { align: "center" });
+      y += 12 + 12;
+
+      // Caja de datos del agremiado
+      const boxX = cardX + 14;
+      const boxW = cardW - 28;
+      const boxH = 40;
+      doc.setFillColor(247, 248, 250);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(boxX, y, boxW, boxH, 3, 3, "FD");
+
+      const rows: [string, string][] = [
+        ["Médico Agremiado", user.value.name],
+        ["Matrícula Provincial", user.value.matricula || "N/A"],
+        ["Código de Canje", `${coupon.code.slice(0, 3)} ${coupon.code.slice(3)}`],
+        [
+          "Fecha de Emisión",
+          new Date(coupon.createdAt).toLocaleDateString("es-AR"),
+        ],
+      ];
+      let ry = y + 9;
+      rows.forEach(([label, value]) => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...SLATE);
+        doc.text(label, boxX + 6, ry);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...SLATE_DARK);
+        doc.text(String(value), boxX + boxW - 6, ry, { align: "right" });
+        ry += 9;
+      });
+      y += boxH + 12;
+
+      // Código QR de validación
+      if (qrData) {
+        const qrSize = 42;
+        try {
+          doc.addImage(qrData, "PNG", (pageW - qrSize) / 2, y, qrSize, qrSize, undefined, "FAST");
+        } catch { /* ignore qr errors */ }
+        y += qrSize + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...SLATE);
+        doc.text("ESCANEAR EN EL COMERCIO PARA VALIDAR", pageW / 2, y, { align: "center" });
+        y += 10;
+      }
+
+      // Instrucciones al pie
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...SLATE);
+      const note = doc.splitTextToSize(
+        "Presentá este cupón junto con tu credencial digital AMP+ en el local adherido para hacer efectivo el descuento.",
+        cardW - 28
+      );
+      doc.text(note, pageW / 2, y, { align: "center" });
+
+      // Identificador al fondo del ticket
+      doc.setFont("courier", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...GREEN);
+      doc.text(`AMP-B-${benefit.id}-${coupon.code}`, pageW / 2, cardY + 232 - 8, {
+        align: "center",
+      });
+
+      // 5. Descargar
+      const safeName = benefit.titulo
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase();
+      doc.save(`cupon-amp-${safeName || benefit.id}.pdf`);
+    } catch (err) {
+      console.error("Error al descargar el cupón:", err);
+      alert("No se pudo generar el cupón. Por favor, intentá nuevamente.");
+    } finally {
+      isDownloading.value = false;
+    }
+  });
 
   const handleShare = $(async () => {
     if (typeof window === "undefined" || !data.value) return;
@@ -206,6 +537,13 @@ export default component$(() => {
     ? (benefit.imagenMobile.startsWith('http') || benefit.imagenMobile.startsWith('/') ? benefit.imagenMobile : `https://beneficios.amepla.org.ar/files/${benefit.imagenMobile}`)
     : null;
 
+  // Galería: imagen principal + fotos adicionales (deduplicadas)
+  const galeriaUrls = (benefit.galeria || []).map((g) =>
+    g.startsWith('http') || g.startsWith('/') ? g : `https://beneficios.amepla.org.ar/files/${g}`
+  );
+  const galleryImages = imageUrl ? Array.from(new Set([imageUrl, ...galeriaUrls])) : [];
+  const hasGallery = galleryImages.length > 1;
+
   const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
   const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
 
@@ -240,11 +578,11 @@ export default component$(() => {
               <div class="relative bg-slate-50 p-5 sm:p-8 flex items-center justify-center">
                 {imageUrl ? (
                   <picture class="relative w-full max-w-[440px] aspect-square rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center">
-                    {imageMobileUrl && (
+                    {imageMobileUrl && !activeImageUrl.value && (
                       <source media="(max-width: 640px)" srcset={imageMobileUrl} />
                     )}
                     <img
-                      src={imageUrl}
+                      src={activeImageUrl.value || imageUrl}
                       alt={benefit.titulo}
                       class="w-full h-full object-contain p-3"
                       width={800}
@@ -290,6 +628,39 @@ export default component$(() => {
                   ))}
                 </div>
               </div>
+
+              {/* Gallery thumbnails */}
+              {hasGallery && (
+                <div class="px-5 sm:px-8 pb-5 sm:pb-6 -mt-2">
+                  <div class="flex gap-2.5 overflow-x-auto pb-1 snap-x">
+                    {galleryImages.map((img, i) => {
+                      const isActive = (activeImageUrl.value || imageUrl) === img;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick$={() => { activeImageUrl.value = img; }}
+                          class={[
+                            "relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 bg-white transition-all snap-start cursor-pointer",
+                            isActive
+                              ? "border-brand-green ring-2 ring-brand-green/20 shadow-md"
+                              : "border-slate-200 hover:border-brand-green/50 opacity-80 hover:opacity-100",
+                          ]}
+                          aria-label={`Ver foto ${i + 1}`}
+                        >
+                          <img
+                            src={img}
+                            alt={`${benefit.titulo} - foto ${i + 1}`}
+                            class="w-full h-full object-cover"
+                            width={80}
+                            height={80}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Card Body */}
               <div class="p-6 sm:p-10 space-y-8">
@@ -471,6 +842,82 @@ export default component$(() => {
                   )}
                 </div>
 
+                {/* Descargar Cupón de Descuento (PDF) */}
+                <div class="relative overflow-hidden rounded-3xl border border-brand-green/20 bg-gradient-to-br from-brand-green-dark to-brand-green p-6 sm:p-8 shadow-md space-y-5 print:hidden">
+                  <div class="absolute -top-10 -right-10 w-40 h-40 bg-brand-gold/10 rounded-full blur-2xl pointer-events-none" />
+
+                  <div class="flex items-center space-x-3 pb-4 border-b border-white/10">
+                    <div class="w-11 h-11 rounded-full bg-brand-gold/20 border border-brand-gold/40 flex items-center justify-center text-brand-gold-light">
+                      <svg class="w-5 h-5 fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.75a3 3 0 11-6 0 3 3 0 016 0zM12 18.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-black text-white tracking-tight">Cupón de Descuento</h3>
+                      <p class="text-xs text-slate-300 font-medium">Descargá tu cupón en PDF para presentar en el local</p>
+                    </div>
+                  </div>
+
+                  {user.value ? (
+                    <div class="space-y-4">
+                      {generatedCoupon.value && (
+                        <div class="flex flex-wrap items-center gap-3 text-xs">
+                          <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-extrabold bg-brand-gold/15 text-brand-gold-light border border-brand-gold/30 uppercase tracking-widest">
+                            Cupón Activo
+                          </span>
+                          <span class="text-slate-300 font-medium">
+                            Código de canje:{" "}
+                            <span class="font-mono font-black text-white tracking-widest">
+                              {generatedCoupon.value.code.slice(0, 3)} {generatedCoupon.value.code.slice(3)}
+                            </span>
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick$={handleDownloadCoupon}
+                        disabled={isDownloading.value}
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-sm font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isDownloading.value ? (
+                          <>
+                            <div class="w-4 h-4 border-2 border-brand-green-dark border-t-transparent rounded-full animate-spin" />
+                            <span>Generando cupón...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg class="w-5 h-5 fill-none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span>Descargar Cupón PDF</span>
+                          </>
+                        )}
+                      </button>
+                      <p class="text-[11px] text-slate-350 leading-relaxed max-w-md">
+                        El cupón incluye tu nombre, matrícula y un código QR único para que el comercio valide el beneficio.
+                      </p>
+                    </div>
+                  ) : (
+                    <div class="rounded-2xl bg-white/5 border border-white/10 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div class="w-11 h-11 rounded-full bg-brand-gold/15 border border-brand-gold/30 flex items-center justify-center text-brand-gold-light flex-shrink-0">
+                        <LuLock class="w-5 h-5" />
+                      </div>
+                      <div class="flex-grow space-y-0.5">
+                        <h4 class="text-sm font-black text-white uppercase tracking-wide">Acceso para agremiados</h4>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                          Iniciá sesión con tu cuenta de la AMP para descargar el cupón de este beneficio.
+                        </p>
+                      </div>
+                      <Link
+                        href={`/login?redirect=${encodeURIComponent(`/beneficio/${benefit.url}`)}`}
+                        class="flex-shrink-0 inline-flex items-center justify-center px-6 py-3 rounded-2xl bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95"
+                      >
+                        Iniciar Sesión
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
                 {/* Documentación PDF Adjunta */}
                 {benefit.pdfUrl && (
                   <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all duration-300">
@@ -625,19 +1072,12 @@ export default component$(() => {
                   <p class="text-[11px] text-slate-300 font-medium max-w-[200px] leading-relaxed mb-4">
                     Iniciá sesión o verificá tu DNI para visualizar tu credencial digital.
                   </p>
-                  <button
-                    type="button"
-                    onClick$={() => {
-                      const inputEl = document.getElementById("express-dni");
-                      if (inputEl) {
-                        inputEl.scrollIntoView({ behavior: "smooth", block: "center" });
-                        inputEl.focus();
-                      }
-                    }}
+                  <Link
+                    href={`/login?redirect=${encodeURIComponent(`/beneficio/${benefit.url}`)}`}
                     class="px-4 py-2 bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-[11px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     Verificar DNI
-                  </button>
+                  </Link>
                 </div>
 
                 {/* Mocked blurry background content to make it look realistic under the overlay */}

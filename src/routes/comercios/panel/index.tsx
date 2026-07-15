@@ -43,8 +43,7 @@ async function generateUniqueCode(db: any): Promise<string> {
 export const validateMemberServer = server$(async function(query: string): Promise<MemberValidationResult> {
   const merchant = await getMerchant(this);
   if (!merchant) return { valid: false, member: null, reason: "Sesión expirada." };
-  const db = getDB(this);
-  return validateMember(db, query);
+  return validateMember(this, query);
 });
 
 // --- Registrar el uso: crea un cupón "usado" para el beneficio del local ---
@@ -123,7 +122,7 @@ export default component$(() => {
       const r = await registerUsageServer({
         memberId: res.member.id,
         memberName: res.member.name,
-        memberMatricula: res.member.matricula,
+        memberMatricula: res.member.matricula ?? res.member.dni,
       });
       if (r.success) {
         usageSuccess.value = true;

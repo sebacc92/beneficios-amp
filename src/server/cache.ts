@@ -47,6 +47,7 @@ export interface Benefit {
   isFeatured?: boolean; // Featured status
   pdfUrl?: string | null; // PDF file document URL or path
   imagenMobile?: string | null; // Mobile image URL or path
+  galeria?: string[]; // Extra gallery image URLs
   isActive?: boolean;
 }
 
@@ -315,7 +316,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
     const defaults = [
       {
         id: "slide-1",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/23-PHOTO-2026-05-05-16-00-15.jpg",
         title: "Beneficios de Temporada",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -323,12 +324,12 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 1,
         createdAt: new Date().toISOString(),
         preTitle: "Exclusivo AMP+",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/23-PHOTO-2026-05-05-16-00-15.jpg",
         isActive: 1,
       },
       {
         id: "slide-2",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
         title: "Salud & Cuidado",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -336,12 +337,12 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 2,
         createdAt: new Date().toISOString(),
         preTitle: "Cuidado Médico",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg",
         isActive: 1,
       },
       {
         id: "slide-3",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/-DAZZLER SLIDE.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/-DAZZLER_SLIDE.jpg",
         title: "Hotelería Dazzler",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -349,12 +350,12 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 3,
         createdAt: new Date().toISOString(),
         preTitle: "Turismo & Escapadas",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/-DAZZLER SLIDE.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/-DAZZLER_SLIDE.jpg",
         isActive: 1,
       },
       {
         id: "slide-4",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
         title: "Indumentaria & Calzado",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -362,12 +363,12 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 4,
         createdAt: new Date().toISOString(),
         preTitle: "Tendencias & Moda",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/26-0e3e1eaa-1394-4eed-a06e-da739f49e404.jpg",
         isActive: 1,
       },
       {
         id: "slide-5",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/27-PHOTO-2025-11-03-12-09-52.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/27-PHOTO-2025-11-03-12-09-52.jpg",
         title: "Estética & Spa",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -375,12 +376,12 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 5,
         createdAt: new Date().toISOString(),
         preTitle: "Bienestar & Relax",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/27-PHOTO-2025-11-03-12-09-52.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/27-PHOTO-2025-11-03-12-09-52.jpg",
         isActive: 1,
       },
       {
         id: "slide-6",
-        imageUrl: "https://beneficios.amepla.org.ar/images/slider/-Tred Slide.jpg",
+        imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/-Tred_Slide.jpg",
         title: "Gimnasio Tred",
         subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos.",
         buttonText: "Explorar",
@@ -388,7 +389,7 @@ export async function ensureHeroSlidesSeeded(db: any) {
         orderIndex: 6,
         createdAt: new Date().toISOString(),
         preTitle: "Fitness & Salud",
-        imageMobile: "https://beneficios.amepla.org.ar/images/slider/-Tred Slide.jpg",
+        imageMobile: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/-Tred_Slide.jpg",
         isActive: 1,
       },
     ];
@@ -445,11 +446,25 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         : rawValidUntil;
       const isActive = !isDraft;
 
+      // Parse gallery JSON array (defensively)
+      let galeria: string[] = [];
+      if (cb.galeria) {
+        try {
+          const parsed = JSON.parse(cb.galeria);
+          if (Array.isArray(parsed)) {
+            galeria = parsed.filter((x): x is string => typeof x === "string" && x.length > 0);
+          }
+        } catch {
+          galeria = [];
+        }
+      }
+
       return {
         id: numId,
         titulo: cb.titulo,
         descripcion: cb.descripcion,
         imagen: cb.imagen || null,
+        galeria,
         url: cb.slug,
         resumen: cb.resumen,
         latitud: cb.latitud || null,
@@ -510,6 +525,7 @@ export interface SearchParams {
   limit?: number;
   requestEvent?: RequestEventBase; // Support fetching custom DB benefits
   isPremiumOnly?: boolean;
+  isCampaignOnly?: boolean;
 }
 
 export interface SearchResult {
@@ -541,7 +557,53 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   // Filter out inactive benefits for public viewing
   filtered = filtered.filter(b => b.mostrar_app !== 0);
 
-  // 1. Text search filter
+  // 1. Campaign filter (highest priority before specific queries)
+  if (params.isCampaignOnly && params.requestEvent) {
+    try {
+      const { getSettings } = await import("./chatbotDb");
+      const settings = await getSettings(params.requestEvent);
+      if (settings?.campaignActive) {
+        let campaignBenefits: Benefit[] = [];
+        
+        // Try manual list first
+        if (settings.campaignBenefitIds) {
+          const selectedSlugsOrIds = settings.campaignBenefitIds.split(",").map(s => s.trim()).filter(Boolean);
+          if (selectedSlugsOrIds.length > 0) {
+            const matchedBenefitsMap = new Map<string, Benefit>();
+            for (const b of filtered) {
+              matchedBenefitsMap.set(String(b.id), b);
+              matchedBenefitsMap.set(b.url, b);
+            }
+            campaignBenefits = selectedSlugsOrIds
+              .map(slugOrId => matchedBenefitsMap.get(slugOrId))
+              .filter((b): b is Benefit => !!b);
+          }
+        }
+
+        // Fall back to keyword query terms
+        if (campaignBenefits.length === 0 && settings.campaignQuery) {
+          const queryTerms = settings.campaignQuery.split(",").map(term => term.trim().toLowerCase()).filter(Boolean);
+          campaignBenefits = filtered.filter(b => {
+            const tl = b.titulo.toLowerCase();
+            const dl = b.descripcion.toLowerCase();
+            const rl = b.resumen.toLowerCase();
+            return queryTerms.some(term => 
+              tl.includes(term) || 
+              dl.includes(term) || 
+              rl.includes(term) || 
+              b.categorias.some(c => c.descripcion.toLowerCase().includes(term))
+            );
+          });
+        }
+
+        filtered = campaignBenefits;
+      }
+    } catch (e) {
+      console.error("Failed to apply campaign filter in searchBenefits:", e);
+    }
+  }
+
+  // 2. Text search filter
   if (query) {
     filtered = filtered.filter(b => {
       const titleMatch = b.titulo.toLowerCase().includes(query);
@@ -552,22 +614,22 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
     });
   }
 
-  // 2. Category filter
+  // 3. Category filter
   if (categoryId) {
     filtered = filtered.filter(b => b.categorias.some(c => c.id === categoryId));
   }
 
-  // 3. Location filter
+  // 4. Location filter
   if (locationId) {
     filtered = filtered.filter(b => b.ubicacion.some(l => l.id === locationId));
   }
 
-  // 4. Offer/Discount filter
+  // 5. Offer/Discount filter
   if (offerId) {
     filtered = filtered.filter(b => b.ofertas.some(o => o.id === offerId));
   }
 
-  // 5. Gold/Premium filter
+  // 6. Gold/Premium filter
   if (params.isPremiumOnly) {
     filtered = filtered.filter(b => b.isPremiumOnly);
   }

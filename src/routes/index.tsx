@@ -118,8 +118,8 @@ export const useBenefitsData = routeLoader$(async (event) => {
   } catch (err) {
     console.error("Failed to load slides on homepage:", err);
     slides = [
-      { id: "s1", imageUrl: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg", title: "Beneficios de Temporada", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
-      { id: "s2", imageUrl: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg", title: "Salud & Cuidado", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
+      { id: "s1", imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/23-PHOTO-2026-05-05-16-00-15.jpg", title: "Beneficios de Temporada", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
+      { id: "s2", imageUrl: "https://lzvshzkth0usbwli.public.blob.vercel-storage.com/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg", title: "Salud & Cuidado", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
     ];
   }
 
@@ -250,7 +250,7 @@ export default component$(() => {
 
                     <div class="pt-2">
                       <Link
-                        href={`/beneficios?buscar=${encodeURIComponent((settings?.campaignQuery || "café").split(",")[0])}`}
+                        href="/beneficios?campana=true"
                         class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                       >
                         <span>Ver todos</span>

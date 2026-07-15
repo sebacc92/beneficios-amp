@@ -1,68 +1,129 @@
-import { component$, useSignal, $ } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import {
+  routeAction$,
+  zod$,
+  z,
+  Form,
+  useLocation,
   type DocumentHead,
-  server$,
 } from "@builder.io/qwik-city";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users } from "~/db/schema";
+import { validateMember } from "~/server/membership";
+import { rateLimit, clientIp } from "~/server/rate-limit";
 import { LuLock } from "@qwikest/icons/lucide";
 
-// Server-side login validation using server$
-export const loginUserServer = server$(async function(dni: string) {
-  const db = getDB(this);
-  const cleanDni = dni.trim();
-
-  // Find user by DNI (stored in matricula field)
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.matricula, cleanDni))
-    .limit(1);
-
-  if (!user) {
-    return { success: false, error: "El DNI ingresado no se encuentra registrado." };
+// Login de agremiados: el DNI se valida en vivo contra el padrón oficial de la
+// AMP. La tabla local `users` es solo la copia del portal: se crea/actualiza
+// sola en cada login exitoso (nombre y email siempre frescos del padrón).
+// Solo se permiten rutas internas relativas (evita open-redirect).
+function safeRedirect(target: string | undefined): string {
+  if (target && target.startsWith("/") && !target.startsWith("//")) {
+    return target;
   }
+  return "/perfil";
+}
 
-  // Set cookie session (expires in 30 days)
-  this.cookie.set("session_token", user.id, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
+export const useLoginAction = routeAction$(
+  async ({ dni, redirect: redirectTo }, event) => {
+    const { request, cookie, redirect, fail } = event;
 
-  return { success: true };
-});
+    if (!rateLimit(`member-login:${clientIp(request)}`, 15, 5 * 60 * 1000)) {
+      return fail(429, {
+        message: "Demasiados intentos. Esperá unos minutos y volvé a probar.",
+      });
+    }
+
+    const result = await validateMember(event, dni);
+    if (!result.valid || !result.member) {
+      return fail(400, {
+        message: result.reason || "El DNI ingresado no figura en el padrón.",
+      });
+    }
+
+    const m = result.member;
+    const db = getDB(event);
+    const now = new Date().toISOString();
+
+    // Upsert de la copia local (match por dni, o por matricula legacy).
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(or(eq(users.dni, m.dni!), eq(users.matricula, m.dni!)))
+      .limit(1);
+
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+      const sync = {
+        name: m.name,
+        dni: m.dni,
+        padronId: m.padronId,
+        origen: m.origen,
+        lastSyncedAt: now,
+      };
+      try {
+        // El email del padrón puede chocar con el unique de otra fila local:
+        // en ese caso se actualiza todo menos el email.
+        await db
+          .update(users)
+          .set(m.email ? { ...sync, email: m.email } : sync)
+          .where(eq(users.id, existing.id));
+      } catch {
+        await db.update(users).set(sync).where(eq(users.id, existing.id));
+      }
+    } else {
+      userId = "usr-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
+      const baseRow = {
+        id: userId,
+        passwordHash: "padron", // los agremiados no usan contraseña
+        name: m.name,
+        matricula: m.matricula,
+        dni: m.dni,
+        padronId: m.padronId,
+        origen: m.origen,
+        lastSyncedAt: now,
+        role: "member" as const,
+        createdAt: now,
+      };
+      try {
+        await db.insert(users).values({
+          ...baseRow,
+          email: m.email || `agremiado-${m.dni}@padron.amepla`,
+        });
+      } catch {
+        // Colisión de email con otra fila: se registra con email placeholder.
+        await db.insert(users).values({
+          ...baseRow,
+          email: `agremiado-${m.dni}@padron.amepla`,
+        });
+      }
+    }
+
+    cookie.set("session_token", userId, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 días
+    });
+
+    throw redirect(302, safeRedirect(redirectTo));
+  },
+  zod$({
+    dni: z
+      .string()
+      .trim()
+      .regex(/^\d{6,9}$/, "Ingresá tu DNI solo con números, sin puntos."),
+    redirect: z.string().optional(),
+  })
+);
 
 export default component$(() => {
-  const dni = useSignal("");
-  const errorMsg = useSignal("");
-  const isSubmitting = useSignal(false);
-
-  const handleSubmit = $(async () => {
-    errorMsg.value = "";
-    const dniVal = dni.value.trim();
-    if (dniVal.length < 5) {
-      errorMsg.value = "El DNI debe tener al menos 5 caracteres.";
-      return;
-    }
-
-    isSubmitting.value = true;
-    try {
-      const res = await loginUserServer(dniVal);
-      if (res.success) {
-        window.location.href = "/perfil";
-      } else {
-        errorMsg.value = res.error || "El DNI ingresado no es válido.";
-        isSubmitting.value = false;
-      }
-    } catch (err) {
-      console.error(err);
-      errorMsg.value = "Ocurrió un error inesperado al iniciar sesión.";
-      isSubmitting.value = false;
-    }
-  });
+  const loginAction = useLoginAction();
+  const errors = loginAction.value?.fieldErrors;
+  const location = useLocation();
+  const redirectTo = location.url.searchParams.get("redirect") || "";
 
   return (
     <div class="bg-slate-50 min-h-[85vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
@@ -82,14 +143,15 @@ export default component$(() => {
         </div>
 
         {/* Global Error message */}
-        {errorMsg.value && (
+        {loginAction.value?.failed && loginAction.value?.message && (
           <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800 animate-fade-in shadow-sm">
-            ✗ {errorMsg.value}
+            ✗ {loginAction.value.message}
           </div>
         )}
 
         {/* Form */}
-        <div class="space-y-5">
+        <Form action={loginAction} class="space-y-5">
+          {redirectTo && <input type="hidden" name="redirect" value={redirectTo} />}
           <div class="space-y-1">
             <label for="dni" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
               DNI / Identificación
@@ -97,34 +159,32 @@ export default component$(() => {
             <input
               type="text"
               id="dni"
-              bind:value={dni}
+              name="dni"
+              inputMode="numeric"
               required
               placeholder="Ingresá tu número de DNI"
-              onKeyDown$={async (ev) => {
-                if (ev.key === "Enter") {
-                  await handleSubmit();
-                }
-              }}
               class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all font-mono font-bold text-center"
             />
+            {errors?.dni && (
+              <p class="text-xs text-red-600 font-semibold pt-1">{errors.dni[0]}</p>
+            )}
           </div>
 
           {/* Submit button */}
           <button
-            type="button"
-            onClick$={handleSubmit}
-            disabled={isSubmitting.value}
+            type="submit"
+            disabled={loginAction.isRunning}
             class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
           >
-            {isSubmitting.value ? "Verificando..." : "Ingresar"}
+            {loginAction.isRunning ? "Verificando en el padrón..." : "Ingresar"}
           </button>
-        </div>
+        </Form>
 
         {/* Foot link */}
         <div class="pt-6 border-t border-slate-100 text-center">
           <p class="text-xs sm:text-sm text-slate-400 font-semibold leading-relaxed">
-            ¿No estás registrado? <br />
-            <span class="text-slate-500 font-bold block mt-1">El alta se gestiona a través de la administración de la AMP.</span>
+            El acceso se valida contra el padrón oficial de la AMP. <br />
+            <span class="text-slate-500 font-bold block mt-1">Si tu DNI no figura, comunicate con la administración de la AMP.</span>
           </p>
         </div>
 

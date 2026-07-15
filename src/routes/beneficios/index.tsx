@@ -1,6 +1,7 @@
 import { component$, useComputed$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
+import { getSettings } from "~/server/chatbotDb";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
@@ -18,6 +19,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
   const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
   const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
+  const isCampaign = url.searchParams.get("campana") === "true" || url.searchParams.get("campana") === "1";
 
   const isMap = url.searchParams.get("vista") === "mapa";
 
@@ -28,10 +30,12 @@ export const useBenefitsData = routeLoader$(async (event) => {
     offerId,
     page,
     limit: isMap ? 1000 : 12,
-    requestEvent: event
+    requestEvent: event,
+    isCampaignOnly: isCampaign
   });
 
   const filters = await getFilters();
+  const settings = await getSettings(event).catch(() => null);
 
   return {
     searchResult,
@@ -40,7 +44,9 @@ export const useBenefitsData = routeLoader$(async (event) => {
       query,
       categoryId,
       locationId,
-      offerId
+      offerId,
+      isCampaign,
+      campaignTitle: settings?.campaignTitle || "Especial"
     }
   };
 });
@@ -51,7 +57,7 @@ export default component$(() => {
 
   const { searchResult, filters, activeFilters } = data.value;
   const { data: benefits, total, totalPages, page } = searchResult;
-  const hasActiveFilters = activeFilters.query || activeFilters.categoryId || activeFilters.locationId || activeFilters.offerId;
+  const hasActiveFilters = activeFilters.query || activeFilters.categoryId || activeFilters.locationId || activeFilters.offerId || activeFilters.isCampaign;
 
   const displayBenefits = benefits;
 
@@ -60,6 +66,7 @@ export default component$(() => {
     const params = new URLSearchParams();
     if (activeFilters.query) params.set("buscar", activeFilters.query);
     if (activeFilters.categoryId) params.set("categoria", String(activeFilters.categoryId));
+    if (activeFilters.isCampaign) params.set("campana", "true");
     return `/mapa?${params.toString()}`;
   });
 
@@ -72,6 +79,7 @@ export default component$(() => {
     page?: number;
     ver?: string | null;
     gold?: string | null;
+    campana?: string | null;
   }) => {
     const searchParams = new URLSearchParams();
 
@@ -89,6 +97,9 @@ export default component$(() => {
 
     const g = params.gold !== undefined ? params.gold : location.url.searchParams.get("gold");
     if (g) searchParams.set("gold", g);
+
+    const camp = params.campana !== undefined ? params.campana : (activeFilters.isCampaign ? "true" : null);
+    if (camp) searchParams.set("campana", camp);
 
     const p = params.page !== undefined ? params.page : 1;
     if (p > 1) searchParams.set("page", String(p));
@@ -289,6 +300,13 @@ export default component$(() => {
               <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
                 Filtros activos:
               </span>
+
+              {activeFilters.isCampaign && (
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                  Campaña: {activeFilters.campaignTitle}
+                  <Link href={getFilterUrl({ campana: null })} class="ml-1.5 text-amber-600 hover:text-amber-800 font-extrabold">&times;</Link>
+                </span>
+              )}
 
               {activeFilters.query && (
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-green-light/10 text-brand-green border border-brand-green-light/20">

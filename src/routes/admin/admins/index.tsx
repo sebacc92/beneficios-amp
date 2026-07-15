@@ -20,6 +20,7 @@ export const useAdminUsersLoader = routeLoader$(async (event) => {
     return result.map((u) => ({
       id: u.id,
       name: u.name,
+      username: u.username,
       email: u.email,
       matricula: u.matricula,
       role: u.role,
@@ -91,18 +92,33 @@ export const useRegisterAdminAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
-      const email = data.email.toLowerCase().trim();
+      const username = data.username.toLowerCase().trim();
 
-      // Check if email already exists
-      const [existingUser] = await db
+      // Check if username already exists
+      const [existingByUsername] = await db
         .select()
         .from(usersTable)
-        .where(eq(usersTable.email, email))
+        .where(eq(usersTable.username, username))
         .limit(1);
 
-      if (existingUser) {
+      if (existingByUsername) {
         return requestEvent.fail(409, {
-          message: "El correo electrónico ingresado ya se encuentra registrado.",
+          message: "El nombre de usuario ingresado ya se encuentra registrado.",
+        });
+      }
+
+      const finalEmail = data.email?.toLowerCase().trim() || `${username}@ampmas.org.ar`;
+
+      // Check if email already exists
+      const [existingByEmail] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.email, finalEmail))
+        .limit(1);
+
+      if (existingByEmail) {
+        return requestEvent.fail(409, {
+          message: "El correo electrónico ya se encuentra registrado.",
         });
       }
 
@@ -111,7 +127,8 @@ export const useRegisterAdminAction = routeAction$(
 
       await db.insert(usersTable).values({
         id: userId,
-        email,
+        username,
+        email: finalEmail,
         passwordHash,
         name: data.name.trim(),
         role: "admin", // Enforce role admin
@@ -128,7 +145,8 @@ export const useRegisterAdminAction = routeAction$(
   },
   zod$({
     name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
-    email: z.string().email("Ingresá un correo electrónico válido."),
+    username: z.string().min(3, "El nombre de usuario debe tener al menos 3 caracteres."),
+    email: z.string().email("Ingresá un correo electrónico válido.").optional(),
     password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
   })
 );
@@ -218,7 +236,7 @@ export default component$(() => {
               </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre Completo</label>
                 <input
@@ -231,11 +249,21 @@ export default component$(() => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Correo Electrónico</label>
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Usuario</label>
+                <input
+                  type="text"
+                  name="username"
+                  required
+                  placeholder="Ej: marceloadmin"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Correo (Opcional)</label>
                 <input
                   type="email"
                   name="email"
-                  required
                   placeholder="Ej: marcelo@amepla.org.ar"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
@@ -278,6 +306,7 @@ export default component$(() => {
             <thead>
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <th class="px-6 py-4">Nombre</th>
+                <th class="px-6 py-4">Usuario</th>
                 <th class="px-6 py-4">Correo</th>
                 <th class="px-6 py-4 text-center">Acciones</th>
               </tr>
@@ -302,7 +331,8 @@ export default component$(() => {
                           )}
                         </span>
                       </td>
-                      <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
+                      <td class="px-6 py-4 text-slate-800 font-mono font-bold">{userItem.username || "—"}</td>
+                      <td class="px-6 py-4 text-slate-500">{userItem.email || "—"}</td>
                       <td class="px-6 py-4 text-center">
                         {isMe ? (
                           isChangingMyPassword.value ? (

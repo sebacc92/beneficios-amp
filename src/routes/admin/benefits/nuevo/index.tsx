@@ -213,6 +213,50 @@ export const useCreateBenefitAction = routeAction$(
         uploadedImageMobileUrl = uploadedImageUrl;
       }
 
+      // Galería de imágenes adicionales (hasta 9). Cada item es un data URL
+      // optimizado (nuevo) o una URL ya subida (se conserva tal cual).
+      let galeriaJson: string | null = null;
+      if (data.galeriaJson && typeof data.galeriaJson === "string") {
+        try {
+          const items = JSON.parse(data.galeriaJson);
+          if (Array.isArray(items) && items.length > 0) {
+            const urls: string[] = [];
+            for (const item of items.slice(0, 9)) {
+              if (typeof item !== "string") continue;
+              if (item.startsWith("data:image")) {
+                const base64Data = item.replace(/^data:image\/\w+;base64,/, "");
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+                const fileName = `benefit-gallery-${Date.now()}-${urls.length}.webp`;
+                let galleryUploaded = false;
+                if (token) {
+                  try {
+                    const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
+                    urls.push(blob.url);
+                    galleryUploaded = true;
+                  } catch (blobErr: any) {
+                    console.error("[Vercel Blob] Gallery upload failed, falling back to disk:", blobErr.message);
+                  }
+                }
+                if (!galleryUploaded) {
+                  const uploadsDir = `${process.cwd()}/public/uploads`;
+                  const fsModule = await import("fs/promises");
+                  await fsModule.mkdir(uploadsDir, { recursive: true });
+                  await fsModule.writeFile(`${uploadsDir}/${fileName}`, bytes);
+                  urls.push(`/uploads/${fileName}`);
+                }
+              } else if (item.startsWith("http") || item.startsWith("/")) {
+                urls.push(item);
+              }
+            }
+            if (urls.length > 0) galeriaJson = JSON.stringify(urls);
+          }
+        } catch (galErr) {
+          console.error("Error procesando la galería:", galErr);
+        }
+      }
+
       await db.insert(customBenefitsTable).values({
         id: uuid,
         titulo: data.titulo,
@@ -220,6 +264,7 @@ export const useCreateBenefitAction = routeAction$(
         descripcion: mergeContacts(data.descripcion, data.whatsapp || "", data.instagram || "", data.direccion || ""),
         imagen: uploadedImageUrl,
         imagenMobile: uploadedImageMobileUrl,
+        galeria: galeriaJson,
         slug,
         isFeatured: data.isFeatured === "on",
         isPremiumOnly: false,
@@ -265,6 +310,7 @@ export const useCreateBenefitAction = routeAction$(
     imageMobileFile: z.any().optional(),
     optimizedMobileImage: z.string().optional(),
     sameImageForMobile: z.string().optional(),
+    galeriaJson: z.string().optional(),
     latitud: z.string().optional(),
     longitud: z.string().optional(),
   })
@@ -279,6 +325,9 @@ export default component$(() => {
   const createOptimizedImageBase64 = useSignal<string>("");
   const createImageMobilePreviewUrl = useSignal<string | null>(null);
   const createOptimizedMobileImageBase64 = useSignal<string>("");
+
+  // Galería de imágenes adicionales (data URLs webp optimizados)
+  const createGaleria = useSignal<string[]>([]);
 
   // Ubicación (mapa) y dirección
   const createLat = useSignal<string>("");
@@ -389,6 +438,48 @@ export default component$(() => {
       img.src = e.target?.result as string;
     };
     reader.readAsDataURL(file);
+  });
+
+  // Galería: optimiza y agrega múltiples imágenes (máx. 9 adicionales)
+  const handleCreateGalleryChange = $((event: Event) => {
+    const element = event.target as HTMLInputElement;
+    if (!element.files || element.files.length === 0) return;
+    const files = Array.from(element.files);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxW = 1000;
+          const maxH = 1000;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxW || h > maxH) {
+            const ratio = Math.min(maxW / w, maxH / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL("image/webp", 0.82);
+            if (createGaleria.value.length < 9) {
+              createGaleria.value = [...createGaleria.value, dataUrl];
+            }
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+    element.value = "";
+  });
+
+  const removeCreateGalleryImage = $((index: number) => {
+    createGaleria.value = createGaleria.value.filter((_, i) => i !== index);
   });
 
   return (
@@ -674,6 +765,40 @@ export default component$(() => {
               <p class="text-[10px] text-slate-400 font-medium">Subí la lista de precios, menú o bases y condiciones.</p>
             </div>
           </div>
+        </div>
+
+        {/* Galería de imágenes adicionales */}
+        <div class="border-t border-slate-100 pt-5 space-y-3">
+          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+            <LuImage class="w-4 h-4 text-brand-green" />
+            Galería de Fotos (opcional)
+          </h4>
+          <input type="hidden" name="galeriaJson" value={JSON.stringify(createGaleria.value)} />
+          <p class="text-[10px] text-slate-400 font-medium">
+            Sumá hasta 9 fotos adicionales que se mostrarán en un carrusel en la página del beneficio.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            {createGaleria.value.map((src, i) => (
+              <div key={i} class="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                <img src={src} alt={`Foto ${i + 1}`} class="w-full h-full object-cover" width={96} height={96} />
+                <button
+                  type="button"
+                  onClick$={() => removeCreateGalleryImage(i)}
+                  class="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-black shadow hover:bg-red-700 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {createGaleria.value.length < 9 && (
+              <label class="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-green hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-400 hover:text-brand-green">
+                <LuImage class="w-6 h-6" />
+                <span class="text-[9px] font-bold uppercase tracking-wider">Agregar</span>
+                <input type="file" accept="image/*" multiple onChange$={handleCreateGalleryChange} class="hidden" />
+              </label>
+            )}
+          </div>
+          <span class="text-[10px] text-slate-400 font-bold">{createGaleria.value.length} / 9 fotos</span>
         </div>
 
         {/* Live Preview Widget */}

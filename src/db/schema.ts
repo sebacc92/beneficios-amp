@@ -46,15 +46,23 @@ export const chatMessages = sqliteTable("chat_messages", {
 });
 
 // --- User Management & Session Auth ---
+// La fuente de verdad de los agremiados es el padrón de la AMP (web service,
+// consulta por DNI). Esta tabla es la copia local: admins + agremiados que ya
+// ingresaron al portal (se crean/actualizan solos en cada login).
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
+  username: text("username").unique(),
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  matricula: text("matricula"),
+  matricula: text("matricula"), // legacy: histórico guardaba el DNI acá
+  dni: text("dni").unique(),
+  padronId: integer("padron_id"), // "identificador" del padrón de la AMP
+  origen: text("origen"), // p.ej. "AGREMIADO" según el padrón
+  lastSyncedAt: text("last_synced_at"), // última sincronización con el padrón
   role: text("role", { enum: ["admin", "member", "premium"] }).default("member").notNull(),
   avatarUrl: text("avatar_url"),
-  premiumExpiresAt: text("premium_expires_at"), // ISO Date string
+  premiumExpiresAt: text("premium_expires_at"), // obsoleto: hoy no hay categorías
   createdAt: text("created_at").notNull(),
 });
 
@@ -66,6 +74,7 @@ export const customBenefits = sqliteTable("custom_benefits", {
   descripcion: text("descripcion").notNull(),
   imagen: text("imagen"),
   imagenMobile: text("imagen_mobile"),
+  galeria: text("galeria"), // JSON array of extra image URLs (gallery)
   slug: text("slug").unique().notNull(),
   isFeatured: integer("is_featured", { mode: "boolean" }).default(false).notNull(),
   isPremiumOnly: integer("is_premium_only", { mode: "boolean" }).default(false).notNull(),
