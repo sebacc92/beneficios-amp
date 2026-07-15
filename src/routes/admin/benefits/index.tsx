@@ -214,14 +214,15 @@ export default component$(() => {
   const currentPage = useSignal(1);
   const searchQuery = useSignal("");
   const statusFilter = useSignal<"all" | "active" | "inactive">("all");
+  const categoryFilter = useSignal<string>("all");
+  const locationFilter = useSignal<string>("all");
 
+  // Cualquier cambio de filtro/búsqueda vuelve a la primera página.
   useTask$(({ track }) => {
     track(() => searchQuery.value);
-    currentPage.value = 1;
-  });
-
-  useTask$(({ track }) => {
     track(() => statusFilter.value);
+    track(() => categoryFilter.value);
+    track(() => locationFilter.value);
     currentPage.value = 1;
   });
 
@@ -235,6 +236,14 @@ export default component$(() => {
     } else if (statusFilter.value === "inactive") {
       items = items.filter(b => isDraft(b));
     }
+    if (categoryFilter.value !== "all") {
+      const catId = Number(categoryFilter.value);
+      items = items.filter((b) => b.categoryId === catId);
+    }
+    if (locationFilter.value !== "all") {
+      const locId = Number(locationFilter.value);
+      items = items.filter((b) => b.locationId === locId);
+    }
     const query = searchQuery.value.toLowerCase().trim();
     if (query) {
       items = items.filter(
@@ -247,6 +256,14 @@ export default component$(() => {
     // Mostrar primero los activos y luego los inactivos (orden estable).
     return [...items].sort((a, b) => Number(isDraft(a)) - Number(isDraft(b)));
   });
+
+  const hasActiveFilters = useComputed$(
+    () =>
+      searchQuery.value.trim() !== "" ||
+      statusFilter.value !== "all" ||
+      categoryFilter.value !== "all" ||
+      locationFilter.value !== "all"
+  );
 
   const totalPages = useComputed$(() => {
     const count = filteredBenefits.value.length;
@@ -312,6 +329,34 @@ export default component$(() => {
 
 
 
+          {/* Category Filter */}
+          <div class="relative w-full sm:w-44">
+            <select
+              value={categoryFilter.value}
+              onChange$={(ev, el) => { categoryFilter.value = el.value; }}
+              class="w-full bg-white text-slate-700 text-xs px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all cursor-pointer font-bold shadow-sm"
+            >
+              <option value="all">Todas las categorías</option>
+              {adminFilters.value.categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.descripcion}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Location Filter */}
+          <div class="relative w-full sm:w-44">
+            <select
+              value={locationFilter.value}
+              onChange$={(ev, el) => { locationFilter.value = el.value; }}
+              class="w-full bg-white text-slate-700 text-xs px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all cursor-pointer font-bold shadow-sm"
+            >
+              <option value="all">Todas las ubicaciones</option>
+              {adminFilters.value.ubicaciones.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.descripcion}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Status Filter */}
           <div class="relative w-full sm:w-44">
             <select
@@ -359,6 +404,28 @@ export default component$(() => {
 
 
 
+        {/* Filtered count summary */}
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <p class="text-xs font-semibold text-slate-500">
+            Mostrando <span class="font-black text-slate-800">{filteredBenefits.value.length}</span> de{" "}
+            <span class="font-black text-slate-800">{customBenefits.value.length}</span> beneficios
+          </p>
+          {hasActiveFilters.value && (
+            <button
+              type="button"
+              onClick$={() => {
+                searchQuery.value = "";
+                statusFilter.value = "all";
+                categoryFilter.value = "all";
+                locationFilter.value = "all";
+              }}
+              class="text-[11px] font-bold text-brand-green hover:text-brand-green-light hover:underline cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+
         {/* List Table of Custom benefits */}
         <div class="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col">
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
@@ -377,7 +444,11 @@ export default component$(() => {
                   <td colSpan={5} class="px-6 py-12 text-center text-slate-450">
                     <div class="flex items-center justify-center gap-2">
                       <LuTicket class="w-5 h-5 text-purple-400" />
-                      <span>Aún no has creado beneficios propios. Hacé clic en "Crear Beneficio" para registrar el primero.</span>
+                      <span>
+                        {hasActiveFilters.value
+                          ? "Ningún beneficio coincide con los filtros aplicados. Probá ajustarlos o limpiarlos."
+                          : "Aún no has creado beneficios propios. Hacé clic en \"Crear Beneficio\" para registrar el primero."}
+                      </span>
                     </div>
                   </td>
                 </tr>
