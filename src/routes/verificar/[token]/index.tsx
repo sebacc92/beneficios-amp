@@ -2,6 +2,7 @@ import { component$ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { readCredentialToken } from "~/server/credential-token";
 import { lookupPadron } from "~/server/membership";
+import { maskDni } from "~/utils/mask";
 
 // Página PÚBLICA de verificación de credencial. Se llega escaneando el QR del
 // carnet: /verificar/<token cifrado>. El token se descifra y se revalida en
@@ -16,11 +17,12 @@ export const useVerification = routeLoader$(async (event) => {
 
   const padron = await lookupPadron(event.env, payload.d);
 
+  // El DNI nunca se expone completo al cliente: siempre enmascarado.
   if (padron.status === "found") {
     return {
       status: "valid" as const,
       name: padron.member.name,
-      dni: padron.member.dni,
+      dni: maskDni(padron.member.dni),
       matricula: payload.m,
       origen: padron.member.origen,
       tipo: padron.member.tipo,
@@ -32,7 +34,7 @@ export const useVerification = routeLoader$(async (event) => {
     return {
       status: "notfound" as const,
       name: payload.n,
-      dni: payload.d,
+      dni: maskDni(payload.d),
       matricula: payload.m,
       checkedAt,
     };
@@ -42,7 +44,7 @@ export const useVerification = routeLoader$(async (event) => {
   return {
     status: "unavailable" as const,
     name: payload.n,
-    dni: payload.d,
+    dni: maskDni(payload.d),
     matricula: payload.m,
     checkedAt,
   };
@@ -110,6 +112,13 @@ export default component$(() => {
 
   const showData = data.status !== "invalid";
 
+  // Identificador principal: matrícula; si no tiene, el DNI (enmascarado).
+  const matricula = (data as any).matricula as string | null | undefined;
+  const dniMasked = (data as any).dni as string | undefined;
+  const hasMatricula = !!(matricula && String(matricula).trim());
+  const primaryLabel = hasMatricula ? "Matrícula" : "DNI";
+  const primaryValue = hasMatricula ? String(matricula) : dniMasked || "—";
+
   return (
     <div class="min-h-[85vh] bg-slate-50 py-12 px-4 flex flex-col items-center justify-center font-sans">
       <div class="w-full max-w-md space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
@@ -149,19 +158,24 @@ export default component$(() => {
                 </span>
               </div>
 
+              {/* Identificador principal destacado */}
+              <div class="text-center py-2">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{primaryLabel}</div>
+                <div class="text-3xl font-mono font-black text-slate-800 tracking-wider mt-0.5">{primaryValue}</div>
+              </div>
+
               <dl class="divide-y divide-slate-100 rounded-2xl border border-slate-150 overflow-hidden">
                 <div class="flex justify-between items-center px-4 py-3">
                   <dt class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Nombre</dt>
                   <dd class="text-sm font-black text-slate-800 text-right">{(data as any).name || "—"}</dd>
                 </div>
-                <div class="flex justify-between items-center px-4 py-3">
-                  <dt class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DNI</dt>
-                  <dd class="text-sm font-mono font-bold text-slate-800 text-right">{(data as any).dni || "—"}</dd>
-                </div>
-                <div class="flex justify-between items-center px-4 py-3">
-                  <dt class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Matrícula</dt>
-                  <dd class="text-sm font-mono font-bold text-slate-800 text-right">{(data as any).matricula || "No registrada"}</dd>
-                </div>
+                {/* Si el principal es la matrícula, mostrar el DNI enmascarado como secundario */}
+                {hasMatricula && (
+                  <div class="flex justify-between items-center px-4 py-3">
+                    <dt class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DNI</dt>
+                    <dd class="text-sm font-mono font-bold text-slate-800 text-right">{dniMasked || "—"}</dd>
+                  </div>
+                )}
                 {isValid && (data as any).origen && (
                   <div class="flex justify-between items-center px-4 py-3">
                     <dt class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Categoría</dt>

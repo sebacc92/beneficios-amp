@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
+import { maskDni } from "~/utils/mask";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
@@ -452,7 +453,7 @@ export default component$(() => {
       const bRows: [string, string][] = [
         ["Nombre", member.name],
         ["Matrícula", member.matricula || "No registrada"],
-        ["DNI", member.dni || "No registrado"],
+        ["DNI", member.dni ? maskDni(member.dni) : "No registrado"],
         ["Código de canje", `${coupon.code.slice(0, 3)} ${coupon.code.slice(3)}`],
       ];
       let by = y + 7;
