@@ -280,11 +280,20 @@ export default component$(() => {
                 <span class="text-2xl font-display font-black text-emerald-700 leading-none">
                   {days.reduce((acc, d) => acc + d.count, 0)}
                 </span>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">esta semana</span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                  {days.reduce((acc, d) => acc + d.count, 0) === 1 ? "canje esta semana" : "canjes esta semana"}
+                </span>
               </div>
             </div>
 
-            {/* Real SVG Chart from coupon usage */}
+            {/* Real SVG Chart from coupon usage — con estado vacío amable */}
+            {days.reduce((acc, d) => acc + d.count, 0) === 0 ? (
+              <div class="w-full h-56 bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
+                <LuTicket class="w-8 h-8 text-slate-300" />
+                <p class="text-sm font-bold text-slate-500">Todavía no hay canjes esta semana</p>
+                <p class="text-xs text-slate-400 font-medium max-w-xs">Cuando los comercios registren usos de cupones, vas a ver acá la evolución día a día.</p>
+              </div>
+            ) : (
             <div class="w-full h-56 bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center justify-center relative">
               <svg viewBox="0 0 400 150" class="w-full h-full text-brand-green">
                 <defs>
@@ -319,6 +328,7 @@ export default component$(() => {
                 ))}
               </svg>
             </div>
+            )}
 
             {/* Top benefits by redemption */}
             <div class="border-t border-slate-100 pt-5">
@@ -326,7 +336,12 @@ export default component$(() => {
                 <LuStore class="w-3.5 h-3.5" /> Beneficios más usados
               </h4>
               {couponsStats.value.topBenefits.length === 0 ? (
-                <p class="text-sm text-slate-400 font-medium py-2">Todavía no hay cupones usados.</p>
+                <div class="flex items-center gap-2.5 py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <LuStore class="w-4 h-4 text-slate-300 flex-shrink-0" />
+                  <p class="text-xs text-slate-500 font-medium">
+                    Todavía no hay cupones usados. El ranking de beneficios va a aparecer cuando los comercios registren los primeros canjes.
+                  </p>
+                </div>
               ) : (
                 <div class="space-y-2.5">
                   {couponsStats.value.topBenefits.map((b, i) => {

@@ -295,10 +295,13 @@ export default component$(() => {
               isCreateOpen.value = !isCreateOpen.value;
               resetPreview();
             }}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+            class={[
+              "inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
+              isCreateOpen.value ? "bg-slate-600 hover:bg-slate-700" : "bg-brand-green hover:bg-brand-green-light",
+            ]}
           >
-            <LuPlus class="w-4 h-4" />
-            <span>{isCreateOpen.value ? "Cerrar Panel" : "Añadir Foto"}</span>
+            {isCreateOpen.value ? <LuX class="w-4 h-4" /> : <LuPlus class="w-4 h-4" />}
+            <span>{isCreateOpen.value ? "Cerrar panel" : "Añadir Foto"}</span>
           </button>
         </div>
       </div>
