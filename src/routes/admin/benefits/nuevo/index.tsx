@@ -206,6 +206,13 @@ export const useCreateBenefitAction = routeAction$(
           await fsModule.writeFile(filePath, buffer);
           uploadedImageMobileUrl = `/uploads/${fileName}`;
         }
+      } else if (
+        data.mobileUrl &&
+        typeof data.mobileUrl === "string" &&
+        (data.mobileUrl.startsWith("http") || data.mobileUrl.startsWith("/"))
+      ) {
+        // Imagen de mobile distinta que ya es una URL subida (elegida de la galería).
+        uploadedImageMobileUrl = data.mobileUrl;
       }
 
       let lat = data.latitud?.trim() || null;
@@ -319,6 +326,7 @@ export const useCreateBenefitAction = routeAction$(
     principalUrl: z.string().optional(),
     imageMobileFile: z.any().optional(),
     optimizedMobileImage: z.string().optional(),
+    mobileUrl: z.string().optional(),
     sameImageForMobile: z.string().optional(),
     galeriaJson: z.string().optional(),
     latitud: z.string().optional(),
@@ -331,9 +339,13 @@ export default component$(() => {
   const createBenefitAction = useCreateBenefitAction();
 
   // Imágenes del beneficio: una sola galería con TODAS las fotos (data URLs webp
-  // optimizados). Una es la "principal" y alimenta desktop + mobile.
+  // optimizados). Una es la "principal" y alimenta desktop + mobile por defecto.
   const createGaleria = useSignal<string[]>([]);
   const createPrincipalIndex = useSignal<number>(0);
+  // Overrides por formato (null = usar la principal). Permiten desktop y mobile
+  // distintos (ej. horizontal en desktop, vertical en mobile).
+  const createDesktopIdx = useSignal<number | null>(null);
+  const createMobileIdx = useSignal<number | null>(null);
 
   // Ubicación (mapa) y dirección
   const createLat = useSignal<string>("");
@@ -420,15 +432,64 @@ export default component$(() => {
     } else if (createPrincipalIndex.value > index) {
       createPrincipalIndex.value = createPrincipalIndex.value - 1;
     }
+    // Ajustar los overrides por formato (o volver a "usar principal").
+    const fixOverride = (v: number | null) =>
+      v === null ? null : v === index ? null : v > index ? v - 1 : v;
+    createDesktopIdx.value = fixOverride(createDesktopIdx.value);
+    createMobileIdx.value = fixOverride(createMobileIdx.value);
   });
 
   const setCreatePrincipal = $((index: number) => {
     createPrincipalIndex.value = index;
   });
 
-  // Foto principal (alimenta desktop + mobile) y fotos secundarias (galería).
+  // Sube UNA imagen y la asigna directamente a un formato (desktop/mobile).
+  const addPhotoForFormat = $((event: Event, target: "desktop" | "mobile") => {
+    const element = event.target as HTMLInputElement;
+    if (!element.files || element.files.length === 0) return;
+    const file = element.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxW = 1000;
+        const maxH = 1000;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx && createGaleria.value.length < 10) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/webp", 0.82);
+          const idx = createGaleria.value.length;
+          createGaleria.value = [...createGaleria.value, dataUrl];
+          if (target === "desktop") createDesktopIdx.value = idx;
+          else createMobileIdx.value = idx;
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    element.value = "";
+  });
+
+  // Fotos resueltas por formato (con override o, si no, la principal).
+  const createDesktopResolvedIdx = createDesktopIdx.value ?? createPrincipalIndex.value;
+  const createMobileResolvedIdx = createMobileIdx.value ?? createPrincipalIndex.value;
   const createPrincipalPhoto = createGaleria.value[createPrincipalIndex.value] ?? null;
-  const createExtraPhotos = createGaleria.value.filter((_, i) => i !== createPrincipalIndex.value);
+  const createDesktopPhoto = createGaleria.value[createDesktopResolvedIdx] ?? null;
+  const createMobilePhoto = createGaleria.value[createMobileResolvedIdx] ?? null;
+  const createMobileDiffers = createMobilePhoto !== null && createMobilePhoto !== createDesktopPhoto;
+  // La galería pública excluye las imágenes usadas como desktop y mobile.
+  const createUsedIdx = new Set([createDesktopResolvedIdx, createMobileResolvedIdx]);
+  const createExtraPhotos = createGaleria.value.filter((_, i) => !createUsedIdx.has(i));
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
@@ -622,7 +683,7 @@ export default component$(() => {
             </h4>
             <p class="text-[10px] text-slate-400 font-medium mt-1">
               Sumá las fotos y marcá una como <b>Principal</b> (★): esa alimenta la imagen de desktop y mobile.
-              El resto se muestran en el carrusel del beneficio. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
+              El resto se muestran en el carrusel del beneficio. Podés usar otra imagen para desktop o mobile en la vista previa. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
             </p>
           </div>
 
@@ -630,14 +691,24 @@ export default component$(() => {
           <input
             type="hidden"
             name="optimizedImage"
-            value={createPrincipalPhoto && createPrincipalPhoto.startsWith("data:image") ? createPrincipalPhoto : ""}
+            value={createDesktopPhoto && createDesktopPhoto.startsWith("data:image") ? createDesktopPhoto : ""}
           />
           <input
             type="hidden"
             name="principalUrl"
-            value={createPrincipalPhoto && !createPrincipalPhoto.startsWith("data:image") ? createPrincipalPhoto : ""}
+            value={createDesktopPhoto && !createDesktopPhoto.startsWith("data:image") ? createDesktopPhoto : ""}
           />
-          <input type="hidden" name="sameImageForMobile" value="true" />
+          <input
+            type="hidden"
+            name="optimizedMobileImage"
+            value={createMobileDiffers && createMobilePhoto!.startsWith("data:image") ? createMobilePhoto! : ""}
+          />
+          <input
+            type="hidden"
+            name="mobileUrl"
+            value={createMobileDiffers && !createMobilePhoto!.startsWith("data:image") ? createMobilePhoto! : ""}
+          />
+          <input type="hidden" name="sameImageForMobile" value={createMobileDiffers ? "false" : "true"} />
           <input type="hidden" name="galeriaJson" value={JSON.stringify(createExtraPhotos)} />
 
           <div class="flex flex-wrap gap-3">
@@ -692,20 +763,91 @@ export default component$(() => {
           </div>
           <span class="text-[10px] text-slate-400 font-bold">{createGaleria.value.length} / 10 fotos</span>
 
-          {/* Vista previa con marco real: cómo se recorta la principal en desktop y mobile */}
+          {/* Vista previa con marco real + override por formato (desktop / mobile) */}
           {createPrincipalPhoto && (
-            <div class="flex flex-wrap gap-6 pt-2">
-              <div class="space-y-1.5">
+            <div class="flex flex-wrap gap-8 pt-2">
+              {/* Desktop */}
+              <div class="space-y-2">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Desktop (16:9)</span>
                 <div class="relative w-64 aspect-video rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-                  <ImageFramePreview src={createPrincipalPhoto} targetRatio={16 / 9} />
+                  {createDesktopPhoto && <ImageFramePreview src={createDesktopPhoto} targetRatio={16 / 9} />}
                 </div>
+                <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={createDesktopIdx.value !== null}
+                    onChange$={(e) => {
+                      createDesktopIdx.value = (e.target as HTMLInputElement).checked ? createPrincipalIndex.value : null;
+                    }}
+                    class="accent-brand-green w-3.5 h-3.5"
+                  />
+                  Usar otra imagen para desktop
+                </label>
+                {createDesktopIdx.value !== null && (
+                  <div class="flex flex-wrap gap-1.5">
+                    {createGaleria.value.map((src, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick$={() => { createDesktopIdx.value = i; }}
+                        class={[
+                          "w-10 h-10 rounded-lg overflow-hidden border-2 transition-all",
+                          i === createDesktopResolvedIdx ? "border-brand-green ring-2 ring-brand-green/25" : "border-slate-200 opacity-70 hover:opacity-100",
+                        ]}
+                      >
+                        <img src={src} alt={`Opción ${i + 1}`} class="w-full h-full object-cover" width={40} height={40} />
+                      </button>
+                    ))}
+                    {createGaleria.value.length < 10 && (
+                      <label class="w-10 h-10 rounded-lg border-2 border-dashed border-slate-300 hover:border-brand-green flex items-center justify-center cursor-pointer text-slate-400 hover:text-brand-green">
+                        <LuImage class="w-4 h-4" />
+                        <input type="file" accept="image/*" onChange$={(e) => addPhotoForFormat(e, "desktop")} class="hidden" />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
-              <div class="space-y-1.5">
+
+              {/* Mobile */}
+              <div class="space-y-2">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mobile (vertical)</span>
                 <div class="relative w-36 aspect-[4/5] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-                  <ImageFramePreview src={createPrincipalPhoto} targetRatio={4 / 5} />
+                  {createMobilePhoto && <ImageFramePreview src={createMobilePhoto} targetRatio={4 / 5} />}
                 </div>
+                <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={createMobileIdx.value !== null}
+                    onChange$={(e) => {
+                      createMobileIdx.value = (e.target as HTMLInputElement).checked ? createPrincipalIndex.value : null;
+                    }}
+                    class="accent-brand-green w-3.5 h-3.5"
+                  />
+                  Usar otra imagen para mobile
+                </label>
+                {createMobileIdx.value !== null && (
+                  <div class="flex flex-wrap gap-1.5">
+                    {createGaleria.value.map((src, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick$={() => { createMobileIdx.value = i; }}
+                        class={[
+                          "w-10 h-10 rounded-lg overflow-hidden border-2 transition-all",
+                          i === createMobileResolvedIdx ? "border-brand-green ring-2 ring-brand-green/25" : "border-slate-200 opacity-70 hover:opacity-100",
+                        ]}
+                      >
+                        <img src={src} alt={`Opción ${i + 1}`} class="w-full h-full object-cover" width={40} height={40} />
+                      </button>
+                    ))}
+                    {createGaleria.value.length < 10 && (
+                      <label class="w-10 h-10 rounded-lg border-2 border-dashed border-slate-300 hover:border-brand-green flex items-center justify-center cursor-pointer text-slate-400 hover:text-brand-green">
+                        <LuImage class="w-4 h-4" />
+                        <input type="file" accept="image/*" onChange$={(e) => addPhotoForFormat(e, "mobile")} class="hidden" />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -744,8 +886,8 @@ export default component$(() => {
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Vista de Escritorio (Desktop Card)</span>
               <div class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden shadow-sm flex flex-col justify-between max-w-[340px] mx-auto lg:mx-0">
                 <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                  {createPrincipalPhoto ? (
-                    <img src={createPrincipalPhoto} alt="Preview desktop" class="w-full h-full object-cover" width={400} height={300} />
+                  {createDesktopPhoto ? (
+                    <img src={createDesktopPhoto} alt="Preview desktop" class="w-full h-full object-cover" width={400} height={300} />
                   ) : (
                     <div class="flex flex-col items-center justify-center text-center p-4">
                       <LuImage class="w-8 h-8 text-slate-350 mb-1" />
@@ -808,8 +950,8 @@ export default component$(() => {
                 <div class="w-full h-full bg-slate-50 rounded-[1.8rem] overflow-hidden flex flex-col justify-between relative border border-slate-100 z-10 text-left">
                   {/* Responsive image tag simulated */}
                   <div class="relative h-[180px] bg-slate-900 flex items-center justify-center overflow-hidden">
-                    {createPrincipalPhoto ? (
-                      <img src={createPrincipalPhoto} alt="Preview mobile" class="w-full h-full object-cover" width={300} height={400} />
+                    {createMobilePhoto ? (
+                      <img src={createMobilePhoto} alt="Preview mobile" class="w-full h-full object-cover" width={300} height={400} />
                     ) : (
                       <div class="flex flex-col items-center justify-center text-center p-2">
                         <LuSmartphone class="w-8 h-8 text-slate-650 mb-1" />
