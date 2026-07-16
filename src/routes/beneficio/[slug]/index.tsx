@@ -1006,13 +1006,14 @@ export default component$(() => {
 
                   <div class="flex items-center space-x-3 pb-4 border-b border-white/10">
                     <div class="w-11 h-11 rounded-full bg-brand-gold/20 border border-brand-gold/40 flex items-center justify-center text-brand-gold-light">
+                      {/* Ícono de cupón/ticket (personal) */}
                       <svg class="w-5 h-5 fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.75a3 3 0 11-6 0 3 3 0 016 0zM12 18.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                       </svg>
                     </div>
                     <div>
-                      <h3 class="text-lg font-black text-white tracking-tight">Descargar Beneficio en PDF</h3>
-                      <p class="text-xs text-slate-300 font-medium">Comprobante con tus datos, QR de verificación y código de barras</p>
+                      <h3 class="text-lg font-black text-white tracking-tight">Descargá tu cupón</h3>
+                      <p class="text-xs text-slate-200 font-medium">Comprobante personal con tus datos, QR de verificación y código de barras</p>
                     </div>
                   </div>
 
@@ -1047,11 +1048,11 @@ export default component$(() => {
                             <svg class="w-5 h-5 fill-none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
-                            <span>Descargar PDF</span>
+                            <span>Descargar mi cupón</span>
                           </>
                         )}
                       </button>
-                      <p class="text-[11px] text-slate-350 leading-relaxed max-w-md">
+                      <p class="text-[11px] text-slate-200/90 leading-relaxed max-w-md">
                         Incluye los datos del beneficio, tu nombre, matrícula y DNI, un código QR de verificación en tiempo real y un código de barras con tu matrícula. Apto para imprimir en A4.
                       </p>
                     </div>
@@ -1091,13 +1092,13 @@ export default component$(() => {
                     {/* Text content */}
                     <div class="flex-grow text-center sm:text-left space-y-1">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-750 border border-red-100 uppercase tracking-widest">
-                        Documento PDF
+                        Del comercio
                       </span>
                       <h3 class="text-lg font-black text-brand-green-dark tracking-tight leading-snug">
-                        Documentación y Menú Adjunto
+                        Información del comercio
                       </h3>
                       <p class="text-xs text-slate-450 font-medium leading-relaxed">
-                        Consultá la lista de precios, bases o información extra digital de este beneficio.
+                        Catálogo, lista de precios o información adicional del comercio.
                       </p>
                     </div>
 
