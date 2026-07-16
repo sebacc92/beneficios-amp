@@ -1,6 +1,7 @@
 import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, Link, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuImage, LuSmartphone, LuSparkles, LuChevronLeft } from "@qwikest/icons/lucide";
+import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
 import { eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
@@ -153,6 +154,15 @@ export const useEditBenefitAction = routeAction$(
           await fsModule.writeFile(filePath, buffer);
           finalImageUrl = `/uploads/${fileName}`;
         }
+      } else if (
+        data.principalUrl &&
+        typeof data.principalUrl === "string" &&
+        (data.principalUrl.startsWith("http") || data.principalUrl.startsWith("/") ||
+          // Nombres "pelados" servidos desde el CDN de AMP (imágenes heredadas).
+          !data.principalUrl.startsWith("data:"))
+      ) {
+        // La foto principal es una URL/archivo ya existente (no un data URL nuevo).
+        finalImageUrl = data.principalUrl;
       }
 
       let finalImageMobileUrl = existing.imagenMobile;
@@ -334,6 +344,7 @@ export const useEditBenefitAction = routeAction$(
     pdfFile: z.any().optional(),
     imageFile: z.any().optional(),
     optimizedImage: z.string().optional(),
+    principalUrl: z.string().optional(),
     clearImage: z.string().optional(),
     imageMobileFile: z.any().optional(),
     optimizedMobileImage: z.string().optional(),
@@ -355,25 +366,26 @@ export default component$(() => {
   const split = splitContacts(benefit.value.descripcion || "");
 
   // Image Upload signals
-  const editImagePreviewUrl = useSignal<string | null>(benefit.value.imagen || null);
-  const editOptimizedImageBase64 = useSignal<string>("");
-  const editIsImageDeleted = useSignal<boolean>(false);
-  const editImageMobilePreviewUrl = useSignal<string | null>(benefit.value.imagenMobile || null);
-  const editOptimizedMobileImageBase64 = useSignal<string>("");
-  const editIsMobileImageDeleted = useSignal<boolean>(false);
   const editIsPdfDeleted = useSignal<boolean>(false);
 
-  // Galería de imágenes adicionales (mezcla de URLs existentes y data URLs nuevos)
+  // Imágenes del beneficio: galería unificada = imagen principal existente + fotos
+  // adicionales. Se preserva la compatibilidad: la principal (índice 0 al cargar)
+  // era `imagen`, y el resto era `galeria`.
   const editGaleria = useSignal<string[]>(
     (() => {
+      let extra: string[] = [];
       try {
         const parsed = JSON.parse(benefit.value.galeria || "[]");
-        return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+        extra = Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
       } catch {
-        return [];
+        extra = [];
       }
+      const all = benefit.value.imagen ? [benefit.value.imagen, ...extra] : [...extra];
+      // Deduplicar por si la principal ya estaba en la galería.
+      return Array.from(new Set(all.filter((x) => typeof x === "string" && x.length > 0)));
     })()
   );
+  const editPrincipalIndex = useSignal<number>(0);
 
   // Ubicación (mapa) y contactos
   const editLat = useSignal<string>(benefit.value.latitud || "");
@@ -383,7 +395,6 @@ export default component$(() => {
   const editDireccion = useSignal<string>(split.direccion);
 
   // "Usar la misma imagen de desktop para móvil"
-  const editSameImage = useSignal<boolean>(false);
 
   // Live preview signals
   const editPreviewTitulo = useSignal(benefit.value.titulo);
@@ -418,95 +429,6 @@ export default component$(() => {
     }
   });
 
-  // Change handler with client-side canvas optimization (Desktop)
-  const handleEditImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-    editIsImageDeleted.value = false;
-
-    if (file.type === "image/svg+xml") {
-      editOptimizedImageBase64.value = "";
-      editImagePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 800;
-        const maxH = 450;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          editOptimizedImageBase64.value = dataUrl;
-          editImagePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Change handler with client-side canvas optimization (Mobile)
-  const handleEditMobileImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    editSameImage.value = false;
-    const file = element.files[0];
-    editIsMobileImageDeleted.value = false;
-
-    if (file.type === "image/svg+xml") {
-      editOptimizedMobileImageBase64.value = "";
-      editImageMobilePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 600;
-        const maxH = 600;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          editOptimizedMobileImageBase64.value = dataUrl;
-          editImageMobilePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
   // Galería: optimiza y agrega múltiples imágenes (máx. 9)
   const handleEditGalleryChange = $((event: Event) => {
     const element = event.target as HTMLInputElement;
@@ -533,7 +455,7 @@ export default component$(() => {
           if (ctx) {
             ctx.drawImage(img, 0, 0, w, h);
             const dataUrl = canvas.toDataURL("image/webp", 0.82);
-            if (editGaleria.value.length < 9) {
+            if (editGaleria.value.length < 10) {
               editGaleria.value = [...editGaleria.value, dataUrl];
             }
           }
@@ -547,7 +469,28 @@ export default component$(() => {
 
   const removeEditGalleryImage = $((index: number) => {
     editGaleria.value = editGaleria.value.filter((_, i) => i !== index);
+    if (editPrincipalIndex.value === index) {
+      editPrincipalIndex.value = 0;
+    } else if (editPrincipalIndex.value > index) {
+      editPrincipalIndex.value = editPrincipalIndex.value - 1;
+    }
   });
+
+  const setEditPrincipal = $((index: number) => {
+    editPrincipalIndex.value = index;
+  });
+
+  // Resuelve la URL para mostrar (data URLs y URLs absolutas/relativas se usan tal
+  // cual; nombres "pelados" heredados se sirven desde el CDN de AMP).
+  const resolveEditImg = (u: string) =>
+    u.startsWith("data:") || u.startsWith("blob:") || u.startsWith("http") || u.startsWith("/")
+      ? u
+      : `https://beneficios.amepla.org.ar/files/${u}`;
+
+  // Foto principal (alimenta desktop + mobile) y fotos secundarias (galería).
+  const editPrincipalPhotoRaw = editGaleria.value[editPrincipalIndex.value] ?? null;
+  const editPrincipalPhoto = editPrincipalPhotoRaw ? resolveEditImg(editPrincipalPhotoRaw) : null;
+  const editExtraPhotos = editGaleria.value.filter((_, i) => i !== editPrincipalIndex.value);
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
@@ -744,234 +687,148 @@ export default component$(() => {
           />
         </div>
 
-        {/* Imagen Destacada y Documentación PDF */}
-        <div class="border-t border-slate-100 pt-5 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Imagen Ilustrativa Desktop */}
-          <div class="space-y-4">
+        {/* Imágenes del beneficio (galería unificada con foto principal) */}
+        <div class="border-t border-slate-100 pt-5 space-y-4">
+          <div>
             <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
               <LuImage class="w-4 h-4 text-brand-green" />
-              Imagen Desktop (16:9)
+              Imágenes del Beneficio
             </h4>
-            <input type="hidden" name="optimizedImage" value={editOptimizedImageBase64.value} />
-            <input type="hidden" name="clearImage" value={editIsImageDeleted.value ? "true" : "false"} />
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Nueva Imagen</label>
-              <div class="flex items-center gap-4">
-                <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                  {editImagePreviewUrl.value && !editIsImageDeleted.value ? (
-                    <img
-                      src={
-                        editImagePreviewUrl.value.startsWith("data:") ||
-                        editImagePreviewUrl.value.startsWith("blob:") ||
-                        editImagePreviewUrl.value.startsWith("http") ||
-                        editImagePreviewUrl.value.startsWith("/")
-                          ? editImagePreviewUrl.value
-                          : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
-                      }
-                      alt="Vista previa"
-                      class="w-full h-full object-cover"
-                      width={80}
-                      height={80}
-                    />
-                  ) : (
-                    <LuImage class="w-6 h-6 text-slate-400" />
-                  )}
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                    <LuImage class="w-4 h-4 text-brand-green" />
-                    Seleccionar
-                    <input
-                      id="edit-image-file-input"
-                      type="file"
-                      name="imageFile"
-                      accept="image/*"
-                      onChange$={handleEditImageChange}
-                      class="hidden"
-                    />
-                  </label>
-                  {editImagePreviewUrl.value && !editIsImageDeleted.value && (
-                    <button
-                      type="button"
-                      onClick$={() => {
-                        editIsImageDeleted.value = true;
-                        editOptimizedImageBase64.value = "";
-                        const input = document.getElementById("edit-image-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-650 text-[10px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p class="text-[10px] text-slate-400 font-medium">Recomendado horizontal (800x450 px).</p>
-            </div>
+            <p class="text-[10px] text-slate-400 font-medium mt-1">
+              Sumá las fotos y marcá una como <b>Principal</b> (★): esa alimenta la imagen de desktop y mobile.
+              El resto se muestran en el carrusel del beneficio. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
+            </p>
           </div>
 
-          {/* Imagen Ilustrativa Mobile */}
-          <div class="space-y-4">
-            <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-              <LuSmartphone class="w-4 h-4 text-brand-green" />
-              Imagen Mobile (Vertical)
-            </h4>
-            <input type="hidden" name="optimizedMobileImage" value={editOptimizedMobileImageBase64.value} />
-            <input type="hidden" name="clearMobileImage" value={editIsMobileImageDeleted.value ? "true" : "false"} />
-            <input type="hidden" name="sameImageForMobile" value={editSameImage.value ? "true" : "false"} />
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Imagen Mobile</label>
-              <div class="flex items-center gap-4">
-                <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                  {editImageMobilePreviewUrl.value && !editIsMobileImageDeleted.value ? (
-                    <img
-                      src={
-                        editImageMobilePreviewUrl.value.startsWith("data:") ||
-                        editImageMobilePreviewUrl.value.startsWith("blob:") ||
-                        editImageMobilePreviewUrl.value.startsWith("http") ||
-                        editImageMobilePreviewUrl.value.startsWith("/")
-                          ? editImageMobilePreviewUrl.value
-                          : `https://beneficios.amepla.org.ar/files/${editImageMobilePreviewUrl.value}`
-                      }
-                      alt="Vista previa móvil"
-                      class="w-full h-full object-cover"
-                      width={80}
-                      height={80}
-                    />
-                  ) : (
-                    <LuSmartphone class="w-6 h-6 text-slate-400" />
-                  )}
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                    <LuSmartphone class="w-4 h-4 text-brand-green" />
-                    Seleccionar
-                    <input
-                      id="edit-image-mobile-file-input"
-                      type="file"
-                      name="imageMobileFile"
-                      accept="image/*"
-                      onChange$={handleEditMobileImageChange}
-                      class="hidden"
-                    />
-                  </label>
-                  {editImageMobilePreviewUrl.value && !editIsMobileImageDeleted.value && (
-                    <button
-                      type="button"
-                      onClick$={() => {
-                        editIsMobileImageDeleted.value = true;
-                        editOptimizedMobileImageBase64.value = "";
-                        const input = document.getElementById("edit-image-mobile-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-650 text-[10px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p class="text-[10px] text-slate-400 font-medium">Recomendado vertical/cuadrada (600x600 px).</p>
-            </div>
-            <button
-              type="button"
-              onClick$={() => {
-                editSameImage.value = !editSameImage.value;
-                if (editSameImage.value) {
-                  editImageMobilePreviewUrl.value = editOptimizedImageBase64.value || editImagePreviewUrl.value;
-                  editIsMobileImageDeleted.value = false;
-                }
-              }}
-              class={[
-                "w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-extrabold uppercase tracking-wider transition-all border",
-                editSameImage.value
-                  ? "bg-brand-green/10 text-brand-green border-brand-green/30"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50",
-              ]}
-            >
-              {editSameImage.value ? "✓ Usando la misma de desktop" : "Usar la misma imagen que desktop"}
-            </button>
-          </div>
+          {/* Campos derivados enviados al servidor. */}
+          <input
+            type="hidden"
+            name="optimizedImage"
+            value={editPrincipalPhotoRaw && editPrincipalPhotoRaw.startsWith("data:image") ? editPrincipalPhotoRaw : ""}
+          />
+          <input
+            type="hidden"
+            name="principalUrl"
+            value={editPrincipalPhotoRaw && !editPrincipalPhotoRaw.startsWith("data:") ? editPrincipalPhotoRaw : ""}
+          />
+          <input type="hidden" name="clearImage" value={editGaleria.value.length === 0 ? "true" : "false"} />
+          <input type="hidden" name="clearMobileImage" value={editGaleria.value.length === 0 ? "true" : "false"} />
+          <input type="hidden" name="sameImageForMobile" value="true" />
+          <input type="hidden" name="galeriaJson" value={JSON.stringify(editExtraPhotos)} />
 
-          {/* Documentación PDF Widget */}
-          <div class="space-y-4">
-            <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-              <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-              </svg>
-              Documentación / Catálogo (PDF)
-            </h4>
-            <input type="hidden" name="clearPdf" value={editIsPdfDeleted.value ? "true" : "false"} />
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Nuevo PDF</label>
-              <div class="flex flex-col gap-2">
-                <input
-                  id="edit-pdf-file-input"
-                  type="file"
-                  name="pdfFile"
-                  accept="application/pdf"
-                  onChange$={() => {
-                    editIsPdfDeleted.value = false;
-                  }}
-                  class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
-                />
-
-                {benefit.value.pdfUrl && !editIsPdfDeleted.value && (
-                  <div class="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                    <span class="text-xs font-semibold text-slate-650 truncate max-w-[200px]" title={benefit.value.pdfUrl.split('/').pop()}>
-                      📄 {benefit.value.pdfUrl.split('/').pop()}
-                    </span>
-                    <button
-                      type="button"
-                      onClick$={() => {
-                        editIsPdfDeleted.value = true;
-                        const input = document.getElementById("edit-pdf-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      class="text-[10px] text-red-650 hover:underline font-bold"
-                    >
-                      Eliminar PDF
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p class="text-[10px] text-slate-400 font-medium">Subí la lista de precios o menú.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Galería de imágenes adicionales */}
-        <div class="border-t border-slate-100 pt-5 space-y-3">
-          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-            <LuImage class="w-4 h-4 text-brand-green" />
-            Galería de Fotos (opcional)
-          </h4>
-          <input type="hidden" name="galeriaJson" value={JSON.stringify(editGaleria.value)} />
-          <p class="text-[10px] text-slate-400 font-medium">
-            Sumá hasta 9 fotos adicionales que se mostrarán en un carrusel en la página del beneficio.
-          </p>
           <div class="flex flex-wrap gap-3">
-            {editGaleria.value.map((src, i) => (
-              <div key={i} class="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                <img src={src} alt={`Foto ${i + 1}`} class="w-full h-full object-cover" width={96} height={96} />
-                <button
-                  type="button"
-                  onClick$={() => removeEditGalleryImage(i)}
-                  class="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-black shadow hover:bg-red-700 transition-colors"
+            {editGaleria.value.map((src, i) => {
+              const isPrincipal = i === editPrincipalIndex.value;
+              return (
+                <div
+                  key={i}
+                  class={[
+                    "relative w-28 h-28 rounded-2xl overflow-hidden border-2 shadow-sm group",
+                    isPrincipal ? "border-brand-green ring-2 ring-brand-green/25" : "border-slate-200",
+                  ]}
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-            {editGaleria.value.length < 9 && (
-              <label class="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-green hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-400 hover:text-brand-green">
+                  <img src={resolveEditImg(src)} alt={`Foto ${i + 1}`} class="w-full h-full object-cover" width={112} height={112} />
+                  <button
+                    type="button"
+                    onClick$={() => setEditPrincipal(i)}
+                    title={isPrincipal ? "Foto principal" : "Marcar como principal"}
+                    class={[
+                      "absolute top-1 left-1 w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shadow transition-colors",
+                      isPrincipal
+                        ? "bg-brand-green text-white"
+                        : "bg-black/45 text-white/90 opacity-0 group-hover:opacity-100 hover:bg-black/70",
+                    ]}
+                  >
+                    ★
+                  </button>
+                  <button
+                    type="button"
+                    onClick$={() => removeEditGalleryImage(i)}
+                    class="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-black shadow hover:bg-red-700 transition-colors"
+                  >
+                    ×
+                  </button>
+                  {isPrincipal && (
+                    <span class="absolute bottom-0 inset-x-0 bg-brand-green text-white text-[9px] font-black uppercase tracking-wider text-center py-0.5">
+                      Principal
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {editGaleria.value.length < 10 && (
+              <label class="w-28 h-28 rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-green hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-400 hover:text-brand-green">
                 <LuImage class="w-6 h-6" />
                 <span class="text-[9px] font-bold uppercase tracking-wider">Agregar</span>
                 <input type="file" accept="image/*" multiple onChange$={handleEditGalleryChange} class="hidden" />
               </label>
             )}
           </div>
-          <span class="text-[10px] text-slate-400 font-bold">{editGaleria.value.length} / 9 fotos</span>
+          <span class="text-[10px] text-slate-400 font-bold">{editGaleria.value.length} / 10 fotos</span>
+
+          {/* Vista previa con marco real: cómo se recorta la principal en desktop y mobile */}
+          {editPrincipalPhoto && (
+            <div class="flex flex-wrap gap-6 pt-2">
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Desktop (16:9)</span>
+                <div class="relative w-64 aspect-video rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                  <ImageFramePreview src={editPrincipalPhoto} targetRatio={16 / 9} />
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mobile (vertical)</span>
+                <div class="relative w-36 aspect-[4/5] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                  <ImageFramePreview src={editPrincipalPhoto} targetRatio={4 / 5} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Documentación adicional (PDF) — sección propia, separada de las imágenes */}
+        <div class="border-t border-slate-100 pt-5 space-y-3">
+          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+            </svg>
+            Documentación adicional
+          </h4>
+          <input type="hidden" name="clearPdf" value={editIsPdfDeleted.value ? "true" : "false"} />
+          <div class="space-y-2 max-w-md">
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Catálogo / Lista de precios (PDF)</label>
+            <div class="flex flex-col gap-2">
+              <input
+                id="edit-pdf-file-input"
+                type="file"
+                name="pdfFile"
+                accept="application/pdf"
+                onChange$={() => {
+                  editIsPdfDeleted.value = false;
+                }}
+                class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
+              />
+
+              {benefit.value.pdfUrl && !editIsPdfDeleted.value && (
+                <div class="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                  <span class="text-xs font-semibold text-slate-650 truncate max-w-[200px]" title={benefit.value.pdfUrl.split('/').pop()}>
+                    📄 {benefit.value.pdfUrl.split('/').pop()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick$={() => {
+                      editIsPdfDeleted.value = true;
+                      const input = document.getElementById("edit-pdf-file-input") as HTMLInputElement;
+                      if (input) input.value = "";
+                    }}
+                    class="text-[10px] text-red-650 hover:underline font-bold"
+                  >
+                    Eliminar PDF
+                  </button>
+                </div>
+              )}
+            </div>
+            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones.</p>
+          </div>
         </div>
 
         {/* Live Preview Widget */}
@@ -987,16 +844,9 @@ export default component$(() => {
               <span class="text-[10px] font-bold text-slate-450 uppercase tracking-wider block">Vista de Escritorio (Desktop Card)</span>
               <div class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden shadow-sm flex flex-col justify-between max-w-[340px] mx-auto lg:mx-0">
                 <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                  {editImagePreviewUrl.value && !editIsImageDeleted.value ? (
+                  {editPrincipalPhoto ? (
                     <img
-                      src={
-                        editImagePreviewUrl.value.startsWith("data:") ||
-                        editImagePreviewUrl.value.startsWith("blob:") ||
-                        editImagePreviewUrl.value.startsWith("http") ||
-                        editImagePreviewUrl.value.startsWith("/")
-                          ? editImagePreviewUrl.value
-                          : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
-                      }
+                      src={editPrincipalPhoto}
                       alt="Preview desktop"
                       class="w-full h-full object-cover"
                       width={400}
@@ -1064,32 +914,10 @@ export default component$(() => {
                 <div class="w-full h-full bg-slate-50 rounded-[1.8rem] overflow-hidden flex flex-col justify-between relative border border-slate-100 z-10 text-left">
                   {/* Responsive image tag simulated */}
                   <div class="relative h-[180px] bg-slate-900 flex items-center justify-center overflow-hidden">
-                    {editImageMobilePreviewUrl.value && !editIsMobileImageDeleted.value ? (
+                    {editPrincipalPhoto ? (
                       <img
-                        src={
-                          editImageMobilePreviewUrl.value.startsWith("data:") ||
-                          editImageMobilePreviewUrl.value.startsWith("blob:") ||
-                          editImageMobilePreviewUrl.value.startsWith("http") ||
-                          editImageMobilePreviewUrl.value.startsWith("/")
-                            ? editImageMobilePreviewUrl.value
-                            : `https://beneficios.amepla.org.ar/files/${editImageMobilePreviewUrl.value}`
-                        }
+                        src={editPrincipalPhoto}
                         alt="Preview mobile"
-                        class="w-full h-full object-cover"
-                        width={300}
-                        height={400}
-                      />
-                    ) : editImagePreviewUrl.value && !editIsImageDeleted.value ? (
-                      <img
-                        src={
-                          editImagePreviewUrl.value.startsWith("data:") ||
-                          editImagePreviewUrl.value.startsWith("blob:") ||
-                          editImagePreviewUrl.value.startsWith("http") ||
-                          editImagePreviewUrl.value.startsWith("/")
-                            ? editImagePreviewUrl.value
-                            : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
-                        }
-                        alt="Preview desktop as fallback"
                         class="w-full h-full object-cover"
                         width={300}
                         height={400}
