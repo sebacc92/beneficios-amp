@@ -1,6 +1,7 @@
 import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, Link, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuImage, LuSmartphone, LuSparkles, LuChevronLeft } from "@qwikest/icons/lucide";
+import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
@@ -131,6 +132,13 @@ export const useCreateBenefitAction = routeAction$(
           await fsModule.writeFile(filePath, buffer);
           uploadedImageUrl = `/uploads/${fileName}`;
         }
+      } else if (
+        data.principalUrl &&
+        typeof data.principalUrl === "string" &&
+        (data.principalUrl.startsWith("http") || data.principalUrl.startsWith("/"))
+      ) {
+        // La foto principal es una URL ya subida (no un data URL nuevo).
+        uploadedImageUrl = data.principalUrl;
       }
 
       let uploadedImageMobileUrl = null;
@@ -308,6 +316,7 @@ export const useCreateBenefitAction = routeAction$(
     pdfFile: z.any().optional(),
     imageFile: z.any().optional(),
     optimizedImage: z.string().optional(),
+    principalUrl: z.string().optional(),
     imageMobileFile: z.any().optional(),
     optimizedMobileImage: z.string().optional(),
     sameImageForMobile: z.string().optional(),
@@ -321,22 +330,15 @@ export default component$(() => {
   const adminFilters = useAdminFiltersLoader();
   const createBenefitAction = useCreateBenefitAction();
 
-  // Image Upload signals
-  const createImagePreviewUrl = useSignal<string | null>(null);
-  const createOptimizedImageBase64 = useSignal<string>("");
-  const createImageMobilePreviewUrl = useSignal<string | null>(null);
-  const createOptimizedMobileImageBase64 = useSignal<string>("");
-
-  // Galería de imágenes adicionales (data URLs webp optimizados)
+  // Imágenes del beneficio: una sola galería con TODAS las fotos (data URLs webp
+  // optimizados). Una es la "principal" y alimenta desktop + mobile.
   const createGaleria = useSignal<string[]>([]);
+  const createPrincipalIndex = useSignal<number>(0);
 
   // Ubicación (mapa) y dirección
   const createLat = useSignal<string>("");
   const createLng = useSignal<string>("");
   const createDireccion = useSignal<string>("");
-
-  // "Usar la misma imagen de desktop para móvil"
-  const createSameImage = useSignal<boolean>(false);
 
   // Live preview signals
   const createPreviewTitulo = useSignal("Nombre del Comercio");
@@ -372,93 +374,6 @@ export default component$(() => {
     }
   });
 
-  // Change handler with client-side canvas optimization (Desktop)
-  const handleCreateImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-
-    if (file.type === "image/svg+xml") {
-      createOptimizedImageBase64.value = "";
-      createImagePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 800;
-        const maxH = 450;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          createOptimizedImageBase64.value = dataUrl;
-          createImagePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Change handler with client-side canvas optimization (Mobile)
-  const handleCreateMobileImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    createSameImage.value = false;
-    const file = element.files[0];
-
-    if (file.type === "image/svg+xml") {
-      createOptimizedMobileImageBase64.value = "";
-      createImageMobilePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 600;
-        const maxH = 600;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          createOptimizedMobileImageBase64.value = dataUrl;
-          createImageMobilePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
   // Galería: optimiza y agrega múltiples imágenes (máx. 9 adicionales)
   const handleCreateGalleryChange = $((event: Event) => {
     const element = event.target as HTMLInputElement;
@@ -485,7 +400,7 @@ export default component$(() => {
           if (ctx) {
             ctx.drawImage(img, 0, 0, w, h);
             const dataUrl = canvas.toDataURL("image/webp", 0.82);
-            if (createGaleria.value.length < 9) {
+            if (createGaleria.value.length < 10) {
               createGaleria.value = [...createGaleria.value, dataUrl];
             }
           }
@@ -499,7 +414,21 @@ export default component$(() => {
 
   const removeCreateGalleryImage = $((index: number) => {
     createGaleria.value = createGaleria.value.filter((_, i) => i !== index);
+    // Mantener la principal apuntando a una foto válida.
+    if (createPrincipalIndex.value === index) {
+      createPrincipalIndex.value = 0;
+    } else if (createPrincipalIndex.value > index) {
+      createPrincipalIndex.value = createPrincipalIndex.value - 1;
+    }
   });
+
+  const setCreatePrincipal = $((index: number) => {
+    createPrincipalIndex.value = index;
+  });
+
+  // Foto principal (alimenta desktop + mobile) y fotos secundarias (galería).
+  const createPrincipalPhoto = createGaleria.value[createPrincipalIndex.value] ?? null;
+  const createExtraPhotos = createGaleria.value.filter((_, i) => i !== createPrincipalIndex.value);
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
@@ -684,179 +613,122 @@ export default component$(() => {
           <LocationPicker lat={createLat} lng={createLng} address={createDireccion} mapId="create-benefit-map" />
         </div>
 
-        {/* Imagen Destacada y Documentación PDF */}
-        <div class="border-t border-slate-100 pt-5 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Imagen Ilustrativa del Beneficio */}
-          <div class="space-y-4">
+        {/* Imágenes del beneficio (galería unificada con foto principal) */}
+        <div class="border-t border-slate-100 pt-5 space-y-4">
+          <div>
             <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
               <LuImage class="w-4 h-4 text-brand-green" />
-              Imagen Desktop (16:9)
+              Imágenes del Beneficio
             </h4>
-            <input type="hidden" name="optimizedImage" value={createOptimizedImageBase64.value} />
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Imagen Desktop</label>
-              <div class="flex items-center gap-4">
-                <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                  {createImagePreviewUrl.value ? (
-                    <img src={createImagePreviewUrl.value} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
-                  ) : (
-                    <LuImage class="w-6 h-6 text-slate-400" />
-                  )}
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                    <LuImage class="w-4 h-4 text-brand-green" />
-                    Seleccionar
-                    <input
-                      id="create-image-file-input"
-                      type="file"
-                      name="imageFile"
-                      accept="image/*"
-                      onChange$={handleCreateImageChange}
-                      class="hidden"
-                    />
-                  </label>
-                  {createImagePreviewUrl.value && (
-                    <button
-                      type="button"
-                      onClick$={() => {
-                        createImagePreviewUrl.value = null;
-                        createOptimizedImageBase64.value = "";
-                        const input = document.getElementById("create-image-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-650 text-[10px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p class="text-[10px] text-slate-400 font-medium">PNG, JPG o WebP. Auto-optimizado.</p>
-            </div>
+            <p class="text-[10px] text-slate-400 font-medium mt-1">
+              Sumá las fotos y marcá una como <b>Principal</b> (★): esa alimenta la imagen de desktop y mobile.
+              El resto se muestran en el carrusel del beneficio. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
+            </p>
           </div>
 
-          {/* Imagen Ilustrativa Mobile */}
-          <div class="space-y-4">
-            <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-              <LuSmartphone class="w-4 h-4 text-brand-green" />
-              Imagen Mobile (Vertical)
-            </h4>
-            <input type="hidden" name="optimizedMobileImage" value={createOptimizedMobileImageBase64.value} />
-            <input type="hidden" name="sameImageForMobile" value={createSameImage.value ? "true" : "false"} />
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Imagen Mobile</label>
-              <div class="flex items-center gap-4">
-                <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                  {createImageMobilePreviewUrl.value ? (
-                    <img src={createImageMobilePreviewUrl.value} alt="Vista previa móvil" class="w-full h-full object-cover" width={80} height={80} />
-                  ) : (
-                    <LuSmartphone class="w-6 h-6 text-slate-400" />
-                  )}
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                    <LuSmartphone class="w-4 h-4 text-brand-green" />
-                    Seleccionar
-                    <input
-                      id="create-image-mobile-file-input"
-                      type="file"
-                      name="imageMobileFile"
-                      accept="image/*"
-                      onChange$={handleCreateMobileImageChange}
-                      class="hidden"
-                    />
-                  </label>
-                  {createImageMobilePreviewUrl.value && (
-                    <button
-                      type="button"
-                      onClick$={() => {
-                        createImageMobilePreviewUrl.value = null;
-                        createOptimizedMobileImageBase64.value = "";
-                        const input = document.getElementById("create-image-mobile-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-650 text-[10px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p class="text-[10px] text-slate-400 font-medium">Relación vertical/cuadrada recomendada.</p>
-            </div>
-            <button
-              type="button"
-              onClick$={() => {
-                createSameImage.value = !createSameImage.value;
-                if (createSameImage.value) {
-                  createImageMobilePreviewUrl.value = createOptimizedImageBase64.value || createImagePreviewUrl.value;
-                }
-              }}
-              class={[
-                "w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-extrabold uppercase tracking-wider transition-all border",
-                createSameImage.value
-                  ? "bg-brand-green/10 text-brand-green border-brand-green/30"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50",
-              ]}
-            >
-              {createSameImage.value ? "✓ Usando la misma de desktop" : "Usar la misma imagen que desktop"}
-            </button>
-          </div>
+          {/* Campos derivados enviados al servidor. */}
+          <input
+            type="hidden"
+            name="optimizedImage"
+            value={createPrincipalPhoto && createPrincipalPhoto.startsWith("data:image") ? createPrincipalPhoto : ""}
+          />
+          <input
+            type="hidden"
+            name="principalUrl"
+            value={createPrincipalPhoto && !createPrincipalPhoto.startsWith("data:image") ? createPrincipalPhoto : ""}
+          />
+          <input type="hidden" name="sameImageForMobile" value="true" />
+          <input type="hidden" name="galeriaJson" value={JSON.stringify(createExtraPhotos)} />
 
-          {/* Documentación PDF Widget */}
-          <div class="space-y-4">
-            <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-              <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-              </svg>
-              Documentación / Catálogo (PDF)
-            </h4>
-            <div class="space-y-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subir Archivo PDF</label>
-              <input
-                type="file"
-                name="pdfFile"
-                accept="application/pdf"
-                class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
-              />
-              <p class="text-[10px] text-slate-400 font-medium">Subí la lista de precios, menú o bases y condiciones.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Galería de imágenes adicionales */}
-        <div class="border-t border-slate-100 pt-5 space-y-3">
-          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
-            <LuImage class="w-4 h-4 text-brand-green" />
-            Galería de Fotos (opcional)
-          </h4>
-          <input type="hidden" name="galeriaJson" value={JSON.stringify(createGaleria.value)} />
-          <p class="text-[10px] text-slate-400 font-medium">
-            Sumá hasta 9 fotos adicionales que se mostrarán en un carrusel en la página del beneficio.
-          </p>
           <div class="flex flex-wrap gap-3">
-            {createGaleria.value.map((src, i) => (
-              <div key={i} class="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                <img src={src} alt={`Foto ${i + 1}`} class="w-full h-full object-cover" width={96} height={96} />
-                <button
-                  type="button"
-                  onClick$={() => removeCreateGalleryImage(i)}
-                  class="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-black shadow hover:bg-red-700 transition-colors"
+            {createGaleria.value.map((src, i) => {
+              const isPrincipal = i === createPrincipalIndex.value;
+              return (
+                <div
+                  key={i}
+                  class={[
+                    "relative w-28 h-28 rounded-2xl overflow-hidden border-2 shadow-sm group",
+                    isPrincipal ? "border-brand-green ring-2 ring-brand-green/25" : "border-slate-200",
+                  ]}
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-            {createGaleria.value.length < 9 && (
-              <label class="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-green hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-400 hover:text-brand-green">
+                  <img src={src} alt={`Foto ${i + 1}`} class="w-full h-full object-cover" width={112} height={112} />
+                  {/* Marcar como principal */}
+                  <button
+                    type="button"
+                    onClick$={() => setCreatePrincipal(i)}
+                    title={isPrincipal ? "Foto principal" : "Marcar como principal"}
+                    class={[
+                      "absolute top-1 left-1 w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shadow transition-colors",
+                      isPrincipal
+                        ? "bg-brand-green text-white"
+                        : "bg-black/45 text-white/90 opacity-0 group-hover:opacity-100 hover:bg-black/70",
+                    ]}
+                  >
+                    ★
+                  </button>
+                  {/* Eliminar */}
+                  <button
+                    type="button"
+                    onClick$={() => removeCreateGalleryImage(i)}
+                    class="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-black shadow hover:bg-red-700 transition-colors"
+                  >
+                    ×
+                  </button>
+                  {isPrincipal && (
+                    <span class="absolute bottom-0 inset-x-0 bg-brand-green text-white text-[9px] font-black uppercase tracking-wider text-center py-0.5">
+                      Principal
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {createGaleria.value.length < 10 && (
+              <label class="w-28 h-28 rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-green hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-400 hover:text-brand-green">
                 <LuImage class="w-6 h-6" />
                 <span class="text-[9px] font-bold uppercase tracking-wider">Agregar</span>
                 <input type="file" accept="image/*" multiple onChange$={handleCreateGalleryChange} class="hidden" />
               </label>
             )}
           </div>
-          <span class="text-[10px] text-slate-400 font-bold">{createGaleria.value.length} / 9 fotos</span>
+          <span class="text-[10px] text-slate-400 font-bold">{createGaleria.value.length} / 10 fotos</span>
+
+          {/* Vista previa con marco real: cómo se recorta la principal en desktop y mobile */}
+          {createPrincipalPhoto && (
+            <div class="flex flex-wrap gap-6 pt-2">
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Desktop (16:9)</span>
+                <div class="relative w-64 aspect-video rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                  <ImageFramePreview src={createPrincipalPhoto} targetRatio={16 / 9} />
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mobile (vertical)</span>
+                <div class="relative w-36 aspect-[4/5] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                  <ImageFramePreview src={createPrincipalPhoto} targetRatio={4 / 5} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Documentación adicional (PDF) — sección propia, separada de las imágenes */}
+        <div class="border-t border-slate-100 pt-5 space-y-3">
+          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
+            </svg>
+            Documentación adicional
+          </h4>
+          <div class="space-y-2 max-w-md">
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Catálogo / Lista de precios (PDF)</label>
+            <input
+              type="file"
+              name="pdfFile"
+              accept="application/pdf"
+              class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
+            />
+            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones.</p>
+          </div>
         </div>
 
         {/* Live Preview Widget */}
@@ -872,8 +744,8 @@ export default component$(() => {
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Vista de Escritorio (Desktop Card)</span>
               <div class="bg-white border border-slate-100 rounded-[2.2rem] overflow-hidden shadow-sm flex flex-col justify-between max-w-[340px] mx-auto lg:mx-0">
                 <div class="relative h-44 bg-slate-100 overflow-hidden flex items-center justify-center">
-                  {createImagePreviewUrl.value ? (
-                    <img src={createImagePreviewUrl.value} alt="Preview desktop" class="w-full h-full object-cover" width={400} height={300} />
+                  {createPrincipalPhoto ? (
+                    <img src={createPrincipalPhoto} alt="Preview desktop" class="w-full h-full object-cover" width={400} height={300} />
                   ) : (
                     <div class="flex flex-col items-center justify-center text-center p-4">
                       <LuImage class="w-8 h-8 text-slate-350 mb-1" />
@@ -936,10 +808,8 @@ export default component$(() => {
                 <div class="w-full h-full bg-slate-50 rounded-[1.8rem] overflow-hidden flex flex-col justify-between relative border border-slate-100 z-10 text-left">
                   {/* Responsive image tag simulated */}
                   <div class="relative h-[180px] bg-slate-900 flex items-center justify-center overflow-hidden">
-                    {createImageMobilePreviewUrl.value ? (
-                      <img src={createImageMobilePreviewUrl.value} alt="Preview mobile" class="w-full h-full object-cover" width={300} height={400} />
-                    ) : createImagePreviewUrl.value ? (
-                      <img src={createImagePreviewUrl.value} alt="Preview desktop as fallback" class="w-full h-full object-cover" width={300} height={400} />
+                    {createPrincipalPhoto ? (
+                      <img src={createPrincipalPhoto} alt="Preview mobile" class="w-full h-full object-cover" width={300} height={400} />
                     ) : (
                       <div class="flex flex-col items-center justify-center text-center p-2">
                         <LuSmartphone class="w-8 h-8 text-slate-650 mb-1" />

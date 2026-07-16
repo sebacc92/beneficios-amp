@@ -22,7 +22,8 @@ interface SponsorMarqueeProps {
 // sin importar la proporción de la imagen original.
 const LOGO_CELL = "flex items-center justify-center shrink-0 w-[320px] h-[180px] p-2 hover:scale-110 transition-all duration-300 group relative cursor-pointer";
 // La imagen se contiene dentro de la celda manteniendo su proporción real.
-const LOGO_IMG = "max-w-full max-h-32 w-auto object-contain filter grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:brightness-105 transition-all duration-300";
+// Los logos se muestran a color siempre (sin filtro grayscale ni efecto de hover).
+const LOGO_IMG = "max-w-full max-h-32 w-auto object-contain";
 
 const SponsorLogo = ({ sponsor, ariaHidden }: { sponsor: Sponsor; ariaHidden?: boolean }) => (
   <a

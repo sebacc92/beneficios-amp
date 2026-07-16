@@ -405,6 +405,66 @@ export async function ensureHeroSlidesSeeded(db: any) {
   }
 }
 
+/**
+ * Garantiza (una vez por instancia) las columnas de contadores en
+ * `custom_benefits` y la tabla `credential_scans`. SQLite no soporta
+ * ADD COLUMN IF NOT EXISTS, así que intentamos y absorbemos el error de
+ * "columna ya existe" para que sea idempotente.
+ */
+export async function ensureTrackingSchema(db: any) {
+  const g = globalThis as any;
+  if (g.__trackingSchemaReady) return;
+  const { sql } = await import("drizzle-orm");
+  const addColumn = async (ddl: string) => {
+    try {
+      await db.run(sql.raw(ddl));
+    } catch {
+      // La columna ya existe: es esperado, no hacemos nada.
+    }
+  };
+  await addColumn("ALTER TABLE custom_benefits ADD COLUMN views INTEGER NOT NULL DEFAULT 0");
+  await addColumn("ALTER TABLE custom_benefits ADD COLUMN pdf_downloads INTEGER NOT NULL DEFAULT 0");
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS credential_scans (
+      id TEXT PRIMARY KEY,
+      ok INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  g.__trackingSchemaReady = true;
+}
+
+/** Suma 1 a un contador (`views` o `pdf_downloads`) de un beneficio por slug. No bloquea si falla. */
+export async function bumpBenefitCounter(
+  requestEvent: RequestEventBase,
+  slug: string,
+  column: "views" | "pdf_downloads"
+): Promise<void> {
+  try {
+    const db = getDB(requestEvent);
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+    const col = column === "views" ? sql`views` : sql`pdf_downloads`;
+    await db.run(sql`UPDATE custom_benefits SET ${col} = COALESCE(${col}, 0) + 1 WHERE slug = ${slug}`);
+  } catch (err) {
+    console.error(`[Tracking] bumpBenefitCounter(${column}) failed:`, err);
+  }
+}
+
+/** Registra un escaneo de verificación de credencial (válido o no). No bloquea si falla. */
+export async function recordCredentialScan(requestEvent: RequestEventBase, ok: boolean): Promise<void> {
+  try {
+    const db = getDB(requestEvent);
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+    await db.run(
+      sql`INSERT INTO credential_scans (id, ok, created_at) VALUES (${crypto.randomUUID()}, ${ok ? 1 : 0}, ${new Date().toISOString()})`
+    );
+  } catch (err) {
+    console.error("[Tracking] recordCredentialScan failed:", err);
+  }
+}
+
 /** Crea la tabla `gallery_images` en runtime (patrón de seeding del proyecto). */
 export async function ensureGalleryTable(db: any) {
   const { sql } = await import("drizzle-orm");

@@ -1,4 +1,4 @@
-import { component$, useSignal, useVisibleTask$, useComputed$ } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$, useComputed$, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 
@@ -34,6 +34,52 @@ export default component$(() => {
   const isMapLoaded = useSignal(false);
   const mapRef = useSignal<any>(null);
   const markersGroupRef = useSignal<any>(null);
+  // Markers indexados por slug del beneficio (para sincronizar con la lista).
+  const markersByUrlRef = useSignal<Record<string, any>>({});
+  // Beneficio actualmente resaltado (por hover/click en lista o marker).
+  const activeUrl = useSignal<string | null>(null);
+
+  // Beneficios filtrados (misma lógica que los markers). Alimenta la lista de
+  // sugerencias y el rearmado de markers.
+  const filteredBenefits = useComputed$(() => {
+    const query = searchQuery.value.toLowerCase().trim();
+    const catId = selectedCategory.value;
+    return data.value.benefits.filter((b: Benefit) => {
+      if (catId && !b.categorias.some((c) => c.id === catId)) return false;
+      if (query) {
+        const titleMatch = b.titulo.toLowerCase().includes(query);
+        const descMatch = b.descripcion.toLowerCase().includes(query);
+        const catMatch = b.categorias.some((c) => c.descripcion.toLowerCase().includes(query));
+        return titleMatch || descMatch || catMatch;
+      }
+      return true;
+    });
+  });
+
+  // Sugerencias visibles bajo el buscador (máx 6, sólo mientras se tipea).
+  const suggestions = useComputed$(() =>
+    searchQuery.value.trim() ? filteredBenefits.value.slice(0, 6) : []
+  );
+
+  // Centra el mapa en el marker del beneficio y lo resalta (hover/focus en lista).
+  const focusBenefit = $((url: string) => {
+    activeUrl.value = url;
+    const marker = markersByUrlRef.value[url];
+    if (marker && mapRef.value) {
+      mapRef.value.panTo(marker.getLatLng(), { animate: true });
+    }
+  });
+
+  // Centra + abre el popup del marker (click en la lista).
+  const openBenefit = $((url: string) => {
+    activeUrl.value = url;
+    const marker = markersByUrlRef.value[url];
+    if (marker && mapRef.value) {
+      const targetZoom = Math.max(mapRef.value.getZoom() || 13, 15);
+      mapRef.value.setView(marker.getLatLng(), targetZoom, { animate: true });
+      marker.openPopup();
+    }
+  });
 
   // Sync state signals to URL parameters without reloading
   // eslint-disable-next-line qwik/no-use-visible-task
@@ -134,8 +180,7 @@ export default component$(() => {
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track }) => {
     track(() => isMapLoaded.value);
-    track(() => searchQuery.value);
-    track(() => selectedCategory.value);
+    track(() => filteredBenefits.value);
 
     if (!isMapLoaded.value || !mapRef.value || !markersGroupRef.value) return;
 
@@ -152,19 +197,8 @@ export default component$(() => {
       shadowSize: [41, 41]
     });
 
-    const query = searchQuery.value.toLowerCase().trim();
-    const catId = selectedCategory.value;
-
-    const filtered = data.value.benefits.filter((b: Benefit) => {
-      if (catId && !b.categorias.some(c => c.id === catId)) return false;
-      if (query) {
-        const titleMatch = b.titulo.toLowerCase().includes(query);
-        const descMatch = b.descripcion.toLowerCase().includes(query);
-        const catMatch = b.categorias.some(c => c.descripcion.toLowerCase().includes(query));
-        return titleMatch || descMatch || catMatch;
-      }
-      return true;
-    });
+    const filtered = filteredBenefits.value;
+    const nextMarkers: Record<string, any> = {};
 
     filtered.forEach((benefit) => {
       const lat = Number(benefit.latitud);
@@ -192,11 +226,18 @@ export default component$(() => {
         </div>
       `;
 
-      L.marker([lat, lng], { icon: greenIcon })
+      const marker = L.marker([lat, lng], { icon: greenIcon })
         .bindPopup(popupHTML)
         .addTo(markersGroup);
+
+      // Hover/click en el marker → resalta el ítem en la lista.
+      marker.on("mouseover", () => { activeUrl.value = benefit.url; });
+      marker.on("click", () => { activeUrl.value = benefit.url; });
+
+      nextMarkers[benefit.url] = marker;
     });
 
+    markersByUrlRef.value = nextMarkers;
     visibleCount.value = filtered.length;
 
     if (filtered.length > 0) {
@@ -207,6 +248,41 @@ export default component$(() => {
       } catch (e) {
         console.error("Error setting bounds:", e);
       }
+    }
+  });
+
+  // Resalta el marker activo (icono dorado) y desplaza la lista al ítem.
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    track(() => activeUrl.value);
+    if (!isMapLoaded.value || typeof window === "undefined") return;
+
+    const L = (window as any).L;
+    if (!L) return;
+
+    const greenIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+    });
+    const goldIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+    });
+
+    const markers = markersByUrlRef.value;
+    for (const [url, marker] of Object.entries(markers)) {
+      const isActive = url === activeUrl.value;
+      (marker as any).setIcon(isActive ? goldIcon : greenIcon);
+      if (isActive) (marker as any).setZIndexOffset(1000);
+      else (marker as any).setZIndexOffset(0);
+    }
+
+    // Desplazar el ítem de la lista a la vista si hace falta.
+    if (activeUrl.value) {
+      const el = document.getElementById(`sug-${activeUrl.value}`);
+      if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   });
 
@@ -253,6 +329,41 @@ export default component$(() => {
             />
             <LuSearch class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
           </div>
+
+          {/* Sugerencias sincronizadas con los markers (máx 6). */}
+          {suggestions.value.length > 0 && (
+            <ul
+              class="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 shadow-sm"
+              onMouseLeave$={() => { activeUrl.value = null; }}
+            >
+              {suggestions.value.map((b) => {
+                const isActive = activeUrl.value === b.url;
+                return (
+                  <li key={b.url} id={`sug-${b.url}`}>
+                    <button
+                      type="button"
+                      onMouseEnter$={() => focusBenefit(b.url)}
+                      onFocus$={() => focusBenefit(b.url)}
+                      onClick$={() => openBenefit(b.url)}
+                      class={[
+                        "w-full text-left px-3 py-2 flex items-center gap-2 transition-colors cursor-pointer",
+                        isActive ? "bg-brand-green/10" : "hover:bg-slate-50",
+                      ]}
+                    >
+                      <LuMapPin class={["w-3.5 h-3.5 flex-shrink-0", isActive ? "text-brand-green" : "text-slate-400"]} />
+                      <span class="min-w-0 flex-1">
+                        <span class="block text-xs font-bold text-slate-800 truncate">{b.titulo}</span>
+                        <span class="block text-[10px] text-slate-400 font-semibold truncate">
+                          {b.categorias[0]?.descripcion || "Beneficio"}
+                          {b.resumen ? ` · ${b.resumen.trim()}` : ""}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         {/* Category Select Input */}

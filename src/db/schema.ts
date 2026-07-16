@@ -87,7 +87,20 @@ export const customBenefits = sqliteTable("custom_benefits", {
   pdfUrl: text("pdf_url"),
   latitud: text("latitud"),
   longitud: text("longitud"),
+  // NOTA: los contadores `views` y `pdf_downloads` viven en esta tabla pero se
+  // manejan por SQL crudo (ver ensureTrackingSchema / bumpBenefitCounter en
+  // server/cache.ts). No se declaran acá a propósito: si estuvieran en el schema,
+  // todos los select().from(customBenefits) intentarían leerlos y fallarían hasta
+  // que corra el ALTER que los crea en runtime.
   createdAt: text("created_at").notNull(),
+});
+
+// --- Escaneos de verificación de credencial (contador de eventos, sin PII) ---
+// Se crea en runtime (ensureTrackingSchema). Sólo se consulta desde /admin/stats.
+export const credentialScans = sqliteTable("credential_scans", {
+  id: text("id").primaryKey(),
+  ok: integer("ok", { mode: "boolean" }).notNull(), // true = credencial válida
+  createdAt: text("created_at").notNull(), // ISO Date String
 });
 
 // --- News / Announcements ---
@@ -97,17 +110,6 @@ export const news = sqliteTable("news", {
   content: text("content").notNull(),
   image: text("image"),
   isPublished: integer("is_published", { mode: "boolean" }).default(true).notNull(),
-  createdAt: text("created_at").notNull(),
-});
-
-// --- Events Schedule ---
-export const events = sqliteTable("events", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  date: text("date").notNull(),
-  location: text("location").notNull(),
-  image: text("image"),
   createdAt: text("created_at").notNull(),
 });
 

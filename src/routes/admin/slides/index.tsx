@@ -19,6 +19,14 @@ import { asc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { heroSlides as heroSlidesTable } from "~/db/schema";
 import { ensureHeroSlidesSeeded } from "~/server/cache";
+import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
+
+// Relaciones de aspecto reales del render del hero.
+const RATIO_16_9 = 16 / 9;
+const RATIO_9_16 = 9 / 16;
+// Textos de ayuda por tipo de imagen (tamaño recomendado, formatos, peso).
+const HELP_DESKTOP = "Recomendado 1920×1080px (16:9) · JPG, PNG o WebP · hasta ~2 MB";
+const HELP_MOBILE = "Recomendado 1080×1920px (9:16) · JPG, PNG o WebP · hasta ~2 MB";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -577,7 +585,7 @@ export default component$(() => {
                   onDragLeave$={() => (isDragOverDesktop.value = false)}
                   onDrop$={$(ev => handleDrop(ev, "desktop"))}
                   class={[
-                    "relative group h-44 rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
+                    "relative group aspect-video w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverDesktop.value
                       ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                       : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -596,14 +604,8 @@ export default component$(() => {
 
                   {desktopPreview.value ? (
                     <>
-                      <img
-                        src={desktopPreview.value}
-                        alt="Desktop Preview"
-                        class="absolute inset-0 w-full h-full object-cover z-0"
-                        width={400}
-                        height={225}
-                      />
-                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-15 backdrop-blur-xs">
+                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_16_9} />
+                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Desktop
                       </div>
@@ -612,13 +614,14 @@ export default component$(() => {
                     <div class="flex flex-col items-center gap-2 text-slate-450 z-10">
                       <LuMonitor class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
                       <div class="text-xs font-bold text-slate-650">Arrastrá la imagen desktop aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 16:9 recomendado (ej: 1920x1080)</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 16:9 (marco real de la vista)</div>
                       <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
                     </div>
                   )}
                 </div>
+                <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
                 <input
                   type="text"
                   name="imageUrl"
@@ -629,7 +632,7 @@ export default component$(() => {
 
               {/* Mobile Upload Zone (9:16 Mockup) */}
               <div class="space-y-2">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Vertical Mobile (9:16 o 4:5)</span>
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Vertical Mobile (9:16)</span>
                 <div
                   preventdefault:dragover={true}
                   onDragOver$={() => {
@@ -638,7 +641,7 @@ export default component$(() => {
                   onDragLeave$={() => (isDragOverMobile.value = false)}
                   onDrop$={$(ev => handleDrop(ev, "mobile"))}
                   class={[
-                    "relative group h-44 rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
+                    "relative group aspect-[9/16] w-full max-w-[220px] mx-auto rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverMobile.value
                       ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                       : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -657,14 +660,8 @@ export default component$(() => {
 
                   {mobilePreview.value ? (
                     <>
-                      <img
-                        src={mobilePreview.value}
-                        alt="Mobile Preview"
-                        class="absolute inset-0 w-full h-full object-cover z-0"
-                        width={225}
-                        height={400}
-                      />
-                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-15 backdrop-blur-xs">
+                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_9_16} />
+                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Mobile
                       </div>
@@ -673,13 +670,14 @@ export default component$(() => {
                     <div class="flex flex-col items-center gap-2 text-slate-400 z-10">
                       <LuSmartphone class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
                       <div class="text-xs font-bold text-slate-650">Arrastrá la imagen mobile aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 9:16 o 4:5 recomendado (ej: 1080x1920)</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 9:16 (marco real de la vista)</div>
                       <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
                     </div>
                   )}
                 </div>
+                <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
                 <input
                   type="text"
                   name="imageMobileUrl"
@@ -1037,7 +1035,7 @@ export default component$(() => {
                     onDragLeave$={() => (isDragOverEditDesktop.value = false)}
                     onDrop$={$(ev => handleDrop(ev, "edit-desktop"))}
                     class={[
-                      "relative group h-36 rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
+                      "relative group aspect-video w-full rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditDesktop.value
                         ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                         : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -1055,14 +1053,8 @@ export default component$(() => {
 
                     {editDesktopPreview.value ? (
                       <>
-                        <img
-                          src={editDesktopPreview.value}
-                          alt="Edit Desktop Preview"
-                          class="absolute inset-0 w-full h-full object-cover z-0"
-                          width={400}
-                          height={225}
-                        />
-                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-15 backdrop-blur-xs">
+                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_16_9} />
+                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Desktop
                         </div>
@@ -1074,6 +1066,7 @@ export default component$(() => {
                       </div>
                     )}
                   </div>
+                  <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
                   <input
                     type="text"
                     name="imageUrl"
@@ -1085,7 +1078,7 @@ export default component$(() => {
 
                 {/* Mobile editing zone */}
                 <div class="space-y-2">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Mobile (9:16 o 4:5)</span>
+                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Mobile (9:16)</span>
                   <div
                     preventdefault:dragover={true}
                     onDragOver$={() => {
@@ -1094,7 +1087,7 @@ export default component$(() => {
                     onDragLeave$={() => (isDragOverEditMobile.value = false)}
                     onDrop$={$(ev => handleDrop(ev, "edit-mobile"))}
                     class={[
-                      "relative group h-36 rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
+                      "relative group aspect-[9/16] w-full max-w-[200px] mx-auto rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditMobile.value
                         ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                         : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -1112,14 +1105,8 @@ export default component$(() => {
 
                     {editMobilePreview.value ? (
                       <>
-                        <img
-                          src={editMobilePreview.value}
-                          alt="Edit Mobile Preview"
-                          class="absolute inset-0 w-full h-full object-cover z-0"
-                          width={225}
-                          height={400}
-                        />
-                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-15 backdrop-blur-xs">
+                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_9_16} />
+                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Mobile
                         </div>
@@ -1131,6 +1118,7 @@ export default component$(() => {
                       </div>
                     )}
                   </div>
+                  <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
                   <input
                     type="text"
                     name="imageMobileUrl"
