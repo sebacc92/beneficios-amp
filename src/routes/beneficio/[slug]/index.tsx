@@ -8,6 +8,7 @@ import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
 import { maskDni } from "~/utils/mask";
+import { pctFromText } from "~/utils/discount";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
@@ -52,6 +53,18 @@ function extractContacts(html: string) {
   }
 
   return contacts;
+}
+
+// Quita del cuerpo del "Detalle del Beneficio" las líneas de contacto que ya se
+// muestran como botones de "Contacto Directo" (teléfono, WhatsApp, e-mail, web,
+// Instagram), para no duplicar la información. Se conserva todo lo demás: el
+// texto del descuento, el DOMICILIO/dirección y redes que no tienen botón (ej.
+// Facebook).
+function stripDuplicatedContactLines(html: string): string {
+  if (!html) return html;
+  const labels = "TEL|TELÉFONO|TELEFONO|CEL|CELULAR|WHATSAPP|E-MAIL|EMAIL|MAIL|WEBSITE|SITIO WEB|WEB|INSTAGRAM";
+  const re = new RegExp(`<p>\\s*(?:<b>\\s*)?(?:${labels})\\b[\\s\\S]*?<\\/p>`, "gi");
+  return html.replace(re, "").trim();
 }
 
 // Server Loader to retrieve single benefit and similar recommendations
@@ -382,8 +395,9 @@ export default component$(() => {
       const titleLines = doc.splitTextToSize(benefit.titulo, contentW - 46);
       doc.text(titleLines, M, y + 4);
 
-      // Píldora de descuento (a la derecha del título)
-      const descuento = (benefit.ofertas[0]?.descripcion || benefit.resumen || "Beneficio").trim();
+      // Píldora de descuento (a la derecha del título) — misma fuente única que
+      // el badge/chip de la ficha: el resumen curado, no el facet de oferta.
+      const descuento = (benefit.resumen || benefit.ofertas[0]?.descripcion || "Beneficio").trim();
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       const pillW = Math.min(46, doc.getTextWidth(descuento) + 12);
@@ -679,13 +693,20 @@ export default component$(() => {
   const primaryCat = benefit.categorias[0]?.descripcion || "Beneficio";
   const primaryLoc = benefit.ubicacion[0]?.descripcion || "Prov. Buenos Aires";
 
-  // Badge corto = facet estructurado de oferta (ej "10%", "20%", "Promociones").
-  // El resumen (frase completa) se muestra aparte como línea de texto, no dentro del círculo.
-  const offerLabel = (benefit.ofertas[0]?.descripcion || "").trim() || "Beneficio";
-  const resumenText = (benefit.resumen || "")
+  // Descuento: UNA sola fuente de verdad = el `resumen` curado del beneficio.
+  // El facet estructurado de oferta (benefit.ofertas[0]) que llega del webservice
+  // AMP puede estar mal etiquetado (ej. Corralón CASA MOLINARI: oferta="15%" pero
+  // el descuento real es 12%, tal como figura en el resumen y en la descripción).
+  // Por eso NO leemos el facet para mostrar el porcentaje: badge, chip y detalle
+  // se derivan todos del mismo `resumen`.
+  const resumenFull = (benefit.resumen || "").trim();
+  const resumenText = resumenFull
     .replace(/^Descuentos?\s+del\s*/i, "")
     .replace(/^Bonificaci[oó]n\s+del\s*/i, "")
     .trim();
+  // Etiqueta corta para el círculo: el % del resumen si lo hay, si no el texto corto.
+  const discountPct = pctFromText(resumenFull);
+  const offerLabel = discountPct ? `${discountPct}%` : resumenText || "Beneficio";
 
   return (
     <div class="relative min-h-screen py-10 bg-slate-50">
@@ -807,26 +828,20 @@ export default component$(() => {
                     </span>
                   </div>
 
-                  {benefit.ofertas.map((o) => (
-                    <div
-                      key={o.id}
-                      class="flex items-center text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200"
-                    >
-                      <span>Descuento del {o.descripcion}</span>
+                  {/* Chip de descuento: misma fuente que el badge (el resumen). */}
+                  {resumenFull && (
+                    <div class="flex items-center text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                      <span>{resumenFull}</span>
                     </div>
-                  ))}
+                  )}
                 </div>
 
-                {/* Main Title */}
-                <div class="space-y-3">
+                {/* Main Title — el descuento ya lo comunica el chip de arriba, así que
+                    no repetimos el resumen suelto debajo del título (evita el "12%" huérfano). */}
+                <div>
                   <h1 class="text-3xl sm:text-4xl font-display font-extrabold text-brand-green-dark leading-tight tracking-tight">
                     {benefit.titulo}
                   </h1>
-                  {resumenText && (
-                    <p class="text-base sm:text-lg font-bold text-brand-green leading-snug">
-                      {resumenText}
-                    </p>
-                  )}
                 </div>
 
                 {/* Utility Print / Share actions bar */}
@@ -928,7 +943,7 @@ export default component$(() => {
                     Detalle del Beneficio
                   </h2>
                   <div
-                    dangerouslySetInnerHTML={benefit.descripcion}
+                    dangerouslySetInnerHTML={stripDuplicatedContactLines(benefit.descripcion)}
                     class="space-y-4 text-sm md:text-base leading-relaxed break-words"
                   />
                 </div>
@@ -1159,7 +1174,13 @@ export default component$(() => {
                     </div>
                     <div>
                       <h4 class="text-base font-black font-display leading-none text-white tracking-wide">{user.value.name}</h4>
-                      <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">Matrícula: {user.value.matricula || "N/A"}</p>
+                      {/* Mismo criterio que /verificar: si hay matrícula la mostramos; si no,
+                          el DNI enmascarado. Nunca "N/A". */}
+                      <p class="text-[12px] text-slate-300 font-black uppercase tracking-wider mt-2">
+                        {user.value.matricula?.trim()
+                          ? `Matrícula: ${user.value.matricula}`
+                          : `DNI: ${maskDni(user.value.dni)}`}
+                      </p>
                     </div>
                   </div>
 
@@ -1167,7 +1188,7 @@ export default component$(() => {
                     <div>
                       <span class="text-[11.5px] text-slate-350 font-black uppercase tracking-wider block">Afiliado Nro.</span>
                       <span class="font-mono font-black text-white text-sm mt-0.5 block">
-                        {user.value.matricula ? `00-${user.value.matricula}/1-09` : "00-00000/1-09"}
+                        {user.value.matricula?.trim() ? `00-${user.value.matricula}/1-09` : "—"}
                       </span>
                     </div>
                     <div class="text-right">
@@ -1181,12 +1202,16 @@ export default component$(() => {
                     <div class="w-full h-8 bg-white/95 rounded flex items-center justify-between px-3 py-1 space-x-0.5 overflow-hidden filter grayscale opacity-85">
                       {Array.from({ length: 42 }).map((_, i) => {
                         const widths = ["w-[1px]", "w-[2px]", "w-[3px]", "w-[1px]", "w-[4px]"];
-                        const width = widths[Math.floor(Math.sin(i + (user.value?.matricula ? parseInt(user.value.matricula) : 0)) * 5) + 2] || "w-[1px]";
+                        const seed = parseInt((user.value?.matricula || user.value?.dni || "0").replace(/\D/g, "") || "0", 10) || 0;
+                        const width = widths[Math.floor(Math.sin(i + seed) * 5) + 2] || "w-[1px]";
                         return <div key={i} class={`h-full bg-slate-900 ${width}`} />;
                       })}
                     </div>
                     <span class="text-[10px] font-mono tracking-widest text-slate-300 mt-1.5 font-bold">
-                      {user.value.matricula ? `${user.value.matricula}0034988109` : "000000000034988109"}
+                      {(() => {
+                        const id = (user.value.matricula || user.value.dni || "").replace(/\D/g, "");
+                        return id ? `${id}0034988109` : "000000000034988109";
+                      })()}
                     </span>
                   </div>
                 </div>
