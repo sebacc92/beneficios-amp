@@ -13,7 +13,7 @@ import {
 } from "~/db/schema";
 import { getSessions } from "~/server/chatbotDb";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
-import { ensureDbSeeded } from "~/server/cache";
+import { ensureDbSeeded, ensureTrackingSchema } from "~/server/cache";
 
 const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -173,6 +173,50 @@ export const useEngagementStats = routeLoader$(async (event) => {
   }
 });
 
+export const useTrackingStats = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user || user.role !== "admin") {
+    throw event.redirect(302, "/login");
+  }
+  const empty = {
+    topViewed: [] as { titulo: string; views: number }[],
+    totalViews: 0,
+    totalPdfDownloads: 0,
+    scansTotal: 0,
+    scansOk: 0,
+    scansLast7d: 0,
+  };
+  try {
+    const db = getDB(event);
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+
+    const benRows = (await db.all(
+      sql`SELECT titulo, COALESCE(views,0) AS views, COALESCE(pdf_downloads,0) AS pdf FROM custom_benefits`
+    )) as any[];
+    const totalViews = benRows.reduce((a, r) => a + Number(r.views || 0), 0);
+    const totalPdfDownloads = benRows.reduce((a, r) => a + Number(r.pdf || 0), 0);
+    const topViewed = benRows
+      .map((r) => ({ titulo: String(r.titulo), views: Number(r.views || 0) }))
+      .filter((r) => r.views > 0)
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 5);
+
+    const scanRows = (await db.all(sql`SELECT ok, created_at AS createdAt FROM credential_scans`)) as any[];
+    const now = Date.now();
+    const scansOk = scanRows.filter((r) => Number(r.ok) === 1).length;
+    const scansLast7d = scanRows.filter((r) => {
+      const t = Date.parse(r.createdAt);
+      return !isNaN(t) && now - t <= 7 * 86400000;
+    }).length;
+
+    return { topViewed, totalViews, totalPdfDownloads, scansTotal: scanRows.length, scansOk, scansLast7d };
+  } catch (err) {
+    console.error("Failed to load tracking stats:", err);
+    return empty;
+  }
+});
+
 // Etiqueta "AAAA-MM" → "Mmm AA" (ej. "2026-07" → "Jul 26"). En español, corto.
 const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 function monthLabel(key: string): string {
@@ -184,6 +228,7 @@ function monthLabel(key: string): string {
 export default component$(() => {
   const sessionsLoader = useChatSessions();
   const engagement = useEngagementStats();
+  const tracking = useTrackingStats();
   const adminUsers = useAdminUsersLoader();
   const customBenefits = useAdminCustomBenefitsLoader();
   const couponsStats = useCouponsStatsLoader();
@@ -497,6 +542,68 @@ export default component$(() => {
                         <div class="h-full bg-purple-400 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                       <span class="text-xs font-black text-slate-700 w-6 text-right">{t.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tracking: vistas, descargas de PDF y escaneos de credencial */}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left">
+          {/* Cards de tracking */}
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4">
+            <div class="bg-white p-5 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-400 uppercase block">Vistas de beneficios</span>
+                <span class="text-2xl font-display font-black text-slate-800">{tracking.value.totalViews}</span>
+              </div>
+              <LuMapPin class="w-7 h-7 text-brand-green" />
+            </div>
+            <div class="bg-white p-5 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-400 uppercase block">Descargas de PDF</span>
+                <span class="text-2xl font-display font-black text-slate-800">{tracking.value.totalPdfDownloads}</span>
+              </div>
+              <LuFileText class="w-7 h-7 text-red-500" />
+            </div>
+            <div class="bg-white p-5 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-400 uppercase block">Escaneos de credencial</span>
+                <span class="text-2xl font-display font-black text-slate-800">{tracking.value.scansTotal}</span>
+                <span class="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                  {tracking.value.scansOk} válidas · {tracking.value.scansLast7d} en 7 días
+                </span>
+              </div>
+              <LuCheckCircle2 class="w-7 h-7 text-emerald-500" />
+            </div>
+          </div>
+
+          {/* Beneficios más vistos */}
+          <div class="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-800 uppercase tracking-wide">Beneficios más vistos</h3>
+              <p class="text-xs text-slate-400 font-medium">Vistas acumuladas de la ficha del beneficio.</p>
+            </div>
+            {tracking.value.topViewed.length === 0 ? (
+              <div class="flex items-center gap-2.5 py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <LuMapPin class="w-4 h-4 text-slate-300 flex-shrink-0" />
+                <p class="text-xs text-slate-500 font-medium">
+                  Todavía no hay vistas registradas. El ranking va a aparecer a medida que los agremiados abran las fichas.
+                </p>
+              </div>
+            ) : (
+              <div class="space-y-2.5">
+                {tracking.value.topViewed.map((b, i) => {
+                  const pct = Math.round((b.views / tracking.value.topViewed[0].views) * 100);
+                  return (
+                    <div key={i} class="flex items-center gap-3">
+                      <span class="text-xs font-bold text-slate-600 w-40 truncate" title={b.titulo}>{b.titulo}</span>
+                      <div class="flex-grow h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-brand-green rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span class="text-xs font-black text-slate-700 w-8 text-right">{b.views}</span>
                     </div>
                   );
                 })}

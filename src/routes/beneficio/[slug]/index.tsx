@@ -1,6 +1,6 @@
 import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { getBenefitBySlug, getBenefits, type Benefit } from "~/server/cache";
+import { getBenefitBySlug, getBenefits, bumpBenefitCounter, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
 import { LuLock } from "@qwikest/icons/lucide";
 import { and, eq } from "drizzle-orm";
@@ -78,6 +78,11 @@ export const useBenefitData = routeLoader$(async (event) => {
     return null;
   }
 
+  // Tracking liviano de vistas (no contamos previsualizaciones de admin).
+  if (!isAdmin) {
+    await bumpBenefitCounter(event, event.params.slug, "views");
+  }
+
   // Find 3 similar benefits from the same category
   const allBenefits = await getBenefits();
   const categoryIds = benefit.categorias.map((c) => c.id);
@@ -147,6 +152,11 @@ export const useBenefitData = routeLoader$(async (event) => {
     activeCoupon,
     verifyUrl,
   };
+});
+
+// Tracking liviano de descarga/apertura del PDF del beneficio (contador).
+export const trackPdfDownload = server$(async function () {
+  await bumpBenefitCounter(this, this.params.slug, "pdf_downloads");
 });
 
 // Genera (o reutiliza) un cupón activo para el agremiado logueado y lo
@@ -1096,6 +1106,7 @@ export default component$(() => {
                         href={benefit.pdfUrl}
                         target="_blank"
                         rel="noopener"
+                        onClick$={() => { trackPdfDownload(); }}
                         class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer text-center whitespace-nowrap"
                       >
                         <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1107,6 +1118,7 @@ export default component$(() => {
                       <a
                         href={`/descargar/?url=${encodeURIComponent(benefit.pdfUrl)}&filename=${encodeURIComponent(benefit.titulo || "documento")}`}
                         download
+                        onClick$={() => { trackPdfDownload(); }}
                         class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer text-center whitespace-nowrap"
                       >
                         <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">

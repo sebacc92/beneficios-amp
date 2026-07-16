@@ -2,6 +2,7 @@ import { component$ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { readCredentialToken } from "~/server/credential-token";
 import { lookupPadron } from "~/server/membership";
+import { recordCredentialScan } from "~/server/cache";
 import { maskDni } from "~/utils/mask";
 
 // Página PÚBLICA de verificación de credencial. Se llega escaneando el QR del
@@ -12,6 +13,8 @@ export const useVerification = routeLoader$(async (event) => {
   const checkedAt = new Date().toISOString();
 
   if (!payload) {
+    // Tracking liviano del escaneo (sin PII).
+    await recordCredentialScan(event, false);
     return { status: "invalid" as const, checkedAt };
   }
 
@@ -19,6 +22,7 @@ export const useVerification = routeLoader$(async (event) => {
 
   // El DNI nunca se expone completo al cliente: siempre enmascarado.
   if (padron.status === "found") {
+    await recordCredentialScan(event, true);
     return {
       status: "valid" as const,
       name: padron.member.name,
@@ -31,6 +35,7 @@ export const useVerification = routeLoader$(async (event) => {
   }
 
   if (padron.status === "not_found") {
+    await recordCredentialScan(event, false);
     return {
       status: "notfound" as const,
       name: payload.n,
@@ -41,6 +46,7 @@ export const useVerification = routeLoader$(async (event) => {
   }
 
   // Padrón caído/inaccesible: no se puede confirmar en este momento.
+  await recordCredentialScan(event, false);
   return {
     status: "unavailable" as const,
     name: payload.n,

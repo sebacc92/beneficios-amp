@@ -114,7 +114,18 @@ existentes, sin migraciones):
 - Panel **Salud del catálogo**: publicados, borradores, por vencer (30 días), con PDF,
   con ubicación en el mapa.
 
-⏳ **Pendiente (requiere agregar tracking)** — segundo lote: tablas `benefit_views`,
-`pdf_downloads` y `credential_scans` para habilitar "beneficios más vistos", "descargas
-de PDF" y "escaneos de verificación". Estas quedan a la espera de tu OK porque implican
-registrar eventos nuevos (migración + puntos de captura en las rutas).
+✅ **Tracking liviano implementado** (segundo lote, enfoque de contadores):
+- Contadores `views` y `pdf_downloads` en `custom_benefits` + tabla `credential_scans`,
+  creados en runtime (`ensureTrackingSchema`) sin migración manual. Para no romper los
+  `select().from(custom_benefits)` existentes, los contadores NO se declaran en el schema
+  de Drizzle: se leen/escriben por SQL crudo.
+- Captura: **vista** de ficha (loader de `/beneficio/[slug]`, no cuenta admin),
+  **descarga de PDF** (botones Ver/Descargar → `server$`), **escaneo de credencial**
+  (loader de `/verificar/[token]`, guarda sólo ok/fecha, sin PII). Todas fire-and-forget:
+  si el tracking falla, la página no se rompe.
+- En `/admin/stats`: tarjetas de vistas totales, descargas de PDF y escaneos (válidas /
+  últimos 7 días) + ranking de **beneficios más vistos**.
+
+> Nota de costo: cada vista de ficha agrega 1 `UPDATE` a la base (además de las lecturas
+> que ya hacía). Es incremental y barato; si en algún momento molesta, el contador se
+> puede desactivar quitando la llamada en el loader.
