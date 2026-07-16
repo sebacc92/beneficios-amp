@@ -392,14 +392,6 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               <span>Cerca Mío</span>
             </Link>
             <Link
-              href="/eventos"
-              onClick$={() => (isMobileMenuOpen.value = false)}
-              class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/eventos") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"
-                }`}
-            >
-              Agenda
-            </Link>
-            <Link
               href="/como-funciona"
               onClick$={() => (isMobileMenuOpen.value = false)}
               class={`block px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/como-funciona") ? "text-brand-green bg-slate-50" : "text-slate-600 hover:bg-slate-50 hover:text-brand-green"

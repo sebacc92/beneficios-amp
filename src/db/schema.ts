@@ -100,17 +100,6 @@ export const news = sqliteTable("news", {
   createdAt: text("created_at").notNull(),
 });
 
-// --- Events Schedule ---
-export const events = sqliteTable("events", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  date: text("date").notNull(),
-  location: text("location").notNull(),
-  image: text("image"),
-  createdAt: text("created_at").notNull(),
-});
-
 // --- Advertising Banners ---
 export const banners = sqliteTable("banners", {
   id: text("id").primaryKey(),
