@@ -51,6 +51,7 @@ export interface Benefit {
   validUntil?: string | null; // Vigencia (fecha de vencimiento) si aplica
   terms?: string | null; // Términos y condiciones
   isActive?: boolean;
+  orden?: number; // Orden manual del listado (0 = sin orden → va al final)
 }
 
 export interface Filters {
@@ -424,6 +425,8 @@ export async function ensureTrackingSchema(db: any) {
   };
   await addColumn("ALTER TABLE custom_benefits ADD COLUMN views INTEGER NOT NULL DEFAULT 0");
   await addColumn("ALTER TABLE custom_benefits ADD COLUMN pdf_downloads INTEGER NOT NULL DEFAULT 0");
+  // Orden manual del listado (0 = sin orden asignado → va al final).
+  await addColumn("ALTER TABLE custom_benefits ADD COLUMN orden INTEGER NOT NULL DEFAULT 0");
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS credential_scans (
       id TEXT PRIMARY KEY,
@@ -449,6 +452,32 @@ export async function bumpBenefitCounter(
   } catch (err) {
     console.error(`[Tracking] bumpBenefitCounter(${column}) failed:`, err);
   }
+}
+
+/** Lee el mapa id → orden manual de los beneficios. */
+export async function getBenefitOrdenMap(requestEvent: RequestEventBase): Promise<Record<string, number>> {
+  try {
+    const db = getDB(requestEvent);
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+    const rows = (await db.all(sql`SELECT id, COALESCE(orden, 0) AS orden FROM custom_benefits`)) as any[];
+    const map: Record<string, number> = {};
+    for (const r of rows) map[String(r.id)] = Number(r.orden || 0);
+    return map;
+  } catch (err) {
+    console.error("[Orden] getBenefitOrdenMap failed:", err);
+    return {};
+  }
+}
+
+/** Persiste el orden manual: cada id recibe orden = posición + 1 (1-based). */
+export async function persistBenefitOrder(requestEvent: RequestEventBase, orderedIds: string[]): Promise<void> {
+  if (!orderedIds || orderedIds.length === 0) return;
+  const db = getDB(requestEvent);
+  await ensureTrackingSchema(db);
+  const { sql } = await import("drizzle-orm");
+  const whens = orderedIds.map((id, i) => sql`WHEN ${id} THEN ${i + 1}`);
+  await db.run(sql`UPDATE custom_benefits SET orden = CASE id ${sql.join(whens, sql` `)} ELSE orden END`);
 }
 
 /** Registra un escaneo de verificación de credencial (válido o no). No bloquea si falla. */
@@ -489,6 +518,18 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
 
     const dbBenefits = await db.select().from(customBenefits);
     const filters = await getFilters();
+
+    // Orden manual (columna gestionada por SQL crudo, fuera del schema de Drizzle).
+    let ordenMap: Record<string, number> = {};
+    try {
+      await ensureTrackingSchema(db);
+      const { sql } = await import("drizzle-orm");
+      const ordenRows = (await db.all(sql`SELECT id, COALESCE(orden, 0) AS orden FROM custom_benefits`)) as any[];
+      for (const r of ordenRows) ordenMap[String(r.id)] = Number(r.orden || 0);
+    } catch (e) {
+      console.error("[Orden] no se pudo leer el orden manual:", e);
+      ordenMap = {};
+    }
 
     return dbBenefits.map((cb) => {
       const cat = filters.categorias.find((c) => c.id === cb.categoryId) || { id: cb.categoryId, descripcion: "Otro" };
@@ -544,6 +585,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         terms: cb.terms || null,
         created_at: cb.createdAt,
         isActive,
+        orden: ordenMap[cb.id] ?? 0,
       } as Benefit;
     });
   } catch (err) {
@@ -699,7 +741,15 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   }
 
   // Orden consistente: destacados primero, luego alfabético por título.
+  // Orden: primero los que tienen orden manual (asc); el resto (orden 0) al final,
+  // como hasta ahora: destacados primero, luego alfabético por título.
   filtered = [...filtered].sort((a, b) => {
+    const oa = a.orden || 0;
+    const ob = b.orden || 0;
+    const ha = oa > 0 ? 0 : 1;
+    const hb = ob > 0 ? 0 : 1;
+    if (ha !== hb) return ha - hb;
+    if (oa > 0 && ob > 0 && oa !== ob) return oa - ob;
     const fa = a.isFeatured ? 1 : 0;
     const fb = b.isFeatured ? 1 : 0;
     if (fa !== fb) return fb - fa;

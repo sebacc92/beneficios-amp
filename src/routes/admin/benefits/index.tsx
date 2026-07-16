@@ -4,7 +4,7 @@ import { LuPlus, LuTicket, LuTrash2, LuPencil, LuChevronLeft, LuChevronRight, Lu
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable, merchants as merchantsTable } from "~/db/schema";
-import { getFilters, ensureDbSeeded } from "~/server/cache";
+import { getFilters, ensureDbSeeded, getBenefitOrdenMap, persistBenefitOrder } from "~/server/cache";
 import { hashPassword } from "~/utils/crypto";
 import { ensureMerchantsTable } from "~/server/merchant-auth";
 import { sendPushToAll } from "~/server/webpush";
@@ -20,12 +20,32 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
     await ensureDbSeeded(db);
-    return await db.select().from(customBenefitsTable).orderBy(desc(customBenefitsTable.createdAt));
+    const rows = await db.select().from(customBenefitsTable).orderBy(desc(customBenefitsTable.createdAt));
+    const ordenMap = await getBenefitOrdenMap(event);
+    return rows.map((r) => ({ ...r, orden: ordenMap[r.id] ?? 0 }));
   } catch (err) {
     console.error("Failed to load custom benefits:", err);
     return [];
   }
 });
+
+// Persiste el orden manual del listado (drag & drop). Recibe los ids en el nuevo orden.
+export const useReorderBenefitsAction = routeAction$(
+  async (data, requestEvent) => {
+    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
+    try {
+      const ids = JSON.parse(data.orderedIds) as string[];
+      if (!Array.isArray(ids)) return requestEvent.fail(400, { message: "Formato inválido." });
+      await persistBenefitOrder(requestEvent, ids.map(String));
+      return { success: true };
+    } catch (err) {
+      console.error("Failed to reorder benefits:", err);
+      return requestEvent.fail(500, { message: "No se pudo guardar el orden." });
+    }
+  },
+  zod$({ orderedIds: z.string() })
+);
 
 export const useAdminFiltersLoader = routeLoader$(async (event) => {
   const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
@@ -207,8 +227,28 @@ export default component$(() => {
   const toggleAccessAction = useToggleBenefitAccessAction();
   const removeAccessAction = useRemoveBenefitAccessAction();
   const sendNotifAction = useSendBenefitNotificationAction();
+  const reorderAction = useReorderBenefitsAction();
   const accessForSlug = useSignal<string | null>(null);
   const location = useLocation();
+
+  // Orden de trabajo (optimista) para el drag & drop del listado.
+  const workingOrder = useSignal<typeof customBenefits.value>([]);
+  const dragFrom = useSignal<number | null>(null);
+  const dragOver = useSignal<number | null>(null);
+
+  useTask$(({ track }) => {
+    track(() => customBenefits.value);
+    const isDraft = (b: any) => b.validUntil?.startsWith("draft|") || b.validUntil === "draft";
+    workingOrder.value = [...customBenefits.value].sort((a: any, b: any) => {
+      const oa = a.orden || 0;
+      const ob = b.orden || 0;
+      const ha = oa > 0 ? 0 : 1;
+      const hb = ob > 0 ? 0 : 1;
+      if (ha !== hb) return ha - hb;
+      if (oa > 0 && ob > 0 && oa !== ob) return oa - ob;
+      return Number(isDraft(a)) - Number(isDraft(b));
+    });
+  });
 
   // Pagination & Search state
   const currentPage = useSignal(1);
@@ -230,7 +270,7 @@ export default component$(() => {
 
   const filteredBenefits = useComputed$(() => {
     const isDraft = (b: any) => b.validUntil?.startsWith("draft|") || b.validUntil === "draft";
-    let items = customBenefits.value;
+    let items = workingOrder.value;
     if (statusFilter.value === "active") {
       items = items.filter(b => !isDraft(b));
     } else if (statusFilter.value === "inactive") {
@@ -253,8 +293,24 @@ export default component$(() => {
           b.descripcion?.toLowerCase().includes(query)
       );
     }
-    // Mostrar primero los activos y luego los inactivos (orden estable).
-    return [...items].sort((a, b) => Number(isDraft(a)) - Number(isDraft(b)));
+    // Se preserva el orden de trabajo (manual). El drag define el orden público.
+    return items;
+  });
+
+  const dragEnabled = useComputed$(() => !hasActiveFilters.value);
+
+  // Aplica el reordenamiento optimista y lo persiste.
+  const applyReorder = $(() => {
+    const from = dragFrom.value;
+    const to = dragOver.value;
+    dragFrom.value = null;
+    dragOver.value = null;
+    if (from === null || to === null || from === to) return;
+    const arr = [...workingOrder.value];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    workingOrder.value = arr;
+    reorderAction.submit({ orderedIds: JSON.stringify(arr.map((b: any) => b.id)) });
   });
 
   const hasActiveFilters = useComputed$(
@@ -404,6 +460,21 @@ export default component$(() => {
 
 
 
+        {/* Aviso de reordenamiento */}
+        <div
+          class={[
+            "rounded-2xl border px-4 py-2.5 text-xs font-semibold flex items-center gap-2",
+            dragEnabled.value
+              ? "border-slate-200 bg-slate-50 text-slate-500"
+              : "border-amber-200 bg-amber-50 text-amber-700",
+          ]}
+        >
+          <span class="text-sm">⠿</span>
+          {dragEnabled.value
+            ? "Arrastrá las filas desde el tirador para definir el orden del listado público."
+            : "Limpiá los filtros para reordenar los beneficios."}
+        </div>
+
         {/* Filtered count summary */}
         <div class="flex items-center justify-between gap-3 flex-wrap">
           <p class="text-xs font-semibold text-slate-500">
@@ -431,6 +502,7 @@ export default component$(() => {
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
             <thead>
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <th class="px-3 py-4 w-8"></th>
                 <th class="px-6 py-4">Título</th>
                 <th class="px-6 py-4">Resumen / Desc.</th>
                 <th class="px-6 py-4">Filtros (Categoría/Ubicación)</th>
@@ -441,7 +513,7 @@ export default component$(() => {
             <tbody class="divide-y divide-slate-100 font-medium">
               {paginatedBenefits.value.length === 0 ? (
                 <tr>
-                  <td colSpan={5} class="px-6 py-12 text-center text-slate-450">
+                  <td colSpan={6} class="px-6 py-12 text-center text-slate-450">
                     <div class="flex items-center justify-center gap-2">
                       <LuTicket class="w-5 h-5 text-purple-400" />
                       <span>
@@ -453,7 +525,8 @@ export default component$(() => {
                   </td>
                 </tr>
               ) : (
-                paginatedBenefits.value.map((benefit) => {
+                paginatedBenefits.value.map((benefit, localIdx) => {
+                  const globalIdx = (currentPage.value - 1) * itemsPerPage + localIdx;
                   const catDesc = adminFilters.value.categorias.find(c => c.id === benefit.categoryId)?.descripcion || `Cat #${benefit.categoryId}`;
                   const locDesc = adminFilters.value.ubicaciones.find(l => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`;
                   const isActive = !(benefit.validUntil?.startsWith("draft|") || benefit.validUntil === "draft");
@@ -463,7 +536,31 @@ export default component$(() => {
 
                   return (
                     <Fragment key={benefit.id}>
-                    <tr class="hover:bg-slate-50 transition-colors">
+                    <tr
+                      draggable={dragEnabled.value}
+                      preventdefault:dragover
+                      onDragStart$={() => { if (dragEnabled.value) dragFrom.value = globalIdx; }}
+                      onDragOver$={() => { if (dragEnabled.value) dragOver.value = globalIdx; }}
+                      onDrop$={() => { if (dragEnabled.value) applyReorder(); }}
+                      onDragEnd$={() => { dragFrom.value = null; dragOver.value = null; }}
+                      class={[
+                        "hover:bg-slate-50 transition-colors",
+                        dragEnabled.value && dragOver.value === globalIdx && dragFrom.value !== null && dragFrom.value !== globalIdx
+                          ? "bg-brand-green/5 ring-1 ring-inset ring-brand-green/30"
+                          : "",
+                      ]}
+                    >
+                      <td class="px-3 py-4 text-center">
+                        <span
+                          class={[
+                            "inline-flex flex-col items-center justify-center leading-[3px] text-slate-300 select-none",
+                            dragEnabled.value ? "cursor-grab active:cursor-grabbing hover:text-slate-500" : "opacity-30 cursor-not-allowed",
+                          ]}
+                          title={dragEnabled.value ? "Arrastrá para reordenar" : "Limpiá los filtros para reordenar"}
+                        >
+                          <span>⠿</span>
+                        </span>
+                      </td>
                       <td class="px-6 py-4 font-bold text-slate-800">
                         <div class="flex items-center gap-2">
                           <span>{benefit.titulo}</span>
@@ -569,7 +666,7 @@ export default component$(() => {
 
                     {isAccessOpen && (
                       <tr class="bg-slate-50/70">
-                        <td colSpan={5} class="px-6 py-5">
+                        <td colSpan={6} class="px-6 py-5">
                           <div class="max-w-2xl">
                             <div class="flex items-center justify-between mb-3">
                               <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
