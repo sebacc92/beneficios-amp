@@ -100,9 +100,21 @@ Estas métricas **no se pueden** sacar con la base actual; requieren registrar e
 
 ---
 
-## Siguiente paso sugerido
+## Estado de implementación
 
-Implementar primero el **Bloque 3 de alta prioridad** (todo con datos existentes, sin
-migraciones nuevas), y dejar en un segundo lote las 3 tablas de tracking (`benefit_views`,
-`pdf_downloads`, `credential_scans`) que habilitan "más vistos", "descargas" y "escaneos".
-Quedo a la espera de tu OK sobre este set antes de tocar `/admin/stats`.
+✅ **Bloque de alta prioridad implementado** en `/admin/stats` (todo con datos ya
+existentes, sin migraciones):
+- Rótulos corregidos: "Total Agremiados" → **Agremiados registrados** (con aclaración
+  de que no es el padrón total); la tarjeta de beneficios ahora muestra **publicados**
+  con subtítulo de borradores + destacados.
+- Nuevas métricas: **agremiados activos** (login en 30 días vía `last_synced_at`),
+  **altas por mes** (mini-gráfico de 6 meses), **suscriptores push**, **sugerencias
+  nuevas** + desglose por tipo, **solicitudes de comercios pendientes**, y **uso del
+  chatbot** (mensajes promedio por charla + sesiones de 7 días).
+- Panel **Salud del catálogo**: publicados, borradores, por vencer (30 días), con PDF,
+  con ubicación en el mapa.
+
+⏳ **Pendiente (requiere agregar tracking)** — segundo lote: tablas `benefit_views`,
+`pdf_downloads` y `credential_scans` para habilitar "beneficios más vistos", "descargas
+de PDF" y "escaneos de verificación". Estas quedan a la espera de tu OK porque implican
+registrar eventos nuevos (migración + puntos de captura en las rutas).
