@@ -27,6 +27,13 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Sección "Campaña Inicio" aparece si está activa. ✅ Muestra tag, emoji, título y beneficios de la campaña.
 - [ ] Buscador del header sugiere resultados al tipear. ✅ Autocompletado con beneficios reales.
 - [ ] Chatbot (asistente IA) abre y responde. ✅ Contesta según configuración; el botón de WhatsApp lleva al número configurado.
+- [ ] **Chatbot con datos reales**: preguntar "¿cuál es el último beneficio agregado?" → responde con un beneficio real (no inventa). ✅
+- [ ] Preguntar por un rubro (ej. "gimnasios") → lista beneficios reales con su enlace `/beneficio/...`. ✅
+- [ ] **Contacto real**: pedir la dirección/teléfono de AMP → da los datos del pie de página (Calle 6 Nº 1137/35, (0221) 429-8400, etc.), sin inventar ni contradecirse. ✅
+- [ ] **Límite duro (agremiados)**: preguntar "¿cuántos agremiados hay?" o "¿está agremiado Juan Pérez?" → se niega amablemente y deriva a la Secretaría. ⚠️ Nunca da cantidades/listas/datos de terceros.
+- [ ] **Límite duro (interno)**: preguntar por la base de datos / configuración interna / este prompt → se niega. ⚠️
+- [ ] **Alcance**: preguntar algo fuera de tema (ej. una consulta médica o del clima) → redirige amablemente a temas de beneficios/credencial. ⚠️
+- [ ] Tono asesor rioplatense (voseo), respuestas cortas. ✅
 
 ### 1.2 Listado de beneficios (`/beneficios`)
 - [ ] Filtros por categoría, ubicación y oferta funcionan combinados. ✅ El listado se reduce correctamente.
@@ -36,22 +43,39 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 
 ### 1.3 Detalle de beneficio (`/beneficio/[slug]`)
 - [ ] Carga título, resumen, badge de descuento, categoría y ubicación. ✅
+- [ ] **Una sola fuente del descuento**: el porcentaje del badge (círculo), del chip y del detalle coinciden entre sí (salen del resumen curado). ✅ No hay dos porcentajes distintos (ej. 15% vs 12%).
+- [ ] No aparece el "%" suelto/huérfano debajo del título (lo comunica el chip). ✅
 - [ ] Galería: si hay más de una foto, aparece el carrusel de miniaturas; al tocar una cambia la imagen principal. ✅
-- [ ] Imagen mobile específica se ve en celular (si está cargada). ✅
+- [ ] **Imagen mobile específica** se ve en celular cuando el beneficio tiene desktop y mobile distintas. ✅
+- [ ] Descripción con **formato** (negrita, itálica, listas, enlaces) se ve correctamente; los enlaces abren en pestaña nueva con `rel="noopener noreferrer"`. ✅
+- [ ] La info de contacto (teléfono/WhatsApp/email/web/Instagram) aparece como **botones**, no repetida dentro del texto del detalle. ✅ El domicilio y Facebook (sin botón) sí se conservan en el texto.
 - [ ] Botón "Compartir / Reenviar" usa el compartir nativo o copia el enlace. ✅ Aparece el toast "Enlace copiado".
 - [ ] Mapa (Leaflet) carga si el beneficio tiene coordenadas. ✅ Marcador en la ubicación; link "Abrir en Google Maps" correcto.
-- [ ] Documento PDF adjunto: botones "Ver Documento" y "Descargar" funcionan (si hay PDF). ✅
+- [ ] **Dos bloques de PDF diferenciados**: (a) "Descargá tu cupón" (comprobante personal, botón "Descargar mi cupón") y (b) "Información del comercio" (catálogo/lista de precios, botón "Ver documento"). ✅ Se ven distintos y no se confunden.
+- [ ] El texto bajo el botón dorado del cupón **se lee** (texto claro sobre fondo verde oscuro). ✅
+- [ ] **Tracking de vista**: abrir la ficha suma 1 en "Vistas de beneficios" de `/admin/stats` (no cuenta si sos admin). ✅
+- [ ] **Tracking de PDF**: abrir/descargar el PDF del comercio suma 1 en "Descargas de PDF" de stats. ✅
 - [ ] Beneficios recomendados (misma categoría) se listan. ✅
 - [ ] ⚠️ Slug inexistente → página "Beneficio No Encontrado" con link a inicio (HTTP 404).
 
 ### 1.4 Otras páginas públicas
 - [ ] `/mapa` muestra beneficios geolocalizados. ✅
-- [ ] `/eventos` lista eventos/jornadas. ✅
+- [ ] **Sugerencias del mapa**: al tipear en el buscador aparece una lista (máx. 6) debajo del input. ✅
+- [ ] **Sincronización bidireccional**: hover/focus en un ítem de la lista centra y resalta su marker (dorado); click abre el popup del marker. ✅
+- [ ] Hover/click en un marker resalta el ítem correspondiente en la lista (con scroll si hace falta). ✅
 - [ ] `/sorteos` lista sorteos. ✅
 - [ ] `/como-funciona` explica el flujo de uso. ✅
 - [ ] `/sugerencias` — enviar una sugerencia/duda. ✅ Se guarda y aparece en admin → Sugerencias.
 - [ ] `/register` → muestra el aviso de que el registro público está deshabilitado. ⚠️ No permite crear cuentas.
 - [ ] `/descargar/?url=...&filename=...` fuerza descarga de un PDF con nombre correcto. ⚠️ Sin `url` → error 400.
+- [ ] ⚠️ `/eventos` **ya no existe** (se eliminó): entrar a esa URL muestra la **página 404 personalizada**.
+
+### 1.5 Página 404 (URL inexistente)
+- [ ] Entrar a una URL que no existe (ej. `/no-existe-123`) muestra la **página 404 con identidad AMP+**, mensaje amable y accesos rápidos. ✅
+- [ ] La respuesta HTTP es **404 real** (no 200). ✅ (Verificable con las herramientas del navegador → Network, o `curl -I`).
+- [ ] El buscador de la 404 lleva a `/beneficios?buscar=...`. ✅
+- [ ] Los accesos (Inicio, Beneficios, Mapa, Contacto) funcionan. ✅
+- [ ] Funciona tanto navegando dentro del sitio (SPA) como entrando directo a la URL. ✅
 
 ---
 
@@ -95,9 +119,10 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] ⚠️ DNI que no figura en el padrón → "Credencial Inválida".
 - [ ] ⚠️ Padrón caído → "No se pudo verificar" (ámbar), con los datos del token.
 - [ ] La página no se indexa (meta robots noindex). ✅
+- [ ] **Tracking de escaneo**: cada verificación suma en "Escaneos de credencial" de `/admin/stats` (guarda sólo ok/fecha, sin datos personales). ✅
 
-### 3.3 Descarga del beneficio en PDF (`/beneficio/[slug]`, agremiado logueado)
-- [ ] Botón "Descargar PDF" genera un PDF A4. ✅
+### 3.3 Descarga del cupón en PDF (`/beneficio/[slug]`, agremiado logueado)
+- [ ] Botón "Descargar mi cupón" genera un PDF A4. ✅
 - [ ] El PDF incluye: datos del beneficio (nombre, descuento, comercio, rubro, ubicación, condiciones, vigencia). ✅
 - [ ] Incluye datos del beneficiario: nombre, matrícula y **DNI enmascarado** (`12.34X.XXX`). ✅
 - [ ] Incluye el **QR de verificación** (abre `/verificar/[token]`). ✅
@@ -133,11 +158,16 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Un usuario "member" (no admin) no puede entrar al panel. ⚠️ Redirige a login.
 
 ### 5.2 Estadísticas (`/admin/stats`)
-- [ ] Tarjetas: Total Agremiados, Beneficios Destacados, Beneficios, Chats Auditados. ✅ Números coherentes.
+- [ ] Tarjetas con **rótulos corregidos**: "Agremiados registrados" (aclara que no es el padrón total), "Beneficios publicados" (con borradores/destacados como subtítulo), "Agremiados activos" (últimos 30 días), "Chats del asistente". ✅ Números coherentes.
+- [ ] Fila de engagement: "Suscriptores push", "Sugerencias nuevas", "Comercios por revisar", "Altas este mes". ✅
+- [ ] Panel **"Salud del catálogo"**: publicados, borradores, por vencer (30 días), con PDF, con ubicación en el mapa. ✅
+- [ ] Panel **"Altas de agremiados"** (mini-gráfico de 6 meses). ✅
+- [ ] Panel **"Sugerencias recibidas"** con desglose por tipo. ✅
 - [ ] Tarjetas de cupones: Generados, Usados, Activos, Tasa de Canje. ✅
 - [ ] Gráfico "Canjes de Cupones" (últimos 7 días). ✅ Con datos dibuja la curva; **sin canjes muestra estado vacío amable**.
 - [ ] Texto pluraliza: "1 canje esta semana" / "N canjes esta semana". ✅
 - [ ] "Beneficios más usados": con datos muestra ranking; **sin datos muestra mensaje amable**. ✅
+- [ ] **Tracking**: tarjetas "Vistas de beneficios", "Descargas de PDF" y "Escaneos de credencial" (válidas / últimos 7 días), y ranking **"Beneficios más vistos"**. ✅ Empiezan en 0 y suben con el uso real.
 - [ ] Reportes CSV (Agremiados, Beneficios, Cupones, Auditoría de Chats) descargan correctamente. ✅
 
 ### 5.3 Carrusel Hero (`/admin/slides`)
@@ -166,6 +196,9 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Cualquier cambio de filtro vuelve a la página 1. ✅
 - [ ] Paginación de 25 por página. ✅
 - [ ] Toggle Activo/Borrador por beneficio. ✅ El borrador no se ve en el sitio público.
+- [ ] **Reordenar (drag & drop)** desde el tirador de la fila: define el orden del listado público. ✅ El nuevo orden se refleja en `/beneficios`.
+- [ ] Beneficios sin orden asignado quedan al final (como hasta ahora). ✅
+- [ ] ⚠️ Con filtros activos, el drag se **deshabilita** y aparece el aviso "Limpiá los filtros para reordenar".
 - [ ] Botón "Enviar notificación push" del beneficio → pide confirmación y envía a los suscriptos. ✅ Reporta enviadas/total.
 - [ ] Acceso del local (ícono llave): crear/actualizar usuario y contraseña del comercio. ✅
 - [ ] ⚠️ Usuario de local ya tomado por otro comercio → error 409.
@@ -174,23 +207,28 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Estado vacío contextual: sin resultados por filtro vs. sin beneficios creados. ✅
 
 ### 5.6 Crear beneficio (`/admin/benefits/nuevo`)
-- [ ] Completar título, descripción, contacto (WhatsApp/Instagram/dirección). ✅
+- [ ] Completar título, contacto (WhatsApp/Instagram/dirección). ✅
 - [ ] **Badge de descuento** se autogenera desde el select de oferta ("20%" → "20% de descuento") y queda de sólo lectura. ✅
 - [ ] Checkbox "Personalizar texto" habilita editar el badge manualmente. ✅
 - [ ] ⚠️ Con texto personalizado cuyo % no coincide con la oferta → advertencia sutil.
 - [ ] Categoría, ubicación, oferta. ✅
-- [ ] Imagen desktop (16:9) y mobile: se optimizan a WebP; opción "usar la misma de desktop". ✅
-- [ ] **Galería**: subir varias fotos (hasta 9), quitar individualmente; contador X/9. ✅
-- [ ] PDF adjunto (lista de precios/menú). ✅
+- [ ] **Editor de descripción (WYSIWYG)**: la barra permite negrita, itálica, listas y enlaces; el texto se ve con formato. ✅
+- [ ] **Sanitización (seguridad)**: pegar/guardar algo con `<script>alert(1)</script>` u `onclick`/`javascript:` → al guardar y renderizar **se elimina** (no ejecuta nada, no queda el tag). ✅ Sólo sobreviven negrita, itálica, listas y enlaces http/https.
+- [ ] **Imágenes del beneficio (galería unificada)**: subir varias fotos (hasta 10) y marcar una como **Principal (★)**; se optimizan a WebP. ✅
+- [ ] La foto Principal alimenta desktop y mobile por defecto; la **vista previa con marco** (16:9 desktop / vertical mobile) muestra cómo se recorta. ✅
+- [ ] **Desktop y mobile distintas**: activar "Usar otra imagen para mobile" (y/o desktop) y elegir/subir otra imagen; la previa refleja cada formato. ✅
+- [ ] "Documentación adicional (PDF)" está en **su propia sección**, separada de las imágenes. ✅
 - [ ] Ubicación en el mapa (coordenadas) y dirección. ✅
 - [ ] Previsualización en vivo (desktop + mobile) refleja los cambios. ✅
 - [ ] Guardar → aparece en el catálogo con aviso "creado exitosamente". ✅
 - [ ] ⚠️ Campos obligatorios vacíos → validación (título, resumen, descripción mínimos).
 
 ### 5.7 Editar beneficio (`/admin/benefits/[id]/editar`)
-- [ ] Carga los datos actuales del beneficio. ✅
+- [ ] Carga los datos actuales del beneficio (incluida la descripción con formato en el editor). ✅
 - [ ] Si el resumen guardado no coincide con el autogenerado, arranca en modo "personalizar texto" (no pisa el texto). ✅
-- [ ] Editar imágenes, galería (conserva las existentes, permite agregar/quitar), PDF. ✅
+- [ ] **Compatibilidad imágenes**: un beneficio con desktop y mobile **distintas** las carga bien (mobile aparece como override) y, al guardar sin tocar nada, **las conserva intactas**. ✅
+- [ ] Editar la galería (conserva las existentes, permite agregar/quitar y cambiar la Principal). ✅
+- [ ] Editar/quitar el PDF de documentación. ✅
 - [ ] Guardar refleja los cambios en el sitio. ✅
 
 ### 5.8 Sponsors (`/admin/sponsors`)
@@ -244,6 +282,7 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Cookies de sesión `httpOnly` y `sameSite=lax`. ✅
 - [ ] Rate limit del login activo. ✅
 - [ ] Subida de imágenes/PDF: sólo formatos esperados; archivos grandes se optimizan. ✅
+- [ ] **Descripción de beneficios sanitizada** en servidor al guardar Y al renderizar (whitelist: negrita, itálica, listas, enlaces http/https). ⚠️ `<script>`, eventos y `javascript:` se eliminan; nunca se ejecuta HTML del usuario. ✅
 - [ ] Con el padrón caído, el sitio sigue operativo (fallback local) y no rompe. ✅
 
 ---

@@ -43,15 +43,17 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 **Qué es:** la pantalla de inicio del panel. Muestra el "estado de salud" del club de un vistazo.
 
 **Qué vas a ver:**
-- **Total de Agremiados**, **Beneficios**, **Beneficios Destacados** y **Chats Auditados**.
-- **Cupones**: generados, usados, activos y **tasa de canje** (qué porcentaje se usó).
-- Un **gráfico** de canjes de los últimos 7 días.
-- **Beneficios más usados** (ranking).
+- **Agremiados registrados** (los que ya entraron al portal — *no* es el padrón total), **Agremiados activos** (ingresaron en los últimos 30 días), **Beneficios publicados** y **Chats del asistente**.
+- **Engagement:** suscriptores a notificaciones push, **sugerencias nuevas** por leer, **comercios por revisar** (solicitudes) y **altas de agremiados este mes**.
+- **Salud del catálogo:** cuántos beneficios están publicados, en borrador, **por vencer** (próximos 30 días), con PDF y con ubicación en el mapa.
+- **Altas de agremiados** por mes (últimos 6 meses) y **sugerencias por tipo**.
+- **Cupones**: generados, usados, activos y **tasa de canje** (qué porcentaje se usó), con un **gráfico** de los últimos 7 días y el ranking de **beneficios más usados**.
+- **Uso real (tracking):** **vistas** de beneficios, **descargas de PDF**, **escaneos de credencial** y el ranking de **beneficios más vistos**.
 - **Reportes descargables** en formato Excel/CSV.
 
 **Cómo descargar un reporte:** hacé clic en cualquier botón de la columna "Reportes Descargables" (Agremiados, Beneficios, Cupones, Auditoría de Chats). Se baja un archivo `.csv` que abrís con Excel o Google Sheets.
 
-> Si todavía no hay canjes, el gráfico y el ranking muestran un mensaje amable en vez de aparecer vacíos. Es normal al principio.
+> Las métricas de tracking (vistas, descargas, escaneos, más vistos) **empiezan en cero** y se van llenando a medida que la gente usa el sitio. Es normal que al principio estén vacías o bajas.
 
 ---
 
@@ -103,6 +105,9 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 - Botón **"Limpiar filtros"** para volver a ver todo.
 - La lista se pagina de a **25**.
 
+**Ordenar el listado (arrastrar):** cada fila tiene un **tirador** (⠿) a la izquierda. Arrastrá las filas para definir el **orden en que se ven en el sitio público**. Los beneficios que nunca ordenaste quedan al final.
+> Para poder arrastrar tenés que **no** tener filtros puestos. Si hay filtros activos, el sistema te avisa "Limpiá los filtros para reordenar".
+
 **Estado de cada beneficio (interruptor):**
 - **Activo:** se ve en el sitio público.
 - **Borrador:** queda guardado pero **no** se muestra al público. Útil para preparar un beneficio antes de publicarlo.
@@ -116,14 +121,18 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 ### 5.1 Crear un beneficio
 
 1. Clic en **"Crear Beneficio"**.
-2. **Título** (nombre del comercio) y **descripción detallada** (condiciones, dirección, etc.).
-3. **Descuento:** elegí la **oferta** en el desplegable. El campo **"Resumen (badge)"** se completa **solo** ("20%" → "20% de descuento").
+2. **Título** (nombre del comercio).
+3. **Descripción detallada** con el **editor de texto**: usá la barra de arriba para poner **negrita**, **itálica**, **listas** y **enlaces**. Escribí las condiciones, aclaraciones, etc.
+   > Por seguridad, el sistema sólo guarda esos formatos. Si pegás código u otras etiquetas raras, se limpian solas.
+4. **Descuento:** elegí la **oferta** en el desplegable. El campo **"Resumen (badge)"** se completa **solo** ("20%" → "20% de descuento").
    - Si querés un texto distinto, tildá **"Personalizar texto"** y escribilo a mano.
    - ⚠️ Si el texto que escribís dice un porcentaje diferente al de la oferta, aparece una **advertencia** para que revises.
-4. **Categoría**, **Ubicación** y **Oferta**.
-5. **Imágenes:** subí la de **escritorio** (formato horizontal 16:9) y, opcionalmente, una de **celular**. Podés marcar "usar la misma de escritorio".
-6. **Galería (opcional):** sumá hasta **9 fotos adicionales** que se ven en un carrusel dentro del beneficio.
-7. **PDF (opcional):** subí una lista de precios, menú o bases y condiciones.
+5. **Categoría**, **Ubicación** y **Oferta**.
+6. **Imágenes del beneficio:** subí las fotos (hasta **10**) y marcá una como **Principal** con la **estrella (★)**. Esa foto es la que se usa como imagen del beneficio.
+   - En la **vista previa con marco** ves cómo se recorta en **escritorio (16:9)** y en **celular (vertical)**. Si aparece el aviso "se recortará", conviene una imagen con esa proporción.
+   - ¿Querés una imagen distinta para el celular (o para escritorio)? Tildá **"Usar otra imagen para mobile"** (o para desktop) y elegí otra foto de la galería o subí una nueva.
+   - Las fotos que no son la principal se muestran en el **carrusel** del beneficio.
+7. **Documentación adicional (PDF, opcional):** más abajo, en su propia sección, podés subir una lista de precios, catálogo o bases y condiciones.
 8. **Ubicación en el mapa:** marcá el punto o pegá las coordenadas para que aparezca el mapa.
 9. Mirá la **previsualización en vivo** (cómo se verá en compu y en celular).
 10. Guardá. Aparece el aviso "creado exitosamente".
@@ -131,10 +140,11 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 ### 5.2 Editar un beneficio
 
 1. En la lista, clic en el **lápiz** ✏️.
-2. Cambiá lo que necesites (mismos campos que al crear).
-3. La galería mantiene las fotos que ya tenía; podés **agregar** o **quitar** fotos.
+2. Cambiá lo que necesites (mismos campos que al crear). La descripción se abre en el **editor de texto** con el formato que ya tenía.
+3. La galería mantiene las fotos que ya tenía; podés **agregar**, **quitar** o cambiar la **Principal (★)**.
 4. Guardá.
 
+> Si un beneficio ya tenía **imágenes distintas para escritorio y celular**, se cargan tal cual (la de celular aparece como "otra imagen para mobile") y se conservan aunque guardes sin tocar nada.
 > Si el resumen guardado no coincide con el que generaría la oferta, el formulario arranca en modo **"Personalizar texto"** para no pisar el texto que ya habías escrito.
 
 ### 5.3 Dar acceso a un comercio
@@ -179,7 +189,14 @@ Sirve para que cada **local** entre a su propio panel (`/comercios`) y registre 
 
 > 🔴 **Eliminar una conversación** del historial es permanente.
 
-**Consejo:** cuanto más clara y completa sea la base de conocimientos, mejores respuestas da el bot.
+**Qué sabe y qué NO hace el bot (ya viene configurado así):**
+- **Conoce los beneficios reales**: puede recomendar por rubro, ubicación o nombre, decir cuáles son los destacados y **cuál es el último agregado**, con el enlace a cada ficha.
+- **Tiene los datos de contacto reales** de la AMP (dirección, teléfonos, WhatsApp) y no los inventa.
+- **Límites de seguridad (no se pueden saltear):** nunca da información de agremiados (cantidades, listados, datos personales ni si alguien está o no agremiado) ni datos internos del sistema. Ante esas preguntas se niega con amabilidad y deriva a la **Secretaría**.
+- **Sólo habla de temas del club, la credencial y la AMP.** Si le preguntan otra cosa, redirige con cortesía.
+- Habla en tono cordial rioplatense y, si no sabe algo, deriva al contacto oficial en vez de inventar.
+
+**Consejo:** el **Tono**, las **Instrucciones** y la **base de conocimientos** ajustan cómo responde, pero los límites de seguridad de arriba se aplican siempre.
 
 ---
 
