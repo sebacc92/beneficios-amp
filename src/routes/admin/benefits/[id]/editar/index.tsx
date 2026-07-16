@@ -9,6 +9,8 @@ import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters } from "~/server/cache";
 import { mergeContacts, splitContacts } from "~/utils/benefit-contacts";
 import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
+import { sanitizeRichText } from "~/utils/sanitize-html";
+import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -305,7 +307,7 @@ export const useEditBenefitAction = routeAction$(
         .set({
           titulo: data.titulo,
           resumen: data.resumen,
-          descripcion: mergeContacts(data.descripcion, data.whatsapp || "", data.instagram || "", data.direccion || ""),
+          descripcion: mergeContacts(sanitizeRichText(data.descripcion), data.whatsapp || "", data.instagram || "", data.direccion || ""),
           imagen: finalImageUrl,
           imagenMobile: finalImageMobileUrl,
           galeria: finalGaleria,
@@ -661,15 +663,9 @@ export default component$(() => {
 
         <div class="space-y-1">
           <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción Detallada</label>
-          <textarea
-            name="descripcion"
-            required
-            rows={3}
-            value={split.body}
-            placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
-            onInput$={(e) => { editPreviewDescripcion.value = (e.target as HTMLTextAreaElement).value; }}
-            class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-          />
+          <RichTextEditor value={editPreviewDescripcion} placeholder="Escribí los detalles del descuento y las condiciones…" />
+          <input type="hidden" name="descripcion" value={editPreviewDescripcion.value} />
+          <p class="text-[10px] text-slate-400 font-medium">Formato disponible: negrita, itálica, listas y enlaces.</p>
         </div>
 
         {/* Contacto del local (se muestra en la ficha pública) */}

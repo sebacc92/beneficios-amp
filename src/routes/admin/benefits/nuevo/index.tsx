@@ -8,6 +8,8 @@ import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters } from "~/server/cache";
 import { mergeContacts } from "~/utils/benefit-contacts";
 import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
+import { sanitizeRichText } from "~/utils/sanitize-html";
+import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -277,7 +279,7 @@ export const useCreateBenefitAction = routeAction$(
         id: uuid,
         titulo: data.titulo,
         resumen: data.resumen,
-        descripcion: mergeContacts(data.descripcion, data.whatsapp || "", data.instagram || "", data.direccion || ""),
+        descripcion: mergeContacts(sanitizeRichText(data.descripcion), data.whatsapp || "", data.instagram || "", data.direccion || ""),
         imagen: uploadedImageUrl,
         imagenMobile: uploadedImageMobileUrl,
         galeria: galeriaJson,
@@ -355,7 +357,7 @@ export default component$(() => {
   // Live preview signals
   const createPreviewTitulo = useSignal("Nombre del Comercio");
   const createPreviewResumen = useSignal("20% de descuento");
-  const createPreviewDescripcion = useSignal("Breve descripción de las condiciones del beneficio...");
+  const createPreviewDescripcion = useSignal("");
   const createPreviewIsFeatured = useSignal(false);
   const createPreviewCategory = useSignal("");
   const createPreviewLocation = useSignal("");
@@ -585,14 +587,9 @@ export default component$(() => {
 
         <div class="space-y-1">
           <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción Detallada</label>
-          <textarea
-            name="descripcion"
-            required
-            rows={3}
-            placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
-            onInput$={(e) => { createPreviewDescripcion.value = (e.target as HTMLTextAreaElement).value; }}
-            class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-          />
+          <RichTextEditor value={createPreviewDescripcion} placeholder="Escribí los detalles del descuento y las condiciones…" />
+          <input type="hidden" name="descripcion" value={createPreviewDescripcion.value} />
+          <p class="text-[10px] text-slate-400 font-medium">Formato disponible: negrita, itálica, listas y enlaces.</p>
         </div>
 
         {/* Contacto del local (se muestra en la ficha pública) */}

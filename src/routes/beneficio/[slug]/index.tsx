@@ -9,6 +9,7 @@ import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
 import { maskDni } from "~/utils/mask";
 import { pctFromText } from "~/utils/discount";
+import { sanitizeRichText } from "~/utils/sanitize-html";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
@@ -953,7 +954,7 @@ export default component$(() => {
                     Detalle del Beneficio
                   </h2>
                   <div
-                    dangerouslySetInnerHTML={stripDuplicatedContactLines(benefit.descripcion)}
+                    dangerouslySetInnerHTML={sanitizeRichText(stripDuplicatedContactLines(benefit.descripcion))}
                     class="space-y-4 text-sm md:text-base leading-relaxed break-words"
                   />
                 </div>
