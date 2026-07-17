@@ -1,6 +1,6 @@
 import { component$, useVisibleTask$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { getBenefitBySlug, getBenefits, bumpBenefitCounter, type Benefit } from "~/server/cache";
+import { getBenefitBySlug, getCustomBenefits, bumpBenefitCounter, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "../../layout";
 import { LuLock } from "@qwikest/icons/lucide";
 import { and, eq } from "drizzle-orm";
@@ -84,11 +84,18 @@ export const useBenefitData = routeLoader$(async (event) => {
     await bumpBenefitCounter(event, event.params.slug, "views");
   }
 
-  // Find 3 similar benefits from the same category
-  const allBenefits = await getBenefits();
+  // Beneficios similares: de la BASE (catálogo real, consistente con el listado),
+  // misma categoría, solo visibles y excluyendo el actual.
+  const allBenefits = await getCustomBenefits(event);
   const categoryIds = benefit.categorias.map((c) => c.id);
   const similar = allBenefits
-    .filter((b) => b.id !== benefit.id && b.categorias.some((c) => categoryIds.includes(c.id)))
+    .filter(
+      (b) =>
+        b.id !== benefit.id &&
+        b.mostrar_app !== 0 &&
+        b.isActive !== false &&
+        b.categorias.some((c) => categoryIds.includes(c.id))
+    )
     .slice(0, 3);
 
   // Extract contact links for quick-action buttons

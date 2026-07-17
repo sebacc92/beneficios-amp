@@ -11,7 +11,7 @@ export const useBenefitsMapData = routeLoader$(async (event) => {
     requestEvent: event
   });
   
-  const filters = await getFilters();
+  const filters = await getFilters(event);
 
   return {
     benefits: searchResult.data.filter(b => b.latitud && b.longitud && !isNaN(Number(b.latitud)) && !isNaN(Number(b.longitud))),

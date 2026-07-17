@@ -34,7 +34,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
     isCampaignOnly: isCampaign
   });
 
-  const filters = await getFilters();
+  const filters = await getFilters(event);
   const settings = await getSettings(event).catch(() => null);
 
   return {

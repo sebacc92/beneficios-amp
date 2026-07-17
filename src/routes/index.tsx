@@ -59,7 +59,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
     requestEvent: event,
   });
 
-  const filters = await getFilters();
+  const filters = await getFilters(event);
 
   let settings = null;
   try { settings = await getSettings(event); } catch (err) { console.error("Failed to load settings in homepage loader:", err); }

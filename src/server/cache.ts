@@ -205,36 +205,48 @@ export async function getBenefits(): Promise<Benefit[]> {
   return globalCached.__benefitsCache.benefits || [];
 }
 
-export async function getFilters(): Promise<Filters> {
+export async function getFilters(requestEvent?: RequestEventBase): Promise<Filters> {
   await initCache();
   const cache = globalCached.__benefitsCache;
   if (!cache || !cache.filters) {
     return { categorias: [], ubicaciones: [], ofertas: [] };
   }
 
-  const benefits = cache.benefits || [];
-  const categoryCounts: Record<number, number> = {};
-
-  for (const b of benefits) {
-    if (b.categorias) {
-      for (const cat of b.categorias) {
-        if (cat && cat.id) {
-          categoryCounts[cat.id] = (categoryCounts[cat.id] || 0) + 1;
-        }
-      }
+  // Universo para contar. Con requestEvent se cuenta contra la BASE (catálogo real,
+  // solo visibles); si no, contra el snapshot seed. getCustomBenefits llama a
+  // getFilters() SIN requestEvent, así que no hay recursión.
+  let countingBenefits: Benefit[] = cache.benefits || [];
+  if (requestEvent) {
+    try {
+      const dbBenefits = await getCustomBenefits(requestEvent);
+      countingBenefits = dbBenefits.filter((b) => b.mostrar_app !== 0 && b.isActive !== false);
+    } catch (e) {
+      console.error("[getFilters] no se pudo contar desde la base; se usa el seed:", e);
     }
   }
 
+  const categoryCounts: Record<number, number> = {};
+  const locationCounts: Record<number, number> = {};
+  const offerCounts: Record<number, number> = {};
+  for (const b of countingBenefits) {
+    for (const cat of b.categorias || []) if (cat?.id) categoryCounts[cat.id] = (categoryCounts[cat.id] || 0) + 1;
+    for (const loc of b.ubicacion || []) if (loc?.id) locationCounts[loc.id] = (locationCounts[loc.id] || 0) + 1;
+    for (const off of b.ofertas || []) if (off?.id) offerCounts[off.id] = (offerCounts[off.id] || 0) + 1;
+  }
+
   const sortedCategorias = [...(cache.filters.categorias || [])]
-    .map((cat: any) => ({
-      ...cat,
-      beneficios_count: categoryCounts[cat.id] || 0,
-    }))
+    .map((cat: any) => ({ ...cat, beneficios_count: categoryCounts[cat.id] || 0 }))
     .sort((a: any, b: any) => (b.beneficios_count || 0) - (a.beneficios_count || 0));
+  const ubicaciones = [...(cache.filters.ubicaciones || [])]
+    .map((loc: any) => ({ ...loc, beneficios_count: locationCounts[loc.id] || 0 }));
+  const ofertas = [...(cache.filters.ofertas || [])]
+    .map((off: any) => ({ ...off, beneficios_count: offerCounts[off.id] || 0 }));
 
   return {
     ...cache.filters,
     categorias: sortedCategorias,
+    ubicaciones,
+    ofertas,
   };
 }
 
@@ -509,6 +521,11 @@ export async function ensureGalleryTable(db: any) {
 
 // Transforms DB custom benefits schema into standard cached Benefit interface elements
 export async function getCustomBenefits(requestEvent: RequestEventBase): Promise<Benefit[]> {
+  // Memoización por request: una misma solicitud puede pedir el catálogo varias
+  // veces (listado + filtros + similares). Se cachea en sharedMap para no repetir
+  // las consultas a la base dentro del mismo request.
+  const cached = requestEvent.sharedMap.get("__customBenefits") as Benefit[] | undefined;
+  if (cached) return cached;
   try {
     const db = getDB(requestEvent);
     // Automatically guarantee database is populated from seed.json on start
@@ -529,7 +546,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
       ordenMap = {};
     }
 
-    return dbBenefits.map((cb) => {
+    const mapped = dbBenefits.map((cb) => {
       const cat = filters.categorias.find((c) => c.id === cb.categoryId) || { id: cb.categoryId, descripcion: "Otro" };
       const loc = filters.ubicaciones.find((l) => l.id === cb.locationId) || { id: cb.locationId, descripcion: "La Plata" };
       const off = filters.ofertas.find((o) => o.id === cb.offerId) || { id: cb.offerId, descripcion: "Especial" };
@@ -585,6 +602,9 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         orden: ordenMap[cb.id] ?? 0,
       } as Benefit;
     });
+
+    requestEvent.sharedMap.set("__customBenefits", mapped);
+    return mapped;
   } catch (err) {
     console.error("Failed to load custom benefits from DB:", err);
     return [];
