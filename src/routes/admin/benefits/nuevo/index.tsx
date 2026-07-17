@@ -12,6 +12,7 @@ import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import { uploadImageDataUrl } from "~/utils/upload-image";
+import { uploadFileToBlob } from "~/utils/upload-file-client";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // Etiquetas legibles para mostrar qué campo obligatorio falló la validación.
@@ -42,42 +43,9 @@ export const useCreateBenefitAction = routeAction$(
       const uuid = "cb-" + Date.now().toString();
       const slug = uuid + "-" + data.titulo.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
 
-      let uploadedPdfUrl = null;
-
-      if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
-        const file = data.pdfFile as File;
-
-        // Attempt Vercel Blob Upload
-        let uploaded = false;
-        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
-          try {
-            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
-              access: "public",
-              token: token
-            });
-            uploadedPdfUrl = blob.url;
-            uploaded = true;
-            console.log("[Vercel Blob] Uploaded PDF to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!uploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-
-          const extension = file.name.split(".").pop() || "pdf";
-          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedPdfUrl = `/uploads/${fileName}`;
-        }
-      }
+      // El PDF se sube DIRECTO del navegador a Blob (client upload) y llega acá
+      // como URL en data.pdfUrl. Así el formulario no carga el archivo en el POST.
+      const uploadedPdfUrl = data.pdfUrl || null;
 
       let uploadedImageUrl = null;
       let imageUploaded = false;
@@ -361,6 +329,9 @@ export default component$(() => {
   // Subidas en curso (>0 = deshabilitar guardar) y último error de subida.
   const createUploading = useSignal<number>(0);
   const createUploadError = useSignal<string>("");
+  // PDF: se sube a Blob al seleccionarlo y guardamos la URL (no el archivo).
+  const createPdfUrl = useSignal<string>("");
+  const createPdfName = useSignal<string>("");
   // Overrides por formato (null = usar la principal). Permiten desktop y mobile
   // distintos (ej. horizontal en desktop, vertical en mobile).
   const createDesktopIdx = useSignal<number | null>(null);
@@ -522,6 +493,27 @@ export default component$(() => {
     };
     reader.readAsDataURL(file);
     element.value = "";
+  });
+
+  // PDF: sube el archivo directo a Blob al seleccionarlo y guarda la URL.
+  const handleCreatePdfChange = $(async (event: Event) => {
+    const el = event.target as HTMLInputElement;
+    const file = el.files?.[0];
+    if (!file) return;
+    createUploading.value++;
+    try {
+      const res = await uploadFileToBlob(file, "benefit-pdf");
+      if ("url" in res) {
+        createPdfUrl.value = res.url;
+        createPdfName.value = file.name;
+        createDirty.value = true;
+      } else {
+        createUploadError.value = res.error;
+      }
+    } finally {
+      createUploading.value--;
+      el.value = "";
+    }
   });
 
   // Fotos resueltas por formato (con override o, si no, la principal).
@@ -913,13 +905,26 @@ export default component$(() => {
           </h4>
           <div class="space-y-2 max-w-md">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Catálogo / Lista de precios (PDF)</label>
+            <input type="hidden" name="pdfUrl" value={createPdfUrl.value} />
             <input
               type="file"
-              name="pdfFile"
               accept="application/pdf"
+              onChange$={handleCreatePdfChange}
               class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
             />
-            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones.</p>
+            {createPdfUrl.value && (
+              <p class="text-[11px] text-slate-650 font-semibold flex items-center gap-2">
+                <span class="truncate max-w-[220px]">📄 {createPdfName.value || "Documento"} — subido ✓</span>
+                <button
+                  type="button"
+                  onClick$={() => { createPdfUrl.value = ""; createPdfName.value = ""; createDirty.value = true; }}
+                  class="text-red-600 hover:text-red-700 font-bold"
+                >
+                  Quitar
+                </button>
+              </p>
+            )}
+            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones · PDF · hasta ~20 MB.</p>
           </div>
         </div>
 

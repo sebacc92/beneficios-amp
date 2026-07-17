@@ -13,6 +13,7 @@ import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
 import { uploadImageDataUrl } from "~/utils/upload-image";
+import { uploadFileToBlob } from "~/utils/upload-file-client";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 export const useAdminFiltersLoader = routeLoader$(async (event) => {
@@ -48,41 +49,12 @@ export const useEditBenefitAction = routeAction$(
       const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
       if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
 
+      // El PDF se sube DIRECTO del navegador a Blob (client upload) y llega como
+      // URL en data.pdfUrl. Si no hay uno nuevo pero se pidió borrar, se anula;
+      // si no, se conserva el existente.
       let finalPdfUrl = existing.pdfUrl;
-
-      if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
-        const file = data.pdfFile as File;
-
-        // Attempt Vercel Blob Upload
-        let uploaded = false;
-        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
-          try {
-            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
-              access: "public",
-              token: token
-            });
-            finalPdfUrl = blob.url;
-            uploaded = true;
-            console.log("[Vercel Blob] Uploaded PDF during edit to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed during edit, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!uploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-
-          const extension = file.name.split(".").pop() || "pdf";
-          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          finalPdfUrl = `/uploads/${fileName}`;
-        }
+      if (data.pdfUrl) {
+        finalPdfUrl = data.pdfUrl;
       } else if (data.clearPdf === "true") {
         finalPdfUrl = null;
       }
@@ -425,6 +397,9 @@ export default component$(() => {
   // Subidas en curso (>0 = deshabilitar guardar) y último error de subida.
   const editUploading = useSignal<number>(0);
   const editUploadError = useSignal<string>("");
+  // PDF nuevo subido a Blob (reemplaza al existente si hay).
+  const editNewPdfUrl = useSignal<string>("");
+  const editNewPdfName = useSignal<string>("");
   // Overrides por formato (null = usar la principal).
   const editDesktopIdx = useSignal<number | null>(null);
   const editMobileIdx = useSignal<number | null>(editInitialImages.mobileIdx);
@@ -585,6 +560,28 @@ export default component$(() => {
     };
     reader.readAsDataURL(file);
     element.value = "";
+  });
+
+  // PDF: sube el archivo directo a Blob al seleccionarlo y guarda la URL nueva.
+  const handleEditPdfChange = $(async (event: Event) => {
+    const el = event.target as HTMLInputElement;
+    const file = el.files?.[0];
+    if (!file) return;
+    editUploading.value++;
+    try {
+      const res = await uploadFileToBlob(file, "benefit-pdf");
+      if ("url" in res) {
+        editNewPdfUrl.value = res.url;
+        editNewPdfName.value = file.name;
+        editIsPdfDeleted.value = false;
+        editDirty.value = true;
+      } else {
+        editUploadError.value = res.error;
+      }
+    } finally {
+      editUploading.value--;
+      el.value = "";
+    }
   });
 
   // Resuelve la URL para mostrar (data URLs y URLs absolutas/relativas se usan tal
@@ -998,19 +995,34 @@ export default component$(() => {
           <input type="hidden" name="clearPdf" value={editIsPdfDeleted.value ? "true" : "false"} />
           <div class="space-y-2 max-w-md">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Catálogo / Lista de precios (PDF)</label>
+            <input type="hidden" name="pdfUrl" value={editNewPdfUrl.value} />
             <div class="flex flex-col gap-2">
               <input
                 id="edit-pdf-file-input"
                 type="file"
-                name="pdfFile"
                 accept="application/pdf"
-                onChange$={() => {
-                  editIsPdfDeleted.value = false;
-                }}
+                onChange$={handleEditPdfChange}
                 class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
               />
 
-              {benefit.value.pdfUrl && !editIsPdfDeleted.value && (
+              {/* PDF nuevo recién subido */}
+              {editNewPdfUrl.value && (
+                <div class="flex items-center justify-between bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
+                  <span class="text-xs font-semibold text-emerald-800 truncate max-w-[200px]" title={editNewPdfName.value}>
+                    📄 {editNewPdfName.value || "Documento"} — subido ✓
+                  </span>
+                  <button
+                    type="button"
+                    onClick$={() => { editNewPdfUrl.value = ""; editNewPdfName.value = ""; editDirty.value = true; }}
+                    class="text-[10px] text-red-650 hover:underline font-bold"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              )}
+
+              {/* PDF existente (solo si no se subió uno nuevo ni se borró) */}
+              {benefit.value.pdfUrl && !editIsPdfDeleted.value && !editNewPdfUrl.value && (
                 <div class="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
                   <span class="text-xs font-semibold text-slate-650 truncate max-w-[200px]" title={benefit.value.pdfUrl.split('/').pop()}>
                     📄 {benefit.value.pdfUrl.split('/').pop()}
@@ -1029,7 +1041,10 @@ export default component$(() => {
                 </div>
               )}
             </div>
-            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones.</p>
+            {editUploadError.value && (
+              <p class="text-[11px] text-red-600 font-bold">{editUploadError.value}</p>
+            )}
+            <p class="text-[10px] text-slate-400 font-medium">Opcional. Subí la lista de precios, menú o bases y condiciones · PDF · hasta ~20 MB.</p>
           </div>
         </div>
 
