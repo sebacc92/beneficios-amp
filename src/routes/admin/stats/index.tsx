@@ -13,7 +13,7 @@ import {
 } from "~/db/schema";
 import { getSessions } from "~/server/chatbotDb";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
-import { ensureDbSeeded, ensureTrackingSchema } from "~/server/cache";
+import { ensureDbSeeded, ensureTrackingSchema, ensureMerchantRequestsTable } from "~/server/cache";
 
 const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -144,6 +144,10 @@ export const useEngagementStats = routeLoader$(async (event) => {
   };
   try {
     const db = getDB(event);
+    // La tabla merchant_requests se crea de forma perezosa (solo al recibir el
+    // primer formulario de comercios). La garantizamos acá para que las stats no
+    // fallen cuando todavía no hay ninguna solicitud cargada.
+    await ensureMerchantRequestsTable(db);
     const [sugRows, merchRows, pushRows] = await Promise.all([
       db.select().from(suggestionsTable),
       db.select().from(merchantRequestsTable),

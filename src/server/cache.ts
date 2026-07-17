@@ -69,135 +69,40 @@ if (!globalCached.__benefitsCache) {
   };
 }
 
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 15000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
-}
-
-export async function initCache(force = false): Promise<{ benefitsCount: number; success: boolean }> {
-  const now = Date.now();
+/**
+ * Inicializa la caché en memoria del "catálogo base" (categorías, ubicaciones,
+ * ofertas y el snapshot de beneficios) desde `data/seed.json`.
+ *
+ * Históricamente esto se traía en vivo desde `beneficios.amepla.org.ar`, pero ese
+ * sitio se reemplaza por este, así que ese fetch quedó obsoleto (se usó una sola
+ * vez para generar el seed). Los beneficios reales/editables salen de la base
+ * (Turso) vía getCustomBenefits(); este seed solo aporta el catálogo de filtros
+ * y un fallback estático. Al ser estático, se carga una vez y queda cacheado.
+ */
+export async function initCache(): Promise<{ benefitsCount: number; success: boolean }> {
   const cache = globalCached.__benefitsCache;
-  if (!force && cache.benefits && cache.filters && now - cache.lastFetchTime < CACHE_TTL) {
+  if (cache.benefits && cache.filters) {
     return { benefitsCount: cache.benefits.length, success: true };
   }
 
-  console.log('[Cache] Refreshing benefits and filters cache...');
   try {
-    // To completely prevent Vercel 504 Function Invocation Timeout, we serve the local seed data by default.
-    // The live database custom benefits are queried directly from Turso, so they are always 100% up-to-date.
-    if (!force) {
-      const localSeed = await import('./data/seed.json').catch(() => null);
-      if (localSeed && localSeed.benefits && localSeed.filters) {
-        globalCached.__benefitsCache = {
-          benefits: localSeed.benefits as Benefit[],
-          filters: localSeed.filters as Filters,
-          lastFetchTime: now
-        };
-        console.log(`[Cache] Instantly initialized cache from local seed: ${localSeed.benefits.length} benefits.`);
-        return { benefitsCount: localSeed.benefits.length, success: true };
-      }
+    const localSeed = await import('./data/seed.json').catch(() => null);
+    if (localSeed && localSeed.benefits && localSeed.filters) {
+      globalCached.__benefitsCache = {
+        benefits: localSeed.benefits as Benefit[],
+        filters: localSeed.filters as Filters,
+        lastFetchTime: Date.now()
+      };
+      return { benefitsCount: localSeed.benefits.length, success: true };
     }
-
-    // 1. Fetch filters with an 8 second timeout to avoid blocking startup
-    const filtersRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/filtros/beneficios', {}, 8000);
-    if (!filtersRes.ok) throw new Error(`Filters API returned ${filtersRes.status}`);
-    const filtersData = await filtersRes.json() as Filters;
-
-    // Test page 1 first to check if API is responding fast
-    const testPageRes = await fetchWithTimeout('https://beneficios.amepla.org.ar/api/v1/beneficios?page=1', {}, 8000);
-    if (!testPageRes.ok) throw new Error(`API returned ${testPageRes.status} on page 1`);
-    const testPageJson = await testPageRes.json();
-    const totalPages = testPageJson.last_page || 45;
-
-    const allData: Benefit[] = [...(testPageJson.data || [])];
-    const batchSize = 4; // Smaller batch size to prevent overloading WAF / rate limits
-
-    for (let i = 2; i <= totalPages; i += batchSize) {
-      const batchPromises: Promise<Benefit[]>[] = [];
-      for (let page = i; page < i + batchSize && page <= totalPages; page++) {
-        batchPromises.push(
-          fetchWithTimeout(`https://beneficios.amepla.org.ar/api/v1/beneficios?page=${page}`, {}, 10000)
-            .then(async (res) => {
-              if (!res.ok) throw new Error(`Status ${res.status}`);
-              const json = await res.json();
-              return (json.data || []) as Benefit[];
-            })
-            .catch((err) => {
-              console.error(`[Cache] Error page ${page}:`, err.message);
-              return [] as Benefit[];
-            })
-        );
-      }
-      const results = await Promise.all(batchPromises);
-      for (const items of results) {
-        allData.push(...items);
-      }
-    }
-
-    // Remove duplicates by ID just in case
-    const seenIds = new Set<number>();
-    const uniqueBenefits: Benefit[] = [];
-    
-    for (const item of allData) {
-      if (!seenIds.has(item.id)) {
-        seenIds.add(item.id);
-        uniqueBenefits.push(item);
-      }
-    }
-
-    if (uniqueBenefits.length === 0) {
-      throw new Error('No benefits fetched from API');
-    }
-
-    globalCached.__benefitsCache = {
-      benefits: uniqueBenefits.map(item => ({
-        ...item,
-        isFeatured: item.orden_app !== null && item.orden_app !== undefined && item.orden_app > 0
-      })),
-      filters: filtersData,
-      lastFetchTime: now
-    };
-
-    console.log(`[Cache] Successfully cached ${uniqueBenefits.length} benefits and filters.`);
-    return { benefitsCount: uniqueBenefits.length, success: true };
-  } catch (error: any) {
-    console.error('[Cache] Failed to fetch live data:', error.message);
-    
-    // Attempt fallback from local JSON files if they exist (helps with build & offline dev)
-    try {
-      const localSeed = await import('./data/seed.json').catch(() => null);
-      if (localSeed && localSeed.benefits && localSeed.filters) {
-        globalCached.__benefitsCache = {
-          benefits: localSeed.benefits as Benefit[],
-          filters: localSeed.filters as Filters,
-          lastFetchTime: now
-        };
-        console.log(`[Cache] Loaded fallback seed data: ${localSeed.benefits.length} benefits.`);
-        return { benefitsCount: localSeed.benefits.length, success: true };
-      }
-    } catch (fallbackError) {
-      console.error('[Cache] Fallback seed loading failed:', fallbackError);
-    }
-
-    // If cache is empty and API failed, initialize with empty structures to avoid crash
-    if (!globalCached.__benefitsCache.benefits) globalCached.__benefitsCache.benefits = [];
-    if (!globalCached.__benefitsCache.filters) globalCached.__benefitsCache.filters = { categorias: [], ubicaciones: [], ofertas: [] };
-    
-    return { benefitsCount: globalCached.__benefitsCache.benefits.length, success: false };
+  } catch (error) {
+    console.error('[Cache] No se pudo cargar el seed local:', error);
   }
+
+  // Sin seed: estructuras vacías para no romper el render.
+  if (!globalCached.__benefitsCache.benefits) globalCached.__benefitsCache.benefits = [];
+  if (!globalCached.__benefitsCache.filters) globalCached.__benefitsCache.filters = { categorias: [], ubicaciones: [], ofertas: [] };
+  return { benefitsCount: globalCached.__benefitsCache.benefits.length, success: false };
 }
 
 export async function getBenefits(): Promise<Benefit[]> {
@@ -523,6 +428,29 @@ export async function recordCredentialScan(requestEvent: RequestEventBase, ok: b
   } catch (err) {
     console.error("[Tracking] recordCredentialScan failed:", err);
   }
+}
+
+/**
+ * Crea la tabla `merchant_requests` en runtime (patrón de seeding del proyecto).
+ * Antes solo se creaba al enviar el formulario de "sumate como comercio", así que
+ * si nadie lo había usado todavía la tabla no existía y las stats fallaban con
+ * "no such table: merchant_requests". La garantizamos también al leer.
+ */
+export async function ensureMerchantRequestsTable(db: any) {
+  const { sql } = await import("drizzle-orm");
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS merchant_requests (
+      id TEXT PRIMARY KEY,
+      business_name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      contact_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      proposal TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL
+    )
+  `);
 }
 
 /** Crea la tabla `gallery_images` en runtime (patrón de seeding del proyecto). */

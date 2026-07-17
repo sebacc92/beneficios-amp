@@ -1,6 +1,6 @@
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded, ensureGalleryTable } from "~/server/cache";
+import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded, ensureGalleryTable, ensureMerchantRequestsTable } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
@@ -130,8 +130,7 @@ export const submitMerchantRequest = server$(async function (data: {
   try {
     const db = getDB(this);
     try {
-      const { sql } = await import("drizzle-orm");
-      await db.run(sql`CREATE TABLE IF NOT EXISTS merchant_requests (id TEXT PRIMARY KEY, business_name TEXT NOT NULL, category TEXT NOT NULL, contact_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
+      await ensureMerchantRequestsTable(db);
     } catch { console.info("merchant_requests table check completed."); }
     const id = Math.random().toString(36).substring(2, 9);
     await db.insert(merchantRequests).values({ id, businessName: data.businessName, category: data.category, contactName: data.contactName, email: data.email, phone: data.phone, proposal: data.proposal, status: "pending", createdAt: new Date().toISOString() });
