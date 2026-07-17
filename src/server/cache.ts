@@ -43,7 +43,6 @@ export interface Benefit {
   categorias: Category[];
   ubicacion: Location[]; // Note: Singular in original API response but is an array
   ofertas: Offer[];
-  isPremiumOnly?: boolean; // Premium badge
   isFeatured?: boolean; // Featured status
   pdfUrl?: string | null; // PDF file document URL or path
   imagenMobile?: string | null; // Mobile image URL or path
@@ -279,7 +278,6 @@ export async function ensureDbSeeded(db: any) {
         imagen: b.imagen || null,
         slug: b.url,
         isFeatured: b.orden_app !== null && b.orden_app !== undefined && b.orden_app > 0,
-        isPremiumOnly: false,
         categoryId: catId,
         locationId: locId,
         offerId: offId,
@@ -577,7 +575,6 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         ofertas: [off],
         orden_app: cb.isFeatured ? 1 : 0,
         mostrar_app: isActive ? 1 : 0,
-        isPremiumOnly: cb.isPremiumOnly,
         isFeatured: cb.isFeatured,
         pdfUrl: cb.pdfUrl || null,
         imagenMobile: cb.imagenMobile || null,
@@ -630,7 +627,6 @@ export interface SearchParams {
   page?: number;
   limit?: number;
   requestEvent?: RequestEventBase; // Support fetching custom DB benefits
-  isPremiumOnly?: boolean;
   isCampaignOnly?: boolean;
 }
 
@@ -735,12 +731,6 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
     filtered = filtered.filter(b => b.ofertas.some(o => o.id === offerId));
   }
 
-  // 6. Gold/Premium filter
-  if (params.isPremiumOnly) {
-    filtered = filtered.filter(b => b.isPremiumOnly);
-  }
-
-  // Orden consistente: destacados primero, luego alfabético por título.
   // Orden: primero los que tienen orden manual (asc); el resto (orden 0) al final,
   // como hasta ahora: destacados primero, luego alfabético por título.
   filtered = [...filtered].sort((a, b) => {

@@ -285,7 +285,6 @@ export const useCreateBenefitAction = routeAction$(
         galeria: galeriaJson,
         slug,
         isFeatured: data.isFeatured === "on",
-        isPremiumOnly: false,
         categoryId: Number(data.categoryId),
         locationId: Number(data.locationId),
         offerId: Number(data.offerId),

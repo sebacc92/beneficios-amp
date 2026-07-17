@@ -51,14 +51,12 @@ export const useBenefitsData = routeLoader$(async (event) => {
   const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
   const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
   const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
-  const isGoldOnly = url.searchParams.get("gold") === "1";
   const isMap = url.searchParams.get("vista") === "mapa";
 
   const searchResult = await searchBenefits({
     query, categoryId, locationId, offerId, page,
     limit: isMap ? 1000 : 12,
     requestEvent: event,
-    isPremiumOnly: isGoldOnly
   });
 
   const filters = await getFilters();
@@ -67,7 +65,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
   try { settings = await getSettings(event); } catch (err) { console.error("Failed to load settings in homepage loader:", err); }
 
   let curatedRows = null;
-  if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
+  if (!query && !categoryId && !locationId && !offerId && page === 1) {
     try {
       const all = await searchBenefits({ limit: 1000, requestEvent: event });
       const items = all.data;

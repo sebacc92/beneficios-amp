@@ -312,7 +312,6 @@ export const useEditBenefitAction = routeAction$(
           imagenMobile: finalImageMobileUrl,
           galeria: finalGaleria,
           isFeatured: data.isFeatured === "on",
-          isPremiumOnly: false,
           categoryId: Number(data.categoryId),
           locationId: Number(data.locationId),
           offerId: Number(data.offerId),

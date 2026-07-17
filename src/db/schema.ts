@@ -76,7 +76,6 @@ export const customBenefits = sqliteTable("custom_benefits", {
   galeria: text("galeria"), // JSON array of extra image URLs (gallery)
   slug: text("slug").unique().notNull(),
   isFeatured: integer("is_featured", { mode: "boolean" }).default(false).notNull(),
-  isPremiumOnly: integer("is_premium_only", { mode: "boolean" }).default(false).notNull(),
   categoryId: integer("category_id").notNull(),
   locationId: integer("location_id").notNull(),
   offerId: integer("offer_id").notNull(),
