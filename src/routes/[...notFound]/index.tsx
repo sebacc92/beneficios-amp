@@ -18,7 +18,7 @@ export default component$(() => {
     { href: "/", label: "Inicio", icon: LuHome },
     { href: "/beneficios", label: "Beneficios", icon: LuTicket },
     { href: "/mapa", label: "Mapa", icon: LuMapPin },
-    { href: "/sugerencias", label: "Contacto", icon: LuMessageSquare },
+    { href: "/sugerencias", label: "Sugerencias", icon: LuMessageSquare },
   ];
 
   return (
