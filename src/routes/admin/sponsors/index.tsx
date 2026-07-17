@@ -1,7 +1,7 @@
-import { component$, useSignal, $, useTask$ } from "@builder.io/qwik";
+import { component$, useSignal, $, useTask$, useVisibleTask$ } from "@builder.io/qwik";
 import { put } from "@vercel/blob";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight } from "@qwikest/icons/lucide";
+import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight, LuX } from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable } from "~/db/schema";
@@ -284,6 +284,34 @@ export default component$(() => {
   const formLinkUrl = useSignal("");
   const sponsorPreviewUrl = useSignal<string | null>(null);
   const optimizedImageBase64 = useSignal<string>("");
+  // Modal: control de foco, "cambios sin guardar" y cierre.
+  const nameInputRef = useSignal<HTMLInputElement>();
+  const formDirty = useSignal(false);
+
+  const closeForm = $(() => {
+    if (formDirty.value && !window.confirm("Hay cambios sin guardar. ¿Querés cerrar de todos modos?")) {
+      return;
+    }
+    isFormOpen.value = false;
+    editingSponsor.value = null;
+    formDirty.value = false;
+  });
+
+  // Al abrir el modal: foco en el primer campo y cierre con Escape.
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track, cleanup }) => {
+    track(() => isFormOpen.value);
+    if (!isFormOpen.value) return;
+    const t = setTimeout(() => nameInputRef.value?.focus(), 60);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeForm();
+    };
+    window.addEventListener("keydown", onKey);
+    cleanup(() => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+    });
+  });
 
   // Reorder local signals mirroring database loader
   const orderedSponsors = useSignal<any[]>([]);
@@ -299,8 +327,8 @@ export default component$(() => {
     formLinkUrl.value = sp.linkUrl || "";
     sponsorPreviewUrl.value = sp.imageUrl;
     optimizedImageBase64.value = "";
+    formDirty.value = false;
     isFormOpen.value = true;
-    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   const handleNewClick = $(() => {
@@ -309,7 +337,8 @@ export default component$(() => {
     formLinkUrl.value = "";
     sponsorPreviewUrl.value = null;
     optimizedImageBase64.value = "";
-    isFormOpen.value = !isFormOpen.value;
+    formDirty.value = false;
+    isFormOpen.value = true;
   });
 
   // Client-side instant reorder with autosave submit
@@ -357,43 +386,49 @@ export default component$(() => {
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
-            <span>{isFormOpen.value && !editingSponsor.value ? "Cerrar Panel" : "Añadir Sponsor"}</span>
+            <span>Añadir Sponsor</span>
           </button>
         </div>
       </div>
 
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
-        {/* Dynamic Form Panel (Create or Edit) */}
+        {/* Modal de creación / edición de sponsor */}
         {isFormOpen.value && (
-          <Form 
-            action={editingSponsor.value ? updateSponsorAction : createSponsorAction} 
-            enctype="multipart/form-data" 
+          <div
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-300"
+            onClick$={(e, el) => { if (e.target === el) closeForm(); }}
+          >
+          <Form
+            action={editingSponsor.value ? updateSponsorAction : createSponsorAction}
+            enctype="multipart/form-data"
             onSubmit$={() => {
-              // Automatically closes form panel upon submission
+              formDirty.value = false;
+              // Cierra el modal al enviar.
               setTimeout(() => {
                 isFormOpen.value = false;
                 editingSponsor.value = null;
               }, 400);
             }}
-            class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300"
+            class="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300"
           >
-            <div class="flex items-center justify-between">
-              <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">
+            {/* Header del modal */}
+            <div class="bg-brand-green text-white px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <h3 class="font-display font-extrabold text-base text-brand-gold flex items-center gap-1.5">
+                <LuPencil class="w-4 h-4" />
                 {editingSponsor.value ? `Editar Sponsor: ${editingSponsor.value.name}` : "Nuevo Sponsor Publicitario"}
-              </h4>
-              {editingSponsor.value && (
-                <button
-                  type="button"
-                  onClick$={() => {
-                    isFormOpen.value = false;
-                    editingSponsor.value = null;
-                  }}
-                  class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest cursor-pointer"
-                >
-                  Cancelar
-                </button>
-              )}
+              </h3>
+              <button
+                type="button"
+                onClick$={closeForm}
+                aria-label="Cerrar"
+                class="p-1 text-slate-200 hover:text-white rounded-full transition-colors cursor-pointer"
+              >
+                <LuX class="w-6 h-6" />
+              </button>
             </div>
+
+            {/* Contenido scrolleable */}
+            <div class="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5 text-left">
 
             {editingSponsor.value && <input type="hidden" name="id" value={editingSponsor.value.id} />}
             {editingSponsor.value && <input type="hidden" name="imageUrl" value={editingSponsor.value.imageUrl} />}
@@ -406,8 +441,9 @@ export default component$(() => {
                   type="text"
                   name="name"
                   required
+                  ref={nameInputRef}
                   value={formName.value}
-                  onInput$={(e) => (formName.value = (e.target as HTMLInputElement).value)}
+                  onInput$={(e) => { formName.value = (e.target as HTMLInputElement).value; formDirty.value = true; }}
                   placeholder="Ej: Swiss Medical"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
@@ -419,7 +455,7 @@ export default component$(() => {
                   type="url"
                   name="linkUrl"
                   value={formLinkUrl.value}
-                  onInput$={(e) => (formLinkUrl.value = (e.target as HTMLInputElement).value)}
+                  onInput$={(e) => { formLinkUrl.value = (e.target as HTMLInputElement).value; formDirty.value = true; }}
                   placeholder="Ej: https://swissmedical.com"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
@@ -449,6 +485,7 @@ export default component$(() => {
                         const element = event.target as HTMLInputElement;
                         if (!element.files || element.files.length === 0) return;
                         const file = element.files[0];
+                        formDirty.value = true;
 
                         // Keep SVGs raw (as vector graphics are already fully optimized)
                         if (file.type === "image/svg+xml") {
@@ -497,14 +534,25 @@ export default component$(() => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={createSponsorAction.isRunning || updateSponsorAction.isRunning}
-              class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer active:scale-95"
-            >
-              {createSponsorAction.isRunning || updateSponsorAction.isRunning ? "Procesando..." : "Guardar Cambios"}
-            </button>
+            <div class="flex items-center gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={createSponsorAction.isRunning || updateSponsorAction.isRunning}
+                class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer active:scale-95"
+              >
+                {createSponsorAction.isRunning || updateSponsorAction.isRunning ? "Procesando..." : "Guardar Cambios"}
+              </button>
+              <button
+                type="button"
+                onClick$={closeForm}
+                class="py-3 px-6 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-bold transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+            </div>{/* fin contenido scrolleable */}
           </Form>
+          </div>
         )}
 
         {/* Action Feedbacks */}
