@@ -78,7 +78,6 @@ export default component$(() => {
     oferta?: number | null;
     page?: number;
     ver?: string | null;
-    gold?: string | null;
     campana?: string | null;
   }) => {
     const searchParams = new URLSearchParams();
@@ -94,9 +93,6 @@ export default component$(() => {
 
     const off = params.oferta !== undefined ? params.oferta : activeFilters.offerId;
     if (off) searchParams.set("oferta", String(off));
-
-    const g = params.gold !== undefined ? params.gold : location.url.searchParams.get("gold");
-    if (g) searchParams.set("gold", g);
 
     const camp = params.campana !== undefined ? params.campana : (activeFilters.isCampaign ? "true" : null);
     if (camp) searchParams.set("campana", camp);
