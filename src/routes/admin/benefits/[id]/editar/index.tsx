@@ -12,6 +12,7 @@ import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
+import { uploadImageDataUrl } from "~/utils/upload-image";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 export const useAdminFiltersLoader = routeLoader$(async (event) => {
@@ -417,8 +418,13 @@ export default component$(() => {
     return { photos, principalIdx, mobileIdx };
   })();
 
+  // editGaleria contiene URLs (existentes de la base + nuevas subidas a Blob al
+  // seleccionarlas, no en el submit → el formulario viaja liviano).
   const editGaleria = useSignal<string[]>(editInitialImages.photos);
   const editPrincipalIndex = useSignal<number>(editInitialImages.principalIdx);
+  // Subidas en curso (>0 = deshabilitar guardar) y último error de subida.
+  const editUploading = useSignal<number>(0);
+  const editUploadError = useSignal<string>("");
   // Overrides por formato (null = usar la principal).
   const editDesktopIdx = useSignal<number | null>(null);
   const editMobileIdx = useSignal<number | null>(editInitialImages.mobileIdx);
@@ -474,7 +480,8 @@ export default component$(() => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
+          if (editGaleria.value.length >= 10) return;
           const canvas = document.createElement("canvas");
           const maxW = 1000;
           const maxH = 1000;
@@ -488,12 +495,22 @@ export default component$(() => {
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, w, h);
-            const dataUrl = canvas.toDataURL("image/webp", 0.82);
-            if (editGaleria.value.length < 10) {
-              editGaleria.value = [...editGaleria.value, dataUrl];
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/webp", 0.82);
+          editUploading.value++;
+          try {
+            const res = await uploadImageDataUrl(dataUrl, "benefit-gallery");
+            if ("url" in res) {
+              if (editGaleria.value.length < 10) {
+                editGaleria.value = [...editGaleria.value, res.url];
+                editDirty.value = true;
+              }
+            } else {
+              editUploadError.value = res.error;
             }
+          } finally {
+            editUploading.value--;
           }
         };
         img.src = e.target?.result as string;
@@ -528,7 +545,8 @@ export default component$(() => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
+        if (editGaleria.value.length >= 10) return;
         const canvas = document.createElement("canvas");
         const maxW = 1000;
         const maxH = 1000;
@@ -542,13 +560,25 @@ export default component$(() => {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
-        if (ctx && editGaleria.value.length < 10) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.82);
-          const idx = editGaleria.value.length;
-          editGaleria.value = [...editGaleria.value, dataUrl];
-          if (target === "desktop") editDesktopIdx.value = idx;
-          else editMobileIdx.value = idx;
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/webp", 0.82);
+        editUploading.value++;
+        try {
+          const res = await uploadImageDataUrl(dataUrl, `benefit-${target}`);
+          if ("url" in res) {
+            if (editGaleria.value.length < 10) {
+              const idx = editGaleria.value.length;
+              editGaleria.value = [...editGaleria.value, res.url];
+              if (target === "desktop") editDesktopIdx.value = idx;
+              else editMobileIdx.value = idx;
+              editDirty.value = true;
+            }
+          } else {
+            editUploadError.value = res.error;
+          }
+        } finally {
+          editUploading.value--;
         }
       };
       img.src = e.target?.result as string;
@@ -781,8 +811,14 @@ export default component$(() => {
             </h4>
             <p class="text-[10px] text-slate-400 font-medium mt-1">
               Sumá las fotos y marcá una como <b>Principal</b> (★): esa alimenta la imagen de desktop y mobile.
-              El resto se muestran en el carrusel del beneficio. Podés usar otra imagen para desktop o mobile en la vista previa. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
+              El resto se muestran en el carrusel del beneficio. Podés usar otra imagen para desktop o mobile en la vista previa.
             </p>
+            <p class="text-[10px] text-slate-400 font-medium mt-1">
+              Hasta 10 fotos · <b>Desktop 1200×900px (4:3)</b> · <b>Mobile 1080×1350px (4:5)</b> · PNG, JPG o WebP · hasta ~3 MB c/u (se reescalan a 1000px y se optimizan solas).
+            </p>
+            {editUploadError.value && (
+              <p class="text-[11px] text-red-600 font-bold mt-1">{editUploadError.value}</p>
+            )}
           </div>
 
           {/* Campos derivados enviados al servidor. */}
@@ -1206,7 +1242,9 @@ export default component$(() => {
         {/* Barra de acciones sticky (siempre visible al pie del viewport) */}
         <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-8px_24px_rgba(15,23,42,0.10)]">
           <span class="text-[11px] sm:text-xs font-bold min-w-0 truncate">
-            {editDirty.value ? (
+            {editUploading.value > 0 ? (
+              <span class="text-brand-green">↑ Subiendo imágenes…</span>
+            ) : editDirty.value ? (
               <span class="text-amber-600">• Cambios sin guardar</span>
             ) : (
               <span class="text-slate-400">Sin cambios pendientes</span>
@@ -1221,10 +1259,10 @@ export default component$(() => {
             </Link>
             <button
               type="submit"
-              disabled={editBenefitAction.isRunning}
+              disabled={editBenefitAction.isRunning || editUploading.value > 0}
               class="py-2.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
             >
-              {editBenefitAction.isRunning ? "Guardando..." : "Guardar Cambios"}
+              {editBenefitAction.isRunning ? "Guardando..." : editUploading.value > 0 ? "Subiendo…" : "Guardar Cambios"}
             </button>
           </div>
         </div>

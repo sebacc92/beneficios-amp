@@ -11,7 +11,18 @@ import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
+import { uploadImageDataUrl } from "~/utils/upload-image";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+
+// Etiquetas legibles para mostrar qué campo obligatorio falló la validación.
+const FIELD_LABELS: Record<string, string> = {
+  titulo: "Falta el título (mínimo 3 caracteres).",
+  resumen: "Falta el resumen / descuento (mínimo 5 caracteres).",
+  descripcion: "Falta la descripción (mínimo 5 caracteres).",
+  categoryId: "Elegí una categoría.",
+  locationId: "Elegí una ubicación.",
+  offerId: "Elegí una oferta / descuento.",
+};
 
 export const useAdminFiltersLoader = routeLoader$(async (event) => {
   const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
@@ -343,8 +354,13 @@ export default component$(() => {
 
   // Imágenes del beneficio: una sola galería con TODAS las fotos (data URLs webp
   // optimizados). Una es la "principal" y alimenta desktop + mobile por defecto.
+  // createGaleria guarda URLs de Vercel Blob (las imágenes se suben al
+  // seleccionarlas, no en el submit, para que el formulario viaje liviano).
   const createGaleria = useSignal<string[]>([]);
   const createPrincipalIndex = useSignal<number>(0);
+  // Subidas en curso (>0 = deshabilitar guardar) y último error de subida.
+  const createUploading = useSignal<number>(0);
+  const createUploadError = useSignal<string>("");
   // Overrides por formato (null = usar la principal). Permiten desktop y mobile
   // distintos (ej. horizontal en desktop, vertical en mobile).
   const createDesktopIdx = useSignal<number | null>(null);
@@ -398,7 +414,8 @@ export default component$(() => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
+          if (createGaleria.value.length >= 10) return;
           const canvas = document.createElement("canvas");
           const maxW = 1000;
           const maxH = 1000;
@@ -412,12 +429,23 @@ export default component$(() => {
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, w, h);
-            const dataUrl = canvas.toDataURL("image/webp", 0.82);
-            if (createGaleria.value.length < 10) {
-              createGaleria.value = [...createGaleria.value, dataUrl];
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/webp", 0.82);
+          // Subir a Blob al instante y guardar la URL (no el base64).
+          createUploading.value++;
+          try {
+            const res = await uploadImageDataUrl(dataUrl, "benefit-gallery");
+            if ("url" in res) {
+              if (createGaleria.value.length < 10) {
+                createGaleria.value = [...createGaleria.value, res.url];
+                createDirty.value = true;
+              }
+            } else {
+              createUploadError.value = res.error;
             }
+          } finally {
+            createUploading.value--;
           }
         };
         img.src = e.target?.result as string;
@@ -454,7 +482,8 @@ export default component$(() => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
+        if (createGaleria.value.length >= 10) return;
         const canvas = document.createElement("canvas");
         const maxW = 1000;
         const maxH = 1000;
@@ -468,13 +497,25 @@ export default component$(() => {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
-        if (ctx && createGaleria.value.length < 10) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.82);
-          const idx = createGaleria.value.length;
-          createGaleria.value = [...createGaleria.value, dataUrl];
-          if (target === "desktop") createDesktopIdx.value = idx;
-          else createMobileIdx.value = idx;
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/webp", 0.82);
+        createUploading.value++;
+        try {
+          const res = await uploadImageDataUrl(dataUrl, `benefit-${target}`);
+          if ("url" in res) {
+            if (createGaleria.value.length < 10) {
+              const idx = createGaleria.value.length;
+              createGaleria.value = [...createGaleria.value, res.url];
+              if (target === "desktop") createDesktopIdx.value = idx;
+              else createMobileIdx.value = idx;
+              createDirty.value = true;
+            }
+          } else {
+            createUploadError.value = res.error;
+          }
+        } finally {
+          createUploading.value--;
         }
       };
       img.src = e.target?.result as string;
@@ -686,8 +727,14 @@ export default component$(() => {
             </h4>
             <p class="text-[10px] text-slate-400 font-medium mt-1">
               Sumá las fotos y marcá una como <b>Principal</b> (★): esa alimenta la imagen de desktop y mobile.
-              El resto se muestran en el carrusel del beneficio. Podés usar otra imagen para desktop o mobile en la vista previa. Hasta 10 fotos · PNG, JPG o WebP (auto-optimizadas).
+              El resto se muestran en el carrusel del beneficio. Podés usar otra imagen para desktop o mobile en la vista previa.
             </p>
+            <p class="text-[10px] text-slate-400 font-medium mt-1">
+              Hasta 10 fotos · <b>Desktop 1200×900px (4:3)</b> · <b>Mobile 1080×1350px (4:5)</b> · PNG, JPG o WebP · hasta ~3 MB c/u (se reescalan a 1000px y se optimizan solas).
+            </p>
+            {createUploadError.value && (
+              <p class="text-[11px] text-red-600 font-bold mt-1">{createUploadError.value}</p>
+            )}
           </div>
 
           {/* Campos derivados enviados al servidor. */}
@@ -1062,15 +1109,26 @@ export default component$(() => {
         </div>
 
         {createBenefitAction.value?.failed && (
-          <div class="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-xs font-bold text-red-700 shadow-sm">
-            {createBenefitAction.value.message || "Error al crear el beneficio."}
+          <div class="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-xs font-bold text-red-700 shadow-sm space-y-1">
+            <p>{createBenefitAction.value.message || "No se pudo crear el beneficio. Revisá los campos marcados."}</p>
+            {createBenefitAction.value.fieldErrors && (
+              <ul class="list-disc pl-4 font-semibold text-red-600">
+                {Object.entries(createBenefitAction.value.fieldErrors)
+                  .filter(([, msgs]) => Array.isArray(msgs) && msgs.length > 0)
+                  .map(([field]) => (
+                    <li key={field}>{FIELD_LABELS[field] || field}</li>
+                  ))}
+              </ul>
+            )}
           </div>
         )}
 
         {/* Barra de acciones sticky (siempre visible al pie del viewport) */}
         <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-8px_24px_rgba(15,23,42,0.10)]">
           <span class="text-[11px] sm:text-xs font-bold min-w-0 truncate">
-            {createDirty.value ? (
+            {createUploading.value > 0 ? (
+              <span class="text-brand-green">↑ Subiendo imágenes…</span>
+            ) : createDirty.value ? (
               <span class="text-amber-600">• Cambios sin guardar</span>
             ) : (
               <span class="text-slate-400">Sin cambios pendientes</span>
@@ -1085,10 +1143,10 @@ export default component$(() => {
             </Link>
             <button
               type="submit"
-              disabled={createBenefitAction.isRunning}
+              disabled={createBenefitAction.isRunning || createUploading.value > 0}
               class="py-2.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
             >
-              {createBenefitAction.isRunning ? "Creando..." : "Crear Beneficio"}
+              {createBenefitAction.isRunning ? "Creando..." : createUploading.value > 0 ? "Subiendo…" : "Crear Beneficio"}
             </button>
           </div>
         </div>
