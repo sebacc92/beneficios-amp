@@ -96,10 +96,11 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] Editar perfil (matrícula) guarda y muestra "cambios guardados". ✅
 - [ ] Notificaciones push: activar solicita permiso y suscribe; desactivar quita la suscripción. ✅ (En iPhone, sólo funciona si la app está agregada a la pantalla de inicio.)
 - [ ] Cerrar sesión borra la cookie y vuelve al inicio. ✅
-- [ ] `/perfil/checkout` (membresía premium, si aplica) procesa el pago simulado. ✅
+- [ ] La sección de perfil es coherente: **no** hay upgrade a premium ni checkout (se eliminaron; todos los agremiados tienen la misma categoría). ✅
 
-### 2.3 Recuperar acceso (`/recuperar-password`)
-- [ ] Enviar el formulario con un correo. ✅ Se registra el pedido de recuperación (según configuración).
+### 2.3 Rutas eliminadas (no debe haber pagos ni recupero de contraseña de agremiados)
+- [ ] ⚠️ `/perfil/checkout` **ya no existe** → devuelve la **página 404 personalizada** (no hay pagos ni membresías premium).
+- [ ] ⚠️ `/recuperar-password` **ya no existe** → devuelve la **página 404 personalizada** (el login de agremiados es solo por DNI contra el padrón).
 
 ---
 
@@ -293,3 +294,13 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] La credencial y el PDF se imprimen prolijos en A4. ✅
 - [ ] Imágenes con `alt`, botones alcanzables por teclado. ✅
 - [ ] Textos en español rioplatense, sin cortes ni "undefined". ✅
+
+---
+
+## 8. Cierre y entrega
+- [ ] Barrido de datos de prueba: sin beneficios TEST, sin Lorem Ipsum, sin cupones/chats/sugerencias de prueba, sin datos personales del desarrollador (Instagram, direcciones).
+- [ ] Lighthouse en producción: home y una ficha de beneficio, performance ≥ 90 mobile.
+- [ ] Env vars de producción documentadas (nombre y propósito, sin valores).
+- [ ] MANUAL-ADMIN.md revisado por humano y exportado para el cliente.
+- [ ] Video de recorrido del panel grabado.
+- [ ] Definido quién queda como admin y a qué mail van las notificaciones.
