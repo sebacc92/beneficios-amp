@@ -1,5 +1,5 @@
 import { component$, useComputed$ } from "@builder.io/qwik";
-import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
+import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { getSettings } from "~/server/chatbotDb";
 import { CategorySlider } from "~/components/category-slider/category-slider";
@@ -52,7 +52,6 @@ export const useBenefitsData = routeLoader$(async (event) => {
 });
 
 export default component$(() => {
-  const location = useLocation();
   const data = useBenefitsData();
 
   const { searchResult, filters, activeFilters } = data.value;
