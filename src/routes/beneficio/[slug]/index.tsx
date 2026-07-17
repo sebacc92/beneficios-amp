@@ -1457,7 +1457,19 @@ export const head: DocumentHead = ({ resolveValue }) => {
     };
   }
   const { benefit } = data;
-  const desc = benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 160);
+  // Meta description en texto plano: quita tags y decodifica/normaliza entidades
+  // (incluidos los &amp;nbsp; sobre-escapados heredados) para no filtrar entidades.
+  const desc = benefit.descripcion
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(?:amp;)*nbsp;/gi, " ")
+    .replace(/&(?:amp;)+/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&#x0*27;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .substring(0, 160);
   return {
     title: `${benefit.titulo} - Club de Beneficios AMP`,
     meta: [
