@@ -959,6 +959,51 @@ export default component$(() => {
                   />
                 </div>
 
+                {/* Vigencia y Condiciones (solo si existen) */}
+                {(benefit.validUntil || (benefit.terms && benefit.terms.trim())) && (
+                  <div class="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-5">
+                    <h3 class="text-lg font-black text-brand-green-dark tracking-tight border-b border-slate-100 pb-3">
+                      Vigencia y condiciones
+                    </h3>
+
+                    {benefit.validUntil && (
+                      <div class="flex items-start gap-3.5">
+                        <div class="w-9 h-9 rounded-full bg-brand-green/10 border border-brand-green/20 flex items-center justify-center text-brand-green flex-shrink-0">
+                          <svg class="w-4.5 h-4.5 fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div class="space-y-0.5">
+                          <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Vigencia</span>
+                          <p class="text-sm font-bold text-slate-700">
+                            Válido hasta el{" "}
+                            {(() => {
+                              const d = new Date(benefit.validUntil!);
+                              return isNaN(d.getTime())
+                                ? benefit.validUntil
+                                : d.toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {benefit.terms && benefit.terms.trim() && (
+                      <div class="flex items-start gap-3.5">
+                        <div class="w-9 h-9 rounded-full bg-brand-gold/15 border border-brand-gold/30 flex items-center justify-center text-brand-green-dark flex-shrink-0">
+                          <svg class="w-4.5 h-4.5 fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div class="space-y-0.5">
+                          <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Condiciones</span>
+                          <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{benefit.terms}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Cómo usar este beneficio */}
                 <div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 sm:p-8 shadow-sm space-y-6 print:hidden">
                   <div class="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full blur-2xl pointer-events-none" />
