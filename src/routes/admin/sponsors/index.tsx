@@ -529,7 +529,10 @@ export default component$(() => {
                       class="hidden"
                     />
                   </label>
-                  <p class="text-[10px] text-slate-400 font-medium">Recomendable: imágenes horizontales o cuadradas. Los archivos PNG, JPEG y WebP se optimizarán y convertirán a WebP de forma automática para máxima velocidad de carga.</p>
+                  <p class="text-[10px] text-slate-400 font-medium">
+                    Recomendado: logo horizontal o cuadrado, <b>fondo transparente</b>, ~600×300px · <b>PNG o SVG</b> (también JPG/WebP) · hasta ~1 MB.
+                    Se muestra dentro de un recuadro de 320×180px y se optimiza a WebP automáticamente (los SVG se dejan tal cual).
+                  </p>
                 </div>
               </div>
             </div>

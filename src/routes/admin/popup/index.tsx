@@ -231,6 +231,9 @@ export default component$(() => {
                         </button>
                       )}
                     </div>
+                    <p class="text-[10px] text-slate-400 font-medium mt-2">
+                      Recomendado <b>1024×640px (16:10)</b> · JPG, PNG o WebP · hasta ~1,5 MB.
+                    </p>
                   </div>
                 </div>
 

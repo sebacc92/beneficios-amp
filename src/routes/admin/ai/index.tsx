@@ -328,6 +328,9 @@ export default component$(() => {
                           />
                         </label>
                       </div>
+                      <p class="text-[10px] text-slate-400 font-medium mt-2">
+                        Imagen <b>cuadrada 256×256px</b> (se ve en un círculo) · PNG o JPG · hasta ~500 KB.
+                      </p>
                     </div>
 
                     <div class="space-y-1">

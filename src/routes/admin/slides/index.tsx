@@ -21,12 +21,15 @@ import { heroSlides as heroSlidesTable } from "~/db/schema";
 import { ensureHeroSlidesSeeded } from "~/server/cache";
 import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
 
-// Relaciones de aspecto reales del render del hero.
-const RATIO_16_9 = 16 / 9;
-const RATIO_9_16 = 9 / 16;
+// Relaciones de aspecto REALES del render del hero (ver hero-slider.tsx):
+// desktop 1600×646 (panorámico ~2.48:1) y mobile 480×600 (vertical 4:5).
+// Las usamos también para la previsualización con recorte (ImageFramePreview),
+// así lo que el admin ve encuadrado coincide con lo que se publica.
+const RATIO_DESKTOP = 1600 / 646;
+const RATIO_MOBILE = 4 / 5;
 // Textos de ayuda por tipo de imagen (tamaño recomendado, formatos, peso).
-const HELP_DESKTOP = "Recomendado 1920×1080px (16:9) · JPG, PNG o WebP · hasta ~2 MB";
-const HELP_MOBILE = "Recomendado 1080×1920px (9:16) · JPG, PNG o WebP · hasta ~2 MB";
+const HELP_DESKTOP = "Recomendado 2560×1035px (panorámico ~2.48:1) · JPG, PNG o WebP · hasta ~2 MB";
+const HELP_MOBILE = "Recomendado 1080×1350px (vertical 4:5) · JPG, PNG o WebP · hasta ~2 MB";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -574,9 +577,9 @@ export default component$(() => {
                 </h4>
               </div>
 
-              {/* Desktop Upload Zone (16:9 Mockup) */}
+              {/* Desktop Upload Zone (panorámico ~2.48:1, igual que el hero real) */}
               <div class="space-y-2">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Horizontal Desktop (16:9)</span>
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Horizontal Desktop (panorámico ~2.48:1)</span>
                 <div
                   preventdefault:dragover={true}
                   onDragOver$={() => {
@@ -585,7 +588,7 @@ export default component$(() => {
                   onDragLeave$={() => (isDragOverDesktop.value = false)}
                   onDrop$={$(ev => handleDrop(ev, "desktop"))}
                   class={[
-                    "relative group aspect-video w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
+                    "relative group aspect-[1600/646] w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverDesktop.value
                       ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                       : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -604,7 +607,7 @@ export default component$(() => {
 
                   {desktopPreview.value ? (
                     <>
-                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_16_9} />
+                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_DESKTOP} />
                       <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Desktop
@@ -614,7 +617,7 @@ export default component$(() => {
                     <div class="flex flex-col items-center gap-2 text-slate-450 z-10">
                       <LuMonitor class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
                       <div class="text-xs font-bold text-slate-650">Arrastrá la imagen desktop aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 16:9 (marco real de la vista)</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto panorámico ~2.48:1 (marco real de la vista)</div>
                       <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
@@ -630,9 +633,9 @@ export default component$(() => {
                 />
               </div>
 
-              {/* Mobile Upload Zone (9:16 Mockup) */}
+              {/* Mobile Upload Zone (vertical 4:5, igual que el hero real) */}
               <div class="space-y-2">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Vertical Mobile (9:16)</span>
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Vertical Mobile (4:5)</span>
                 <div
                   preventdefault:dragover={true}
                   onDragOver$={() => {
@@ -641,7 +644,7 @@ export default component$(() => {
                   onDragLeave$={() => (isDragOverMobile.value = false)}
                   onDrop$={$(ev => handleDrop(ev, "mobile"))}
                   class={[
-                    "relative group aspect-[9/16] w-full max-w-[220px] mx-auto rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
+                    "relative group aspect-[4/5] w-full max-w-[220px] mx-auto rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverMobile.value
                       ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                       : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -660,7 +663,7 @@ export default component$(() => {
 
                   {mobilePreview.value ? (
                     <>
-                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_9_16} />
+                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_MOBILE} />
                       <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Mobile
@@ -670,7 +673,7 @@ export default component$(() => {
                     <div class="flex flex-col items-center gap-2 text-slate-400 z-10">
                       <LuSmartphone class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
                       <div class="text-xs font-bold text-slate-650">Arrastrá la imagen mobile aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 9:16 (marco real de la vista)</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 4:5 (marco real de la vista)</div>
                       <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
@@ -1026,7 +1029,7 @@ export default component$(() => {
               <div class="space-y-4">
                 {/* Desktop editing zone */}
                 <div class="space-y-2">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Desktop (16:9)</span>
+                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Desktop (panorámico ~2.48:1)</span>
                   <div
                     preventdefault:dragover={true}
                     onDragOver$={() => {
@@ -1035,7 +1038,7 @@ export default component$(() => {
                     onDragLeave$={() => (isDragOverEditDesktop.value = false)}
                     onDrop$={$(ev => handleDrop(ev, "edit-desktop"))}
                     class={[
-                      "relative group aspect-video w-full rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
+                      "relative group aspect-[1600/646] w-full rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditDesktop.value
                         ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                         : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -1054,7 +1057,7 @@ export default component$(() => {
 
                     {editDesktopPreview.value ? (
                       <>
-                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_16_9} />
+                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_DESKTOP} />
                         <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Desktop
@@ -1079,7 +1082,7 @@ export default component$(() => {
 
                 {/* Mobile editing zone */}
                 <div class="space-y-2">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Mobile (9:16)</span>
+                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Mobile (4:5)</span>
                   <div
                     preventdefault:dragover={true}
                     onDragOver$={() => {
@@ -1088,7 +1091,7 @@ export default component$(() => {
                     onDragLeave$={() => (isDragOverEditMobile.value = false)}
                     onDrop$={$(ev => handleDrop(ev, "edit-mobile"))}
                     class={[
-                      "relative group aspect-[9/16] w-full max-w-[200px] mx-auto rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
+                      "relative group aspect-[4/5] w-full max-w-[200px] mx-auto rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditMobile.value
                         ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
                         : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
@@ -1107,7 +1110,7 @@ export default component$(() => {
 
                     {editMobilePreview.value ? (
                       <>
-                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_9_16} />
+                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_MOBILE} />
                         <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Mobile
