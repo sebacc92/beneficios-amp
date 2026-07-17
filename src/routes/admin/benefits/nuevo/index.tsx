@@ -338,6 +338,8 @@ export const useCreateBenefitAction = routeAction$(
 export default component$(() => {
   const adminFilters = useAdminFiltersLoader();
   const createBenefitAction = useCreateBenefitAction();
+  // Indicador de "cambios sin guardar" para la barra sticky.
+  const createDirty = useSignal(false);
 
   // Imágenes del beneficio: una sola galería con TODAS las fotos (data URLs webp
   // optimizados). Una es la "principal" y alimenta desktop + mobile por defecto.
@@ -519,7 +521,12 @@ export default component$(() => {
         </div>
       </div>
 
-      <Form action={createBenefitAction} enctype="multipart/form-data" class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
+      <Form
+        action={createBenefitAction}
+        enctype="multipart/form-data"
+        onInput$={() => { createDirty.value = true; }}
+        onChange$={() => { createDirty.value = true; }}
+        class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-2 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
@@ -1060,21 +1067,30 @@ export default component$(() => {
           </div>
         )}
 
-        {/* Acciones al final del formulario */}
-        <div class="flex items-center gap-2 pt-5 mt-2 border-t border-slate-100">
-          <button
-            type="submit"
-            disabled={createBenefitAction.isRunning}
-            class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
-          >
-            {createBenefitAction.isRunning ? "Creando..." : "Crear Beneficio"}
-          </button>
-          <Link
-            href="/admin/benefits/"
-            class="py-3 px-6 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold shadow-sm transition-all duration-300 cursor-pointer"
-          >
-            Cancelar
-          </Link>
+        {/* Barra de acciones sticky (siempre visible al pie del viewport) */}
+        <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur-sm border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-6px_20px_rgba(15,23,42,0.06)]">
+          <span class="text-[11px] sm:text-xs font-bold min-w-0 truncate">
+            {createDirty.value ? (
+              <span class="text-amber-600">• Cambios sin guardar</span>
+            ) : (
+              <span class="text-slate-400">Sin cambios pendientes</span>
+            )}
+          </span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href="/admin/benefits/"
+              class="py-2.5 px-5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+            >
+              Cancelar
+            </Link>
+            <button
+              type="submit"
+              disabled={createBenefitAction.isRunning}
+              class="py-2.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
+            >
+              {createBenefitAction.isRunning ? "Creando..." : "Crear Beneficio"}
+            </button>
+          </div>
         </div>
       </Form>
     </div>

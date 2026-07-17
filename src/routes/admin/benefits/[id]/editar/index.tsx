@@ -371,6 +371,8 @@ export default component$(() => {
   const adminFilters = useAdminFiltersLoader();
   const benefit = useBenefitLoader();
   const editBenefitAction = useEditBenefitAction();
+  // Indicador de "cambios sin guardar" para la barra sticky.
+  const editDirty = useSignal(false);
 
   // Contactos separados de la descripción HTML
   const split = splitContacts(benefit.value.descripcion || "");
@@ -602,7 +604,13 @@ export default component$(() => {
         </div>
       </div>
 
-      <Form key={benefit.value.id} action={editBenefitAction} enctype="multipart/form-data" class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
+      <Form
+        key={benefit.value.id}
+        action={editBenefitAction}
+        enctype="multipart/form-data"
+        onInput$={() => { editDirty.value = true; }}
+        onChange$={() => { editDirty.value = true; }}
+        class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-2 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
         <input type="hidden" name="id" value={benefit.value.id} />
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1195,21 +1203,30 @@ export default component$(() => {
           </div>
         )}
 
-        {/* Acciones al final del formulario */}
-        <div class="flex items-center gap-2 pt-5 mt-2 border-t border-slate-100">
-          <button
-            type="submit"
-            disabled={editBenefitAction.isRunning}
-            class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
-          >
-            {editBenefitAction.isRunning ? "Guardando..." : "Guardar Cambios"}
-          </button>
-          <Link
-            href="/admin/benefits/"
-            class="py-3 px-6 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold shadow-sm transition-all duration-300 cursor-pointer"
-          >
-            Cancelar
-          </Link>
+        {/* Barra de acciones sticky (siempre visible al pie del viewport) */}
+        <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur-sm border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-6px_20px_rgba(15,23,42,0.06)]">
+          <span class="text-[11px] sm:text-xs font-bold min-w-0 truncate">
+            {editDirty.value ? (
+              <span class="text-amber-600">• Cambios sin guardar</span>
+            ) : (
+              <span class="text-slate-400">Sin cambios pendientes</span>
+            )}
+          </span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href="/admin/benefits/"
+              class="py-2.5 px-5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+            >
+              Cancelar
+            </Link>
+            <button
+              type="submit"
+              disabled={editBenefitAction.isRunning}
+              class="py-2.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
+            >
+              {editBenefitAction.isRunning ? "Guardando..." : "Guardar Cambios"}
+            </button>
+          </div>
         </div>
       </Form>
     </div>
