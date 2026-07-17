@@ -133,16 +133,19 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
    - ¿Querés una imagen distinta para el celular (o para escritorio)? Tildá **"Usar otra imagen para mobile"** (o para desktop) y elegí otra foto de la galería o subí una nueva.
    - Las fotos que no son la principal se muestran en el **carrusel** del beneficio.
 7. **Documentación adicional (PDF, opcional):** más abajo, en su propia sección, podés subir una lista de precios, catálogo o bases y condiciones.
-8. **Ubicación en el mapa:** marcá el punto o pegá las coordenadas para que aparezca el mapa.
-9. Mirá la **previsualización en vivo** (cómo se verá en compu y en celular).
-10. Guardá. Aparece el aviso "creado exitosamente".
+8. **Vigencia y condiciones (opcionales):** dos campos vacíos por defecto. La **fecha de vencimiento** y las **condiciones** (ej. "válido de lunes a viernes") **solo aparecen en la ficha y en el PDF si los cargás**. Si los dejás vacíos, no se muestran.
+9. **Ubicación en el mapa:** marcá el punto o pegá las coordenadas para que aparezca el mapa.
+10. Mirá la **previsualización en vivo** (cómo se verá en compu y en celular).
+11. **Guardá** desde la **barra inferior fija** (siempre visible mientras scrolleás). Cuando hay cambios sin guardar, aparece el aviso **"• Cambios sin guardar"**. Aparece el aviso "creado exitosamente".
+
+> Nota: antes todos los beneficios mostraban una vigencia y condiciones genéricas por defecto. Eso **ya no pasa**: si no cargás estos campos, no se muestra nada.
 
 ### 5.2 Editar un beneficio
 
 1. En la lista, clic en el **lápiz** ✏️.
-2. Cambiá lo que necesites (mismos campos que al crear). La descripción se abre en el **editor de texto** con el formato que ya tenía.
+2. Cambiá lo que necesites (mismos campos que al crear). La descripción se abre en el **editor de texto** con el formato que ya tenía. La **vigencia y las condiciones** se muestran con lo que tenga cargado (o vacías si no tiene).
 3. La galería mantiene las fotos que ya tenía; podés **agregar**, **quitar** o cambiar la **Principal (★)**.
-4. Guardá.
+4. **Guardá** desde la **barra inferior fija**; el aviso **"• Cambios sin guardar"** te recuerda si hay ediciones pendientes.
 
 > Si un beneficio ya tenía **imágenes distintas para escritorio y celular**, se cargan tal cual (la de celular aparece como "otra imagen para mobile") y se conservan aunque guardes sin tocar nada.
 > Si el resumen guardado no coincide con el que generaría la oferta, el formulario arranca en modo **"Personalizar texto"** para no pisar el texto que ya habías escrito.
@@ -274,7 +277,7 @@ Verificá en el beneficio (ícono 🔑) que el **acceso esté activo** y que el 
 La credencial se verifica **en vivo contra el padrón oficial**. Si el DNI no figura en el padrón, aparecerá como inválida. Consultá su DNI desde **Agremiados → Consultar padrón**.
 
 **¿Puedo recuperar algo que borré?**
-No. Las acciones marcadas con 🔴 (eliminar beneficios, fotos, slides, sponsors, sugerencias, conversaciones) son **permanentes**. Ante la duda, **desactivá** en lugar de eliminar.
+No. Las acciones marcadas con 🔴 (eliminar beneficios, fotos, slides, sponsors, sugerencias, conversaciones, y "Quitar acceso" de un comercio) son **permanentes**. Antes de borrar, el sistema **te pide confirmar mostrando el nombre** de lo que vas a eliminar ("¿Eliminar 'La Trattoria La Plata'? Esta acción no se puede deshacer"): leelo con atención. Ante la duda, **desactivá** en lugar de eliminar.
 
 **Las notificaciones push no llegan.**
 Sólo las reciben las personas que **activaron las notificaciones** desde su perfil. En iPhone, además, deben tener la app agregada a la pantalla de inicio.

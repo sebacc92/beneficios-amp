@@ -55,7 +55,8 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] El texto bajo el botón dorado del cupón **se lee** (texto claro sobre fondo verde oscuro). ✅
 - [ ] **Tracking de vista**: abrir la ficha suma 1 en "Vistas de beneficios" de `/admin/stats` (no cuenta si sos admin). ✅
 - [ ] **Tracking de PDF**: abrir/descargar el PDF del comercio suma 1 en "Descargas de PDF" de stats. ✅
-- [ ] **Vigencia y condiciones**: si el beneficio tiene fecha de vigencia y/o condiciones, aparece el bloque "Vigencia y condiciones" (vigencia formateada, condiciones como texto). ✅ Si no tiene ninguno de los dos, el bloque **no** aparece.
+- [ ] **Vigencia y condiciones**: aparecen **solo si fueron cargadas explícitamente** para ese beneficio. Con dato → bloque "Vigencia y condiciones" (vigencia formateada, condiciones como texto) y las líneas correspondientes en el PDF. Sin dato → el bloque **no** aparece y el PDF **omite** esas líneas. ✅
+- [ ] Los beneficios existentes (que antes mostraban el default genérico "31/12/2026" y "Válido presentando credencial digital") **ya no lo muestran**. ✅
 - [ ] **Beneficios recomendados**: son de la **misma categoría**, salen del catálogo real (base), excluyen el beneficio actual y no muestran borradores/inactivos. ✅ Coinciden con lo que se ve en `/beneficios`.
 - [ ] ⚠️ Slug inexistente → página "Beneficio No Encontrado" con link a inicio (HTTP 404).
 
@@ -153,6 +154,7 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 ## 5. Panel de administración (`/admin`)
 
 - [ ] **Smoke general**: logueado como admin, abrir **cada** ruta `/admin/*` (stats, slides, galeria, benefits, benefits/nuevo, benefits/[id]/editar, sponsors, ai, chats, users, cupones, suggestions, popup, campana, admins) y verificar que **carga sin error** (sin 500 ni pantalla en blanco). ⚠️ Clave: el build/SSG no ejecuta estas rutas (están detrás de auth), así que un error de runtime solo se ve entrando de verdad.
+- [ ] **Confirmaciones de borrado**: TODA acción destructiva pide confirmación **con el nombre del elemento** ("¿Eliminar '…'? Esta acción no se puede deshacer"): beneficio, slide, foto de galería, sponsor, sugerencia (nombre de la persona), conversación del chatbot (fecha), y **"Quitar acceso" del comercio** (que antes no confirmaba). ⚠️ Cancelar en el diálogo no borra nada.
 
 ### 5.1 Acceso y seguridad
 - [ ] `/admin/login` con usuario/contraseña admin válidos → entra al panel. ✅ Sesión firmada (HMAC), dura 7 días.
@@ -217,22 +219,27 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] ⚠️ Con texto personalizado cuyo % no coincide con la oferta → advertencia sutil.
 - [ ] Categoría, ubicación, oferta. ✅
 - [ ] **Editor de descripción (WYSIWYG)**: la barra permite negrita, itálica, listas y enlaces; el texto se ve con formato. ✅
+- [ ] **WYSIWYG sin entidades literales**: escribir texto con **negrita + cursiva**, una **lista** y un **link**, guardar y abrir la ficha pública → el texto se ve bien; **NO** aparecen entidades literales como `&nbsp;`, `&amp;nbsp;` ni `&amp;`. ✅ (Los espacios duros del editor se normalizan a espacios normales.)
 - [ ] **Sanitización (seguridad)**: pegar/guardar algo con `<script>alert(1)</script>` u `onclick`/`javascript:` → al guardar y renderizar **se elimina** (no ejecuta nada, no queda el tag). ✅ Sólo sobreviven negrita, itálica, listas y enlaces http/https.
 - [ ] **Imágenes del beneficio (galería unificada)**: subir varias fotos (hasta 10) y marcar una como **Principal (★)**; se optimizan a WebP. ✅
 - [ ] La foto Principal alimenta desktop y mobile por defecto; la **vista previa con marco** (16:9 desktop / vertical mobile) muestra cómo se recorta. ✅
 - [ ] **Desktop y mobile distintas**: activar "Usar otra imagen para mobile" (y/o desktop) y elegir/subir otra imagen; la previa refleja cada formato. ✅
 - [ ] "Documentación adicional (PDF)" está en **su propia sección**, separada de las imágenes. ✅
+- [ ] **Vigencia y condiciones (opcionales)**: sección con fecha de vencimiento (date) y condiciones (textarea), **vacías por defecto**. Si se dejan vacías, no se muestran en la ficha ni en el PDF; si se cargan, sí. ✅
 - [ ] Ubicación en el mapa (coordenadas) y dirección. ✅
 - [ ] Previsualización en vivo (desktop + mobile) refleja los cambios. ✅
+- [ ] **Barra de guardado sticky**: al pie del viewport, siempre visible mientras se scrollea; muestra Guardar + Cancelar y el indicador **"• Cambios sin guardar"** cuando se edita algo. ✅ No tapa contenido; funciona en mobile.
 - [ ] Guardar → aparece en el catálogo con aviso "creado exitosamente". ✅
 - [ ] ⚠️ Campos obligatorios vacíos → validación (título, resumen, descripción mínimos).
 
 ### 5.7 Editar beneficio (`/admin/benefits/[id]/editar`)
 - [ ] Carga los datos actuales del beneficio (incluida la descripción con formato en el editor). ✅
 - [ ] Si el resumen guardado no coincide con el autogenerado, arranca en modo "personalizar texto" (no pisa el texto). ✅
+- [ ] **Vigencia y condiciones**: se precargan con lo que tenga el beneficio (la fecha, sin el prefijo interno de borrador). Vaciarlas y guardar → dejan de mostrarse en la ficha/PDF. ✅
 - [ ] **Compatibilidad imágenes**: un beneficio con desktop y mobile **distintas** las carga bien (mobile aparece como override) y, al guardar sin tocar nada, **las conserva intactas**. ✅
 - [ ] Editar la galería (conserva las existentes, permite agregar/quitar y cambiar la Principal). ✅
 - [ ] Editar/quitar el PDF de documentación. ✅
+- [ ] **Barra de guardado sticky** con indicador de cambios sin guardar (igual que en crear). ✅
 - [ ] Guardar refleja los cambios en el sitio. ✅
 
 ### 5.8 Sponsors (`/admin/sponsors`)
