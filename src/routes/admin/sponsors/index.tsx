@@ -661,7 +661,7 @@ export default component$(() => {
                     <Form 
                       action={deleteSponsorAction} 
                       onSubmit$={(ev) => {
-                        if (!window.confirm(`¿Estás seguro de que deseas eliminar el sponsor "${sp.name}"?`)) {
+                        if (!window.confirm(`¿Eliminar el sponsor "${sp.name}"? Esta acción no se puede deshacer.`)) {
                           ev.preventDefault();
                         }
                       }}

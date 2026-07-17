@@ -872,7 +872,7 @@ export default component$(() => {
                         <button
                           type="button"
                           onClick$={$(async () => {
-                            if (confirm("¿Está seguro de que desea eliminar este slide de forma permanente?")) {
+                            if (confirm(`¿Eliminar el slide "${slide.title}"? Esta acción no se puede deshacer.`)) {
                               await deleteSlideAction.submit({ id: slide.id });
                             }
                           })}

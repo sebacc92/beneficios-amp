@@ -556,7 +556,7 @@ export default component$(() => {
                         <button
                           type="button"
                           onClick$={$(async () => {
-                            if (confirm("¿Está seguro de que desea eliminar esta foto de forma permanente?")) {
+                            if (confirm(`¿Eliminar la foto "${image.title || "sin título"}"? Esta acción no se puede deshacer.`)) {
                               await deleteAction.submit({ id: image.id });
                             }
                           })}

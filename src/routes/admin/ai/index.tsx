@@ -243,7 +243,7 @@ export default component$(() => {
                                 onClick$={(e, el) => {
                                   if (
                                     confirm(
-                                      "¿Estás seguro de eliminar esta conversación permanentemente de la auditoría local? Esto no se puede deshacer."
+                                      `¿Eliminar la conversación del ${new Date(session.createdAt).toLocaleDateString("es-AR")} (${session.messageCount} mensajes)? Esta acción no se puede deshacer.`
                                     )
                                   ) {
                                     (el.closest("form") as HTMLFormElement).requestSubmit();

@@ -338,7 +338,7 @@ export default component$(() => {
                           type="submit"
                           title="Eliminar"
                           onClick$={(ev) => {
-                            if (!confirm("¿Eliminar esta sugerencia de forma permanente?")) {
+                            if (!confirm(`¿Eliminar la sugerencia de "${item.nombre}"? Esta acción no se puede deshacer.`)) {
                               ev.preventDefault();
                             }
                           }}

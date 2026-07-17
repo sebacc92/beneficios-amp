@@ -655,7 +655,7 @@ export default component$(() => {
                           <button
                             type="button"
                             onClick$={$(async () => {
-                              if (confirm(`¿Está seguro de que desea eliminar el beneficio "${benefit.titulo}" de forma permanente?`)) {
+                              if (confirm(`¿Eliminar el beneficio "${benefit.titulo}"? Esta acción no se puede deshacer.`)) {
                                 await deleteBenefitAction.submit({ id: benefit.id });
                               }
                             })}
@@ -738,7 +738,15 @@ export default component$(() => {
                                 </Form>
                                 <Form action={removeAccessAction}>
                                   <input type="hidden" name="benefitSlug" value={benefit.slug} />
-                                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase tracking-wider text-red-500 hover:bg-red-50 transition-all">
+                                  <button
+                                    type="submit"
+                                    onClick$={(ev) => {
+                                      if (!confirm(`¿Quitar el acceso de comercio de "${benefit.titulo}"? Se eliminarán sus credenciales de ingreso. Esta acción no se puede deshacer.`)) {
+                                        ev.preventDefault();
+                                      }
+                                    }}
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase tracking-wider text-red-500 hover:bg-red-50 transition-all"
+                                  >
                                     Quitar acceso
                                   </button>
                                 </Form>
