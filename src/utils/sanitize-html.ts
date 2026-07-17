@@ -49,7 +49,7 @@ export function sanitizeRichText(input: string | null | undefined): string {
   if (!input) return "";
 
   // 0. Normalizar el espacio duro que mete contentEditable a un espacio normal.
-  //    Se contempla el carácter ( ), la entidad `&nbsp;` y sus variantes
+  //    Se contempla el caracter U+00A0, la entidad `&nbsp;` y sus variantes
   //    sobre-escapadas (`&amp;nbsp;`, `&amp;amp;nbsp;`…) heredadas del bug previo.
   let s = String(input)
     .replace(/\u00a0/g, " ")
