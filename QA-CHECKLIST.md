@@ -55,7 +55,8 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 - [ ] El texto bajo el botón dorado del cupón **se lee** (texto claro sobre fondo verde oscuro). ✅
 - [ ] **Tracking de vista**: abrir la ficha suma 1 en "Vistas de beneficios" de `/admin/stats` (no cuenta si sos admin). ✅
 - [ ] **Tracking de PDF**: abrir/descargar el PDF del comercio suma 1 en "Descargas de PDF" de stats. ✅
-- [ ] Beneficios recomendados (misma categoría) se listan. ✅
+- [ ] **Vigencia y condiciones**: si el beneficio tiene fecha de vigencia y/o condiciones, aparece el bloque "Vigencia y condiciones" (vigencia formateada, condiciones como texto). ✅ Si no tiene ninguno de los dos, el bloque **no** aparece.
+- [ ] **Beneficios recomendados**: son de la **misma categoría**, salen del catálogo real (base), excluyen el beneficio actual y no muestran borradores/inactivos. ✅ Coinciden con lo que se ve en `/beneficios`.
 - [ ] ⚠️ Slug inexistente → página "Beneficio No Encontrado" con link a inicio (HTTP 404).
 
 ### 1.4 Otras páginas públicas
@@ -150,6 +151,8 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 ---
 
 ## 5. Panel de administración (`/admin`)
+
+- [ ] **Smoke general**: logueado como admin, abrir **cada** ruta `/admin/*` (stats, slides, galeria, benefits, benefits/nuevo, benefits/[id]/editar, sponsors, ai, chats, users, cupones, suggestions, popup, campana, admins) y verificar que **carga sin error** (sin 500 ni pantalla en blanco). ⚠️ Clave: el build/SSG no ejecuta estas rutas (están detrás de auth), así que un error de runtime solo se ve entrando de verdad.
 
 ### 5.1 Acceso y seguridad
 - [ ] `/admin/login` con usuario/contraseña admin válidos → entra al panel. ✅ Sesión firmada (HMAC), dura 7 días.
