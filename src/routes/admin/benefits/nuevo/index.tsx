@@ -495,7 +495,7 @@ export default component$(() => {
   const createExtraPhotos = createGaleria.value.filter((_, i) => !createUsedIdx.has(i));
 
   return (
-    <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
+    <div class="w-full px-6 sm:px-10 pt-10 space-y-8 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
       {/* Header */}
       <div class="flex flex-col gap-3 border-b border-slate-200 pb-7 w-full max-w-3xl mx-auto">
         <Link
@@ -526,7 +526,7 @@ export default component$(() => {
         enctype="multipart/form-data"
         onInput$={() => { createDirty.value = true; }}
         onChange$={() => { createDirty.value = true; }}
-        class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-2 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
+        class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-0 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
