@@ -10,7 +10,10 @@
  *   - Cualquier otro tag/atributo se elimina (se conserva el texto interno).
  *   - <script>, <style>, <iframe>, etc. se eliminan con su contenido.
  *
- * Se aplica SIEMPRE del lado del servidor antes de guardar Y al renderizar.
+ * Punto canónico: se sanitiza al GUARDAR (fuente de verdad) y también al RENDER
+ * como defensa en profundidad. La función es **idempotente**: correrla N veces
+ * equivale a correrla una — no re-escapa entidades ya válidas (`&nbsp;`, `&amp;`,
+ * `&#123;`…), evitando el doble escapado (`&amp;nbsp;`) que producía contentEditable.
  */
 
 const ALLOWED = new Set(["p", "br", "strong", "em", "ul", "ol", "li", "a"]);
@@ -18,12 +21,16 @@ const TAG_MAP: Record<string, string> = { b: "strong", strong: "strong", i: "em"
 // Tags cuyo contenido se descarta por completo.
 const DROP_WITH_CONTENT = "script|style|iframe|object|embed|svg|math|noscript|template|title|head|link|meta";
 
+// Escapa un `&` SOLO si no inicia ya una entidad válida (nombrada o numérica).
+// Así el escapado es idempotente: `&nbsp;`/`&amp;`/`&#38;` no se vuelven a escapar.
+const AMP_NOT_ENTITY = /&(?!(?:[a-zA-Z][a-zA-Z0-9]*|#\d+|#x[0-9a-fA-F]+);)/g;
+
 function escapeText(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(AMP_NOT_ENTITY, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function escapeAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(AMP_NOT_ENTITY, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Extrae y valida el href de un tag `a`. Devuelve la URL si es http/https, o null. */
@@ -41,8 +48,15 @@ function extractSafeHref(rawTag: string): string | null {
 export function sanitizeRichText(input: string | null | undefined): string {
   if (!input) return "";
 
+  // 0. Normalizar el espacio duro que mete contentEditable a un espacio normal.
+  //    Se contempla el carácter ( ), la entidad `&nbsp;` y sus variantes
+  //    sobre-escapadas (`&amp;nbsp;`, `&amp;amp;nbsp;`…) heredadas del bug previo.
+  let s = String(input)
+    .replace(/\u00a0/g, " ")
+    .replace(/&(?:amp;)*nbsp;/gi, " ");
+
   // 1. Quitar comentarios y elementos peligrosos junto con su contenido.
-  let s = String(input).replace(/<!--[\s\S]*?-->/g, "");
+  s = s.replace(/<!--[\s\S]*?-->/g, "");
   s = s.replace(new RegExp(`<(${DROP_WITH_CONTENT})\\b[\\s\\S]*?<\\/\\s*\\1\\s*>`, "gi"), "");
   // Aperturas sueltas de esos tags (sin cierre).
   s = s.replace(new RegExp(`<\\/?(${DROP_WITH_CONTENT})\\b[^>]*>`, "gi"), "");
