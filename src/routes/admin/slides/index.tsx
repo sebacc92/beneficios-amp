@@ -1048,6 +1048,7 @@ export default component$(() => {
                       accept="image/*"
                       ref={editDesktopInputRef}
                       onChange$={(ev) => handleFileChange(ev, "edit-desktop")}
+                      stoppropagation:click={true}
                       class="hidden"
                     />
 
@@ -1100,6 +1101,7 @@ export default component$(() => {
                       accept="image/*"
                       ref={editMobileInputRef}
                       onChange$={(ev) => handleFileChange(ev, "edit-mobile")}
+                      stoppropagation:click={true}
                       class="hidden"
                     />
 
