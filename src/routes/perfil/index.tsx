@@ -351,7 +351,7 @@ export default component$(() => {
             </div>
           </div>
 
-          {/* Right Column: Upgrade Premium & Profile Settings */}
+          {/* Right Column: Profile Settings */}
           <div class="md:col-span-2 space-y-8">
             
             {/* Profile Settings form card */}

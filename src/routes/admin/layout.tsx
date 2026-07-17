@@ -38,7 +38,6 @@ export const onRequest: RequestHandler = async (event) => {
           dni: record.dni,
           role: record.role,
           avatarUrl: record.avatarUrl,
-          premiumExpiresAt: record.premiumExpiresAt,
           createdAt: record.createdAt,
         };
       }

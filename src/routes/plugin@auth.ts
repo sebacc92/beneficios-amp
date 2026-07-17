@@ -9,9 +9,8 @@ export interface AuthenticatedUser {
   email: string;
   matricula: string | null;
   dni: string | null;
-  role: "admin" | "member" | "premium";
+  role: "admin" | "member";
   avatarUrl: string | null;
-  premiumExpiresAt: string | null;
   createdAt: string;
 }
 
@@ -36,7 +35,6 @@ export const onRequest: RequestHandler = async (event) => {
           dni: userRecord.dni,
           role: userRecord.role as any,
           avatarUrl: userRecord.avatarUrl,
-          premiumExpiresAt: userRecord.premiumExpiresAt,
           createdAt: userRecord.createdAt,
         };
         // Expose user in sharedMap so all loaders and actions can access it

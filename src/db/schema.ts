@@ -60,9 +60,8 @@ export const users = sqliteTable("users", {
   padronId: integer("padron_id"), // "identificador" del padrón de la AMP
   origen: text("origen"), // p.ej. "AGREMIADO" según el padrón
   lastSyncedAt: text("last_synced_at"), // última sincronización con el padrón
-  role: text("role", { enum: ["admin", "member", "premium"] }).default("member").notNull(),
+  role: text("role", { enum: ["admin", "member"] }).default("member").notNull(),
   avatarUrl: text("avatar_url"),
-  premiumExpiresAt: text("premium_expires_at"), // obsoleto: hoy no hay categorías
   createdAt: text("created_at").notNull(),
 });
 
