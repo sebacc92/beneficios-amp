@@ -1204,7 +1204,7 @@ export default component$(() => {
         )}
 
         {/* Barra de acciones sticky (siempre visible al pie del viewport) */}
-        <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur-sm border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-6px_20px_rgba(15,23,42,0.06)]">
+        <div class="sticky bottom-0 z-30 -mx-6 sm:-mx-8 mt-2 px-5 sm:px-8 py-3.5 bg-white border-t border-slate-200 rounded-b-3xl flex items-center justify-between gap-3 shadow-[0_-8px_24px_rgba(15,23,42,0.10)]">
           <span class="text-[11px] sm:text-xs font-bold min-w-0 truncate">
             {editDirty.value ? (
               <span class="text-amber-600">• Cambios sin guardar</span>
