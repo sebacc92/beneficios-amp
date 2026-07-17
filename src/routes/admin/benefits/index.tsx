@@ -297,8 +297,6 @@ export default component$(() => {
     return items;
   });
 
-  const dragEnabled = useComputed$(() => !hasActiveFilters.value);
-
   // Aplica el reordenamiento optimista y lo persiste.
   const applyReorder = $(() => {
     const from = dragFrom.value;
@@ -320,6 +318,12 @@ export default component$(() => {
       categoryFilter.value !== "all" ||
       locationFilter.value !== "all"
   );
+
+  // El drag se habilita sólo sin filtros. Se declara DESPUÉS de hasActiveFilters:
+  // el optimizador de Qwik captura la variable en el arreglo léxico del QRL en el
+  // punto de la llamada a useComputed$, así que referenciar algo declarado más
+  // abajo lanzaría un ReferenceError (TDZ) en runtime.
+  const dragEnabled = useComputed$(() => !hasActiveFilters.value);
 
   const totalPages = useComputed$(() => {
     const count = filteredBenefits.value.length;
