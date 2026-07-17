@@ -446,10 +446,8 @@ export default component$(() => {
       });
       y += 2;
 
-      // Condiciones
-      const rawTerms =
-        (benefit.terms && benefit.terms.trim()) ||
-        benefit.descripcion.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+      // Condiciones (solo si fueron cargadas explícitamente; sin fallback a la descripción)
+      const rawTerms = benefit.terms && benefit.terms.trim();
       if (rawTerms) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8.5);
@@ -465,15 +463,15 @@ export default component$(() => {
         y += termLines.length * 4.6 + 2;
       }
 
-      // Vigencia
-      const vigencia = benefit.validUntil
-        ? `Válido hasta el ${new Date(benefit.validUntil).toLocaleDateString("es-AR")}`
-        : "Beneficio permanente (sin fecha de vencimiento)";
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(...GREEN);
-      doc.text(`Vigencia: ${vigencia}`, M, y);
-      y += 9;
+      // Vigencia (solo si el beneficio tiene fecha cargada; si no, se omite la línea)
+      if (benefit.validUntil) {
+        const vigencia = `Válido hasta el ${new Date(benefit.validUntil).toLocaleDateString("es-AR")}`;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...GREEN);
+        doc.text(`Vigencia: ${vigencia}`, M, y);
+        y += 9;
+      }
 
       // ── BENEFICIARIO ─────────────────────────────────────────────────────
       sectionTitle("Beneficiario");

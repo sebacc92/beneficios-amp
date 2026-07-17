@@ -294,8 +294,9 @@ export async function ensureDbSeeded(db: any) {
         locationId: locId,
         offerId: offId,
         couponCode: "AMEPLA" + b.id,
-        validUntil: "2026-12-31",
-        terms: "Válido presentando credencial digital.",
+        // Vigencia y condiciones quedan vacías: solo se muestran si el admin las carga.
+        validUntil: null,
+        terms: null,
         latitud: b.latitud || null,
         longitud: b.longitud || null,
         imagenMobile: null,
@@ -447,6 +448,26 @@ export async function ensureTrackingSchema(db: any) {
   g.__trackingSchemaReady = true;
 }
 
+/**
+ * Limpia (una vez por instancia) los defaults genéricos de vigencia/condiciones
+ * que el seed histórico metía en todos los beneficios. A partir de ahora esos
+ * campos son opcionales: solo se muestran si el admin los carga. Solo se anulan
+ * los valores exactos del default (no toca vigencias/condiciones reales ni el
+ * flag de borrador `draft|`, que nunca es igual a `2026-12-31`).
+ */
+export async function ensureBenefitDefaultsCleanup(db: any) {
+  const g = globalThis as any;
+  if (g.__benefitDefaultsCleaned) return;
+  try {
+    const { sql } = await import("drizzle-orm");
+    await db.run(sql`UPDATE custom_benefits SET valid_until = NULL WHERE valid_until = '2026-12-31'`);
+    await db.run(sql`UPDATE custom_benefits SET terms = NULL WHERE terms = 'Válido presentando credencial digital.'`);
+    g.__benefitDefaultsCleaned = true;
+  } catch (err) {
+    console.error("[Cleanup] no se pudieron limpiar los defaults de vigencia/condiciones:", err);
+  }
+}
+
 /** Suma 1 a un contador (`views` o `pdf_downloads`) de un beneficio por slug. No bloquea si falla. */
 export async function bumpBenefitCounter(
   requestEvent: RequestEventBase,
@@ -530,6 +551,8 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
     const db = getDB(requestEvent);
     // Automatically guarantee database is populated from seed.json on start
     await ensureDbSeeded(db);
+    // Anula los defaults genéricos de vigencia/condiciones heredados del seed.
+    await ensureBenefitDefaultsCleanup(db);
 
     const dbBenefits = await db.select().from(customBenefits);
     const filters = await getFilters();

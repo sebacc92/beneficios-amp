@@ -869,6 +869,41 @@ export default component$(() => {
           </div>
         </div>
 
+        {/* Vigencia y condiciones (opcionales) */}
+        <div class="border-t border-slate-100 pt-5 space-y-4">
+          <div>
+            <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-brand-green fill-none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Vigencia y condiciones
+            </h4>
+            <p class="text-[10px] text-slate-400 font-medium mt-1">
+              Ambos son <b>opcionales</b>. Si los dejás vacíos, no se muestran en la ficha ni en el PDF.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Vigencia (fecha de vencimiento)</label>
+              <input
+                type="date"
+                name="validUntil"
+                class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+              />
+              <p class="text-[10px] text-slate-400 font-medium">Dejalo vacío si el beneficio no vence.</p>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Condiciones</label>
+              <textarea
+                name="terms"
+                rows={3}
+                placeholder="Ej: Válido de lunes a viernes. No acumulable con otras promociones."
+                class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all resize-y"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Live Preview Widget */}
         <div class="border-t border-slate-100 pt-6 space-y-4">
           <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
