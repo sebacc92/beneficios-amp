@@ -1,35 +1,21 @@
 import { component$, useSignal, useStore, $, useTask$ } from "@builder.io/qwik";
 import { put } from "@vercel/blob";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { 
-  LuPlus, 
-  LuImage, 
-  LuTrash2, 
-  LuSparkles, 
-  LuPencil, 
-  LuEye, 
-  LuEyeOff, 
-  LuMonitor, 
-  LuSmartphone, 
+import {
+  LuPlus,
+  LuTrash2,
+  LuSparkles,
+  LuPencil,
+  LuEye,
+  LuEyeOff,
+  LuSmartphone,
   LuMove,
-  LuCheck,
-  LuX
 } from "@qwikest/icons/lucide";
 import { asc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { heroSlides as heroSlidesTable } from "~/db/schema";
 import { ensureHeroSlidesSeeded } from "~/server/cache";
-import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
-
-// Relaciones de aspecto REALES del render del hero (ver hero-slider.tsx):
-// desktop 1600×646 (panorámico ~2.48:1) y mobile 480×600 (vertical 4:5).
-// Las usamos también para la previsualización con recorte (ImageFramePreview),
-// así lo que el admin ve encuadrado coincide con lo que se publica.
-const RATIO_DESKTOP = 1600 / 646;
-const RATIO_MOBILE = 4 / 5;
-// Textos de ayuda por tipo de imagen (tamaño recomendado, formatos, peso).
-const HELP_DESKTOP = "Recomendado 2560×1035px (panorámico ~2.48:1) · JPG, PNG o WebP · hasta ~2 MB";
-const HELP_MOBILE = "Recomendado 1080×1350px (vertical 4:5) · JPG, PNG o WebP · hasta ~2 MB";
+import { SlideFormModal } from "~/components/slide-form-modal/slide-form-modal";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -345,97 +331,19 @@ export default component$(() => {
 
   const isCreateSlideOpen = useSignal(false);
   
-  // Drag and Drop Uploader State (Creation Form)
-  const desktopPreview = useSignal<string | null>(null);
-  const mobilePreview = useSignal<string | null>(null);
-  const desktopInputRef = useSignal<HTMLInputElement | undefined>(undefined);
-  const mobileInputRef = useSignal<HTMLInputElement | undefined>(undefined);
-  const isDragOverDesktop = useSignal(false);
-  const isDragOverMobile = useSignal(false);
-
-  // Textos en vivo para la miniatura WYSIWYG del hero (form de creación).
-  const createPreTitle = useSignal("");
-  const createTitle = useSignal("");
-  const createSubtitle = useSignal("");
-  const createBtnText = useSignal("Explorar");
-
-  // Drag and Drop Uploader State (Edition Form Modal)
+  // Estado del modal de edición (qué slide se está editando).
   const editingSlide = useSignal<any | null>(null);
-  const editDesktopPreview = useSignal<string | null>(null);
-  const editMobilePreview = useSignal<string | null>(null);
-  const editDesktopInputRef = useSignal<HTMLInputElement | undefined>(undefined);
-  const editMobileInputRef = useSignal<HTMLInputElement | undefined>(undefined);
-  const isDragOverEditDesktop = useSignal(false);
-  const isDragOverEditMobile = useSignal(false);
-  // Textos en vivo para la miniatura WYSIWYG del hero (modal de edición).
-  const editPreTitle = useSignal("");
-  const editTitle = useSignal("");
-  const editSubtitle = useSignal("");
-  const editBtnText = useSignal("");
 
-  // Client-side Visual Array of Slides for HTML5 Drag & Drop sorting
+  // Copia local de los slides para el reordenamiento con drag & drop de las tarjetas.
   const localSlides = useStore<{ list: any[] }>({ list: [] });
   useTask$(({ track }) => {
     track(() => slidesLoader.value);
     localSlides.list = [...slidesLoader.value];
   });
 
-  // HTML5 Drag & Drop Card indices tracking
+  // Índices de la tarjeta arrastrada / sobrevolada (reordenamiento).
   const draggedIdx = useSignal<number | null>(null);
   const draggedOverIdx = useSignal<number | null>(null);
-
-  // File Upload Handlers (Standard change events)
-  const handleFileChange = $((event: Event, target: "desktop" | "mobile" | "edit-desktop" | "edit-mobile") => {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const previewUrl = URL.createObjectURL(file);
-
-    if (target === "desktop") {
-      desktopPreview.value = previewUrl;
-    } else if (target === "mobile") {
-      mobilePreview.value = previewUrl;
-    } else if (target === "edit-desktop") {
-      editDesktopPreview.value = previewUrl;
-    } else if (target === "edit-mobile") {
-      editMobilePreview.value = previewUrl;
-    }
-  });
-
-  // Drop Event Handlers
-  const handleDrop = $((event: DragEvent, target: "desktop" | "mobile" | "edit-desktop" | "edit-mobile") => {
-    if (!event.dataTransfer || event.dataTransfer.files.length === 0) return;
-    const file = event.dataTransfer.files[0];
-    if (!file.type.startsWith("image/")) return;
-
-    const previewUrl = URL.createObjectURL(file);
-
-    if (target === "desktop") {
-      isDragOverDesktop.value = false;
-      desktopPreview.value = previewUrl;
-      if (desktopInputRef.value) desktopInputRef.value.files = event.dataTransfer.files;
-    } else if (target === "mobile") {
-      isDragOverMobile.value = false;
-      mobilePreview.value = previewUrl;
-      if (mobileInputRef.value) mobileInputRef.value.files = event.dataTransfer.files;
-    } else if (target === "edit-desktop") {
-      isDragOverEditDesktop.value = false;
-      editDesktopPreview.value = previewUrl;
-      if (editDesktopInputRef.value) editDesktopInputRef.value.files = event.dataTransfer.files;
-    } else if (target === "edit-mobile") {
-      isDragOverEditMobile.value = false;
-      editMobilePreview.value = previewUrl;
-      if (editMobileInputRef.value) editMobileInputRef.value.files = event.dataTransfer.files;
-    }
-  });
-
-  // Reset form visual previews
-  const resetPreviews = $(() => {
-    desktopPreview.value = null;
-    mobilePreview.value = null;
-    if (desktopInputRef.value) desktopInputRef.value.value = "";
-    if (mobileInputRef.value) mobileInputRef.value.value = "";
-  });
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto bg-slate-50/50">
@@ -458,14 +366,11 @@ export default component$(() => {
 
         <div class="flex items-center gap-2">
           <button
-            onClick$={() => {
-              isCreateSlideOpen.value = !isCreateSlideOpen.value;
-              resetPreviews();
-            }}
+            onClick$={() => { isCreateSlideOpen.value = true; }}
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
-            <span>{isCreateSlideOpen.value ? "Cerrar Panel" : "Añadir Slide"}</span>
+            <span>Añadir Slide</span>
           </button>
         </div>
       </div>
@@ -483,239 +388,14 @@ export default component$(() => {
           </div>
         )}
 
-        {/* Form panel with double column optimized layout */}
+        {/* Modal de creación (mismo componente que edición). */}
         {isCreateSlideOpen.value && (
-          <Form
+          <SlideFormModal
+            mode="create"
+            nextOrder={localSlides.list.length + 1}
             action={createSlideAction}
-            enctype="multipart/form-data"
-            onSubmit$={resetPreviews}
-            class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-md grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-top-6 duration-300"
-          >
-            {/* Left Column: Metadata fields */}
-            <div class="space-y-5">
-              <div class="border-b border-slate-100 pb-3">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuSparkles class="w-4 h-4 text-brand-gold fill-brand-gold animate-pulse" />
-                  Información Textual del Slide
-                </h4>
-              </div>
-
-              {/* El orden se gestiona arrastrando las tarjetas; el slide nuevo se agrega al final. */}
-              <input type="hidden" name="orderIndex" value={localSlides.list.length + 1} />
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior (Pre-Título)</label>
-                <input
-                  type="text"
-                  name="preTitle"
-                  bind:value={createPreTitle}
-                  placeholder="Ej: La Plata y City Bell"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
-                <input
-                  type="text"
-                  name="title"
-                  required
-                  bind:value={createTitle}
-                  placeholder="Ej: Temporada de Invierno AMP+"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
-                <textarea
-                  name="subtitle"
-                  required
-                  rows={2}
-                  bind:value={createSubtitle}
-                  placeholder="Ej: Presentá tu credencial digital y disfrutá de los mejores descuentos..."
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
-                />
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Texto del Botón</label>
-                  <input
-                    type="text"
-                    name="buttonText"
-                    bind:value={createBtnText}
-                    placeholder="Explorar"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
-                  />
-                </div>
-
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Enlace de Redirección (URL)</label>
-                  <input
-                    type="text"
-                    name="buttonLink"
-                    placeholder="/beneficios"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div class="space-y-0.5">
-                  <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Activar Slide Inmediatamente</span>
-                  <span class="text-[10px] text-slate-400 font-semibold">Desmarcar para guardar como borrador oculto.</span>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" name="isActive" checked={true} class="sr-only peer" />
-                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>
-                </label>
-              </div>
-            </div>
-
-            {/* Right Column: Interactive Image Uploader Zones */}
-            <div class="space-y-5">
-              <div class="border-b border-slate-100 pb-3">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuImage class="w-4 h-4 text-brand-green" />
-                  Multimedia & Adaptabilidad Móvil
-                </h4>
-              </div>
-
-              {/* Desktop Upload Zone (panorámico ~2.48:1, igual que el hero real) */}
-              <div class="space-y-2">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Horizontal Desktop (panorámico ~2.48:1)</span>
-                <div
-                  preventdefault:dragover={true}
-                  onDragOver$={() => {
-                    isDragOverDesktop.value = true;
-                  }}
-                  onDragLeave$={() => (isDragOverDesktop.value = false)}
-                  onDrop$={$(ev => handleDrop(ev, "desktop"))}
-                  class={[
-                    "relative group aspect-[1600/646] w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
-                    isDragOverDesktop.value
-                      ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                      : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
-                  ]}
-                  onClick$={() => desktopInputRef.value?.click()}
-                >
-                  <input
-                    type="file"
-                    name="imageDesktop"
-                    accept="image/*"
-                    ref={desktopInputRef}
-                    onChange$={(ev) => handleFileChange(ev, "desktop")}
-                    stoppropagation:click={true}
-                    class="hidden"
-                  />
-
-                  {desktopPreview.value ? (
-                    <>
-                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_DESKTOP} preTitle={createPreTitle.value} title={createTitle.value} subtitle={createSubtitle.value} buttonText={createBtnText.value} />
-                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
-                        <LuImage class="w-5 h-5" />
-                        Reemplazar Imagen Desktop
-                      </div>
-                    </>
-                  ) : (
-                    <div class="flex flex-col items-center gap-2 text-slate-450 z-10">
-                      <LuMonitor class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
-                      <div class="text-xs font-bold text-slate-650">Arrastrá la imagen desktop aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto panorámico ~2.48:1 (marco real de la vista)</div>
-                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
-                        Buscar Archivo
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
-                <input
-                  type="text"
-                  name="imageUrl"
-                  placeholder="Ó ingresá URL de Imagen Desktop Externa"
-                  class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono"
-                />
-              </div>
-
-              {/* Mobile Upload Zone (vertical 4:5, igual que el hero real) */}
-              <div class="space-y-2">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Vertical Mobile (4:5)</span>
-                <div
-                  preventdefault:dragover={true}
-                  onDragOver$={() => {
-                    isDragOverMobile.value = true;
-                  }}
-                  onDragLeave$={() => (isDragOverMobile.value = false)}
-                  onDrop$={$(ev => handleDrop(ev, "mobile"))}
-                  class={[
-                    "relative group aspect-[4/5] w-full max-w-[220px] mx-auto rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
-                    isDragOverMobile.value
-                      ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                      : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
-                  ]}
-                  onClick$={() => mobileInputRef.value?.click()}
-                >
-                  <input
-                    type="file"
-                    name="imageMobile"
-                    accept="image/*"
-                    ref={mobileInputRef}
-                    onChange$={(ev) => handleFileChange(ev, "mobile")}
-                    stoppropagation:click={true}
-                    class="hidden"
-                  />
-
-                  {mobilePreview.value ? (
-                    <>
-                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_MOBILE} preTitle={createPreTitle.value} title={createTitle.value} subtitle={createSubtitle.value} buttonText={createBtnText.value} />
-                      <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
-                        <LuImage class="w-5 h-5" />
-                        Reemplazar Imagen Mobile
-                      </div>
-                    </>
-                  ) : (
-                    <div class="flex flex-col items-center gap-2 text-slate-400 z-10">
-                      <LuSmartphone class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
-                      <div class="text-xs font-bold text-slate-650">Arrastrá la imagen mobile aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 4:5 (marco real de la vista)</div>
-                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
-                        Buscar Archivo
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
-                <input
-                  type="text"
-                  name="imageMobileUrl"
-                  placeholder="Ó ingresá URL de Imagen Mobile Externa"
-                  class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Bottom Actions Row spanning 2 columns */}
-            <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-150 gap-3">
-              <button
-                type="button"
-                onClick$={() => {
-                  isCreateSlideOpen.value = false;
-                  resetPreviews();
-                }}
-                class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-250 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={createSlideAction.isRunning}
-                class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95"
-              >
-                {createSlideAction.isRunning ? "Registrando..." : "💾 Registrar Slide"}
-              </button>
-            </div>
-          </Form>
+            onClose={$(() => { isCreateSlideOpen.value = false; })}
+          />
         )}
 
         {/* Drag & Drop Visual Deck Info Badge */}
@@ -848,15 +528,7 @@ export default component$(() => {
                       <div class="flex items-center gap-1.5">
                         {/* Edit Button */}
                         <button
-                          onClick$={() => {
-                            editingSlide.value = slide;
-                            editDesktopPreview.value = slide.imageUrl;
-                            editMobilePreview.value = slide.imageMobile || slide.imageUrl;
-                            editPreTitle.value = slide.preTitle || "";
-                            editTitle.value = slide.title || "";
-                            editSubtitle.value = slide.subtitle || "";
-                            editBtnText.value = slide.buttonText || "";
-                          }}
+                          onClick$={() => { editingSlide.value = slide; }}
                           class="p-2 text-slate-650 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/60 shadow-xs transition-all cursor-pointer active:scale-90"
                           title="Editar Slide"
                         >
@@ -904,264 +576,14 @@ export default component$(() => {
       </div>
 
       {/* Editing Slide Modal Overlay */}
+      {/* Modal de edición (mismo componente que creación). */}
       {editingSlide.value && (
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-300">
-          <div class="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
-            {/* Modal Header */}
-            <div class="bg-brand-green text-white px-6 py-4 flex items-center justify-between">
-              <div>
-                <h3 class="font-display font-extrabold text-base text-brand-gold flex items-center gap-1.5">
-                  <LuPencil class="w-4 h-4" />
-                  Editar Slide Promocional
-                </h3>
-                <p class="text-[10px] text-slate-200 uppercase tracking-wider font-semibold">
-                  Slide ID: {editingSlide.value.id}
-                </p>
-              </div>
-              <button
-                onClick$={() => {
-                  editingSlide.value = null;
-                  editDesktopPreview.value = null;
-                  editMobilePreview.value = null;
-                }}
-                class="p-1 text-slate-200 hover:text-white rounded-full transition-colors cursor-pointer"
-              >
-                <LuX class="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Modal Scrollable Content Form */}
-            <Form
-              action={updateSlideAction}
-              enctype="multipart/form-data"
-              onSubmit$={() => {
-                editingSlide.value = null;
-                editDesktopPreview.value = null;
-                editMobilePreview.value = null;
-              }}
-              class="flex flex-col flex-1 min-h-0"
-            >
-              <input type="hidden" name="id" value={editingSlide.value.id} />
-
-              {/* Contenido scrolleable: solo esto scrollea, el footer queda fijo. */}
-              <div class="flex-1 overflow-y-auto p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
-              {/* Modal Left Col: Metadata fields */}
-              <div class="space-y-4">
-                {/* El orden se gestiona arrastrando las tarjetas; acá se preserva el actual. */}
-                <input type="hidden" name="orderIndex" value={editingSlide.value.orderIndex} />
-
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior</label>
-                  <input
-                    type="text"
-                    name="preTitle"
-                    bind:value={editPreTitle}
-                    placeholder="Ej: Exclusivo AMP+"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
-                  />
-                </div>
-
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
-                  <input
-                    type="text"
-                    name="title"
-                    required
-                    bind:value={editTitle}
-                    placeholder="Ej: Temporada de Invierno"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-extrabold"
-                  />
-                </div>
-
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
-                  <textarea
-                    name="subtitle"
-                    required
-                    rows={2}
-                    bind:value={editSubtitle}
-                    placeholder="Ej: Descuentos increíbles..."
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
-                  />
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-1">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Texto del Botón</label>
-                    <input
-                      type="text"
-                      name="buttonText"
-                      bind:value={editBtnText}
-                      placeholder="Explorar"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
-                    />
-                  </div>
-
-                  <div class="space-y-1">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Enlace del Botón</label>
-                    <input
-                      type="text"
-                      name="buttonLink"
-                      value={editingSlide.value.buttonLink || ""}
-                      placeholder="/"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div class="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div class="space-y-0.5">
-                    <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Slide Activo</span>
-                    <span class="text-[10px] text-slate-400 font-semibold">Tildar para mostrar en la web inmediatamente.</span>
-                  </div>
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="isActive"
-                      checked={editingSlide.value.isActive === 1}
-                      class="sr-only peer"
-                    />
-                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Modal Right Col: Multimedia & drag-drop editing zones */}
-              <div class="space-y-4">
-                {/* Desktop editing zone */}
-                <div class="space-y-2">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Desktop (panorámico ~2.48:1)</span>
-                  <div
-                    preventdefault:dragover={true}
-                    onDragOver$={() => {
-                      isDragOverEditDesktop.value = true;
-                    }}
-                    onDragLeave$={() => (isDragOverEditDesktop.value = false)}
-                    onDrop$={$(ev => handleDrop(ev, "edit-desktop"))}
-                    class={[
-                      "relative group aspect-[1600/646] w-full rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
-                      isDragOverEditDesktop.value
-                        ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                        : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
-                    ]}
-                    onClick$={() => editDesktopInputRef.value?.click()}
-                  >
-                    <input
-                      type="file"
-                      name="imageDesktop"
-                      accept="image/*"
-                      ref={editDesktopInputRef}
-                      onChange$={(ev) => handleFileChange(ev, "edit-desktop")}
-                      stoppropagation:click={true}
-                      class="hidden"
-                    />
-
-                    {editDesktopPreview.value ? (
-                      <>
-                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_DESKTOP} preTitle={editPreTitle.value} title={editTitle.value} subtitle={editSubtitle.value} buttonText={editBtnText.value} />
-                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
-                          <LuImage class="w-4 h-4" />
-                          Cambiar Imagen Desktop
-                        </div>
-                      </>
-                    ) : (
-                      <div class="flex flex-col items-center gap-1.5 text-slate-405 z-10">
-                        <LuMonitor class="w-8 h-8 text-slate-400 stroke-1" />
-                        <span class="text-xs font-bold text-slate-650">Soltá la nueva imagen desktop aquí</span>
-                      </div>
-                    )}
-                  </div>
-                  <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
-                  <input
-                    type="text"
-                    name="imageUrl"
-                    value={editingSlide.value.imageUrl}
-                    placeholder="URL de Imagen Desktop Externa"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                  />
-                </div>
-
-                {/* Mobile editing zone */}
-                <div class="space-y-2">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Imagen Mobile (4:5)</span>
-                  <div
-                    preventdefault:dragover={true}
-                    onDragOver$={() => {
-                      isDragOverEditMobile.value = true;
-                    }}
-                    onDragLeave$={() => (isDragOverEditMobile.value = false)}
-                    onDrop$={$(ev => handleDrop(ev, "edit-mobile"))}
-                    class={[
-                      "relative group aspect-[4/5] w-full max-w-[200px] mx-auto rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
-                      isDragOverEditMobile.value
-                        ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                        : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
-                    ]}
-                    onClick$={() => editMobileInputRef.value?.click()}
-                  >
-                    <input
-                      type="file"
-                      name="imageMobile"
-                      accept="image/*"
-                      ref={editMobileInputRef}
-                      onChange$={(ev) => handleFileChange(ev, "edit-mobile")}
-                      stoppropagation:click={true}
-                      class="hidden"
-                    />
-
-                    {editMobilePreview.value ? (
-                      <>
-                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_MOBILE} preTitle={editPreTitle.value} title={editTitle.value} subtitle={editSubtitle.value} buttonText={editBtnText.value} />
-                        <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
-                          <LuImage class="w-4 h-4" />
-                          Cambiar Imagen Mobile
-                        </div>
-                      </>
-                    ) : (
-                      <div class="flex flex-col items-center gap-1.5 text-slate-400 z-10">
-                        <LuSmartphone class="w-8 h-8 text-slate-400 stroke-1" />
-                        <span class="text-xs font-bold text-slate-650">Soltá la nueva imagen mobile aquí</span>
-                      </div>
-                    )}
-                  </div>
-                  <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
-                  <input
-                    type="text"
-                    name="imageMobileUrl"
-                    value={editingSlide.value.imageMobile || ""}
-                    placeholder="URL de Imagen Mobile Externa"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
-
-              </div>{/* fin contenido scrolleable */}
-
-              {/* Footer fijo: Guardar/Cancelar siempre visibles, no scrollea. */}
-              <div class="shrink-0 bg-slate-50 px-6 sm:px-8 py-4 flex justify-end border-t border-slate-200 gap-3">
-                <button
-                  type="button"
-                  onClick$={() => {
-                    editingSlide.value = null;
-                    editDesktopPreview.value = null;
-                    editMobilePreview.value = null;
-                  }}
-                  class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-250 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateSlideAction.isRunning}
-                  class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
-                >
-                  <LuCheck class="w-4 h-4" />
-                  {updateSlideAction.isRunning ? "Guardando..." : "Guardar Cambios"}
-                </button>
-              </div>
-            </Form>
-          </div>
-        </div>
+        <SlideFormModal
+          mode="edit"
+          slide={editingSlide.value}
+          action={updateSlideAction}
+          onClose={$(() => { editingSlide.value = null; })}
+        />
       )}
     </div>
   );
