@@ -11,7 +11,8 @@ import {
 } from "@builder.io/qwik-city";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
-import { users } from "~/db/schema";
+import { users, coupons } from "~/db/schema";
+import { getCustomBenefits } from "~/server/cache";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuShield, LuBell, LuTicket } from "@qwikest/icons/lucide";
 import { getVapidPublicKey, savePushSubscription, removePushSubscription } from "~/server/webpush";
@@ -24,6 +25,33 @@ export const useUserLoader = routeLoader$(async (event) => {
     throw event.redirect(302, "/login");
   }
   return user;
+});
+
+// Historial de descargas de cupones del agremiado logueado. Sale de la tabla
+// `coupons` (que se alimenta al descargar el cupón). El slug para linkear se
+// resuelve contra el catálogo (benefitId guardado = String(benefit.id)).
+export const useCouponHistory = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user) return [];
+  try {
+    const db = getDB(event);
+    const rows = await db.select().from(coupons).where(eq(coupons.userId, user.id));
+    const list = await getCustomBenefits(event).catch(() => []);
+    const slugById: Record<string, string> = {};
+    for (const b of list) slugById[String(b.id)] = b.url;
+    return rows
+      .map((c) => ({
+        code: c.code,
+        benefitTitle: c.benefitTitle,
+        slug: slugById[c.benefitId] || null,
+        status: c.status,
+        createdAt: c.createdAt,
+      }))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)); // más reciente primero
+  } catch (err) {
+    console.error("[perfil] no se pudo cargar el historial de descargas:", err);
+    return [];
+  }
 });
 
 // URL absoluta de verificación (QR del carnet). El token va cifrado: nunca
@@ -119,6 +147,7 @@ export default component$(() => {
   const logoutAction = useLogoutAction();
   const pushKey = usePushKey();
   const verifyUrl = useCredentialVerifyUrl();
+  const couponHistory = useCouponHistory();
 
   const user = userLoader.value;
   const showEditForm = useSignal(false);
@@ -436,15 +465,48 @@ export default component$(() => {
               )}
             </div>
 
-            {/* Custom static voucher history tab */}
+            {/* Historial de descargas de cupones (real, desde la tabla coupons) */}
             <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
               <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-4">
                 Mi Historial de Descargas
               </h3>
-              <div class="flex items-center justify-center gap-2 py-6 text-slate-400 text-xs sm:text-sm font-medium">
-                <LuTicket class="w-5 h-5 text-purple-400 animate-pulse" />
-                <span>Aún no has impreso ni descargado cupones de beneficios recientemente.</span>
-              </div>
+              {couponHistory.value.length === 0 ? (
+                <div class="flex items-center justify-center gap-2 py-6 text-slate-400 text-xs sm:text-sm font-medium">
+                  <LuTicket class="w-5 h-5 text-purple-400 animate-pulse" />
+                  <span>Aún no has impreso ni descargado cupones de beneficios recientemente.</span>
+                </div>
+              ) : (
+                <ul class="divide-y divide-slate-100">
+                  {couponHistory.value.map((c) => {
+                    const estado =
+                      c.status === "used"
+                        ? { label: "Usado", cls: "bg-slate-100 text-slate-500 border-slate-200" }
+                        : c.status === "expired"
+                          ? { label: "Vencido", cls: "bg-red-50 text-red-600 border-red-200" }
+                          : { label: "Activo", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+                    return (
+                      <li key={c.code} class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3.5">
+                        <div class="min-w-0">
+                          {c.slug ? (
+                            <Link href={`/beneficio/${c.slug}`} class="text-sm font-bold text-brand-green-dark hover:text-brand-green hover:underline truncate block">
+                              {c.benefitTitle}
+                            </Link>
+                          ) : (
+                            <span class="text-sm font-bold text-slate-700 truncate block">{c.benefitTitle}</span>
+                          )}
+                          <span class="text-[11px] text-slate-400 font-semibold">
+                            {new Date(c.createdAt).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                            {"  ·  "}Código: <span class="font-mono text-slate-500">{c.code.slice(0, 3)} {c.code.slice(3)}</span>
+                          </span>
+                        </div>
+                        <span class={["inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0", estado.cls]}>
+                          {estado.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
           </div>
