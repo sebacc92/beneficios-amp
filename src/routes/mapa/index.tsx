@@ -1,6 +1,7 @@
 import { component$, useSignal, useVisibleTask$, useComputed$, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
+import { benefitDiscounts, formatDiscountChip } from "~/utils/discount";
 
 import { LuMapPin, LuList, LuSearch, LuFilter, LuRefreshCw } from "@qwikest/icons/lucide";
 
@@ -204,23 +205,30 @@ export default component$(() => {
       const lat = Number(benefit.latitud);
       const lng = Number(benefit.longitud);
 
-      const discountText = benefit.resumen || "Descuento Exclusivo";
+      // Chip con todos los porcentajes (mismo criterio que cards/ficha).
+      const discountChip = formatDiscountChip(benefitDiscounts(benefit));
       const primaryCat = benefit.categorias[0]?.descripcion || "Beneficios";
       const imageSrc = benefit.imagen
         ? (benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/") ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`)
         : "";
 
+      // Marco consistente con fondo blanco + object-contain: encuadra igual todas
+      // las imágenes y NO deforma ni recorta los logos.
       const popupHTML = `
-        <div class="font-sans max-w-[240px] text-slate-800 text-left p-1">
-          ${imageSrc ? `<img src="${imageSrc}" alt="${benefit.titulo}" class="w-full h-24 object-cover rounded-xl mb-2.5 shadow-sm" />` : ""}
-          <span class="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black bg-brand-green/10 text-brand-green uppercase tracking-wider mb-1">
+        <div class="font-sans w-[240px] text-slate-800 text-left">
+          ${imageSrc ? `<div class="w-full h-28 rounded-xl overflow-hidden bg-white border border-slate-100 mb-2.5 flex items-center justify-center">
+            <img src="${imageSrc}" alt="${benefit.titulo}" class="w-full h-full object-contain p-2" />
+          </div>` : ""}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black bg-brand-green/10 text-brand-green uppercase tracking-wider mb-1.5">
             ${primaryCat}
           </span>
-          <h3 class="text-sm font-extrabold text-slate-900 leading-tight mb-1 line-clamp-2">${benefit.titulo}</h3>
-          <p class="text-xs font-black text-brand-green-dark bg-emerald-50 border border-emerald-100/50 rounded-lg py-1 px-2 mb-2 text-center uppercase tracking-wide">
-            ${discountText.replace("Descuento del", "").trim()}
-          </p>
-          <a href="/beneficio/${benefit.url}" class="block text-center text-xs font-bold text-white bg-brand-green hover:bg-brand-green-light py-2 rounded-xl transition-colors shadow-sm">
+          <h3 class="text-sm font-extrabold text-slate-900 leading-tight mb-2 line-clamp-2">${benefit.titulo}</h3>
+          ${discountChip ? `<div class="mb-2.5">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-brand-gold text-brand-green-dark shadow-sm">
+              ${discountChip}
+            </span>
+          </div>` : ""}
+          <a href="/beneficio/${benefit.url}" class="block text-center text-xs font-black text-white bg-brand-green hover:bg-brand-green-light py-2.5 rounded-xl transition-colors shadow-sm uppercase tracking-wide">
             Ver beneficio &rarr;
           </a>
         </div>
@@ -355,7 +363,7 @@ export default component$(() => {
                         <span class="block text-xs font-bold text-slate-800 truncate">{b.titulo}</span>
                         <span class="block text-[10px] text-slate-400 font-semibold truncate">
                           {b.categorias[0]?.descripcion || "Beneficio"}
-                          {b.resumen ? ` · ${b.resumen.trim()}` : ""}
+                          {(() => { const chip = formatDiscountChip(benefitDiscounts(b)); return chip ? ` · ${chip}` : ""; })()}
                         </span>
                       </span>
                     </button>
