@@ -124,10 +124,12 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 2. **Título** (nombre del comercio).
 3. **Descripción detallada** con el **editor de texto**: usá la barra de arriba para poner **negrita**, **itálica**, **listas** y **enlaces**. Escribí las condiciones, aclaraciones, etc.
    > Por seguridad, el sistema sólo guarda esos formatos. Si pegás código u otras etiquetas raras, se limpian solas.
-4. **Descuento:** elegí la **oferta** en el desplegable. El campo **"Resumen (badge)"** se completa **solo** ("20%" → "20% de descuento").
-   - Si querés un texto distinto, tildá **"Personalizar texto"** y escribilo a mano.
-   - ⚠️ Si el texto que escribís dice un porcentaje diferente al de la oferta, aparece una **advertencia** para que revises.
-5. **Categoría**, **Ubicación** y **Oferta**.
+4. **Descuentos (uno o varios):** en la sección **"Descuentos"** cargás cada descuento en su fila:
+   - El **número** (el porcentaje, ej. `20`) y, opcionalmente, la **condición** (ej. *"lunes a jueves"*, *"en efectivo"*, *"en mano de obra"*).
+   - Clic en **"+ Agregar descuento"** para sumar filas. Ejemplos reales: **20% lunes a jueves** y **25% viernes a domingo**; o **5% en productos** y **20% en mano de obra**.
+   - El **primero** es el **principal** (queda marcado como *Principal*): define el *badge* que se ve en las tarjetas y el filtro por descuento del listado. Para quitar una fila, usá la **×**.
+   - No hace falta cargar el "resumen" a mano: el badge se arma **solo** con los porcentajes ("20% y 25%", o "Hasta 25%" si no entran; en la ficha se listan todos con su condición).
+5. **Categoría** y **Ubicación**.
 6. **Imágenes del beneficio:** subí las fotos (hasta **10**) y marcá una como **Principal** con la **estrella (★)**. Esa foto es la que se usa como imagen del beneficio.
    - En la **vista previa con marco** ves cómo se recorta en **escritorio (16:9)** y en **celular (vertical)**. Si aparece el aviso "se recortará", conviene una imagen con esa proporción.
    - ¿Querés una imagen distinta para el celular (o para escritorio)? Tildá **"Usar otra imagen para mobile"** (o para desktop) y elegí otra foto de la galería o subí una nueva.
@@ -139,6 +141,8 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 11. **Guardá** desde la **barra inferior fija** (siempre visible mientras scrolleás). Cuando hay cambios sin guardar, aparece el aviso **"• Cambios sin guardar"**. Aparece el aviso "creado exitosamente".
 
 > Nota: antes todos los beneficios mostraban una vigencia y condiciones genéricas por defecto. Eso **ya no pasa**: si no cargás estos campos, no se muestra nada.
+
+> 🎟️ **El cupón (PDF) que descarga el agremiado incluye ahora**: todos los descuentos con su condición, el resumen, las **condiciones/términos** (inclusiones y exclusiones) y la vigencia. Por eso conviene cargar bien las **condiciones**: es lo que el comercio va a leer del voucher.
 
 ### 5.2 Editar un beneficio
 

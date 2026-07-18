@@ -307,7 +307,34 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 
 ---
 
-## 8. Cierre y entrega
+## 8. Múltiples descuentos, voucher, historial y contacto (release actual)
+
+**Múltiples descuentos (form):**
+- [ ] En **Crear/Editar beneficio**, la sección **Descuentos** permite agregar/quitar filas (% + condición). El primero figura como **Principal**. ✅
+- [ ] Guardar un beneficio con **un solo** descuento funciona; guardarlo con **varios** también. ✅
+- [ ] Un beneficio **viejo** (cargado antes de esta versión) se abre en Editar mostrando su descuento actual como primera fila (sin migración manual). ✅
+
+**Visualización del descuento (formato compacto):**
+- [ ] **Badge** de la tarjeta: 1 descuento → "20%"; 2 → "20/25%"; 3+ o muy largo → "Hasta 25%". ✅
+- [ ] **Chip / cuerpo**: muestra todos los porcentajes ("5% / 20%"). ✅
+- [ ] Mismo criterio en **listado**, **home**, **popup del mapa** y **ficha del beneficio**. ✅
+- [ ] En la **ficha**, el cuerpo lista **cada descuento con su condición** (ej. "20% — lunes a jueves"). ✅
+
+**PDF del cupón (voucher):**
+- [ ] Descargar el cupón de un beneficio de **1 descuento**: el PDF muestra el descuento, el resumen (si aporta), condiciones y vigencia. ✅
+- [ ] Descargar el cupón de un beneficio de **varios descuentos**: aparecen **todos con su condición**. ✅
+- [ ] Con **condiciones largas**, el PDF sigue prolijo en **A4** (tipografía menor, sin cortar palabras; si no entra, pasa a una hoja nueva). ✅
+
+**Historial de descargas (/perfil):**
+- [ ] Al descargar un cupón logueado, aparece en **"Mi Historial de Descargas"**: beneficio (con **link** a la ficha), **fecha**, **código de canje** y **estado** (Activo/Usado/Vencido). ✅
+- [ ] Orden **más reciente primero**. Si no hay descargas, muestra el vacío. ✅
+
+**Contacto en /register:**
+- [ ] El aviso de registro deshabilitado muestra **"Para consultas sobre tu agremiación escribí a info@amepla.org.ar"** con enlace **mailto**. ✅
+
+---
+
+## 9. Cierre y entrega
 - [ ] Barrido de datos de prueba: sin beneficios TEST, sin Lorem Ipsum, sin cupones/chats/sugerencias de prueba, sin datos personales del desarrollador (Instagram, direcciones).
 - [ ] Lighthouse en producción: home y una ficha de beneficio, performance ≥ 90 mobile.
 - [ ] Env vars de producción documentadas (nombre y propósito, sin valores).
