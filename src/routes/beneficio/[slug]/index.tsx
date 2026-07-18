@@ -444,9 +444,9 @@ export default component$(() => {
       const titleLines = doc.splitTextToSize(benefit.titulo, contentW - 46);
       doc.text(titleLines, M, y + 4);
 
-      // Píldora de descuento (a la derecha del título) — misma fuente única que
-      // el badge/chip de la ficha: el resumen curado, no el facet de oferta.
-      const descuento = (benefit.resumen || benefit.ofertas[0]?.descripcion || "Beneficio").trim();
+      // Píldora de descuento (a la derecha del título): badge compacto con todos.
+      const pdfDiscounts = benefitDiscounts(benefit);
+      const descuento = formatDiscountBadge(pdfDiscounts) || "Beneficio";
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       const pillW = Math.min(46, doc.getTextWidth(descuento) + 12);
@@ -477,25 +477,82 @@ export default component$(() => {
       });
       y += 2;
 
-      // Condiciones (solo si fueron cargadas explícitamente; sin fallback a la descripción)
+      // Salto de página si el bloque de textos largos se acerca al pie. Deja
+      // espacio para Beneficiario (30) + QR (40) + pie; si no entra, sigue en A4 nueva.
+      const pageBreakIfNeeded = (needed: number) => {
+        if (y + needed > 281) {
+          doc.addPage();
+          y = 20;
+        }
+      };
+
+      // Descuentos: lista completa con su condición (lo que pidió el cliente).
+      if (pdfDiscounts.length) {
+        pageBreakIfNeeded(6 + pdfDiscounts.length * 5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...SLATE);
+        doc.text("DESCUENTOS", M, y);
+        y += 4.8;
+        pdfDiscounts.forEach((d) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9.5);
+          doc.setTextColor(...GREEN);
+          const pctTxt = pctDisplay(d.pct) || d.pct;
+          doc.text(pctTxt, M, y);
+          if (d.label) {
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...SLATE_DARK);
+            const condLines = doc.splitTextToSize(d.label, contentW - 24);
+            doc.text(condLines, M + 20, y);
+            y += Math.max(1, condLines.length) * 5;
+          } else {
+            y += 5;
+          }
+        });
+        y += 2;
+      }
+
+      // Resumen del beneficio (solo si aporta algo distinto a la lista de %).
+      const resumenTxt = (benefit.resumen || "").trim();
+      if (resumenTxt && resumenTxt !== formatDiscountChip(pdfDiscounts)) {
+        pageBreakIfNeeded(12);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...SLATE);
+        doc.text("RESUMEN", M, y);
+        y += 4.5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(...SLATE_DARK);
+        const rLines = doc.splitTextToSize(resumenTxt, contentW);
+        doc.text(rLines, M, y);
+        y += rLines.length * 4.6 + 2;
+      }
+
+      // Condiciones / términos (inclusiones y exclusiones). Se muestra completo
+      // (tipografía menor y wrapping) con salto de página si es muy largo.
       const rawTerms = benefit.terms && benefit.terms.trim();
       if (rawTerms) {
+        const termsText = rawTerms.length > 1400 ? rawTerms.slice(0, 1397) + "…" : rawTerms;
+        doc.setFontSize(8);
+        const termLines = doc.splitTextToSize(termsText, contentW);
+        pageBreakIfNeeded(6 + termLines.length * 4.2);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8.5);
         doc.setTextColor(...SLATE);
         doc.text("CONDICIONES", M, y);
         y += 4.5;
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         doc.setTextColor(...SLATE_DARK);
-        const termsText = rawTerms.length > 460 ? rawTerms.slice(0, 457) + "…" : rawTerms;
-        const termLines = doc.splitTextToSize(termsText, contentW);
         doc.text(termLines, M, y);
-        y += termLines.length * 4.6 + 2;
+        y += termLines.length * 4.2 + 2;
       }
 
       // Vigencia (solo si el beneficio tiene fecha cargada; si no, se omite la línea)
       if (benefit.validUntil) {
+        pageBreakIfNeeded(10);
         const vigencia = `Válido hasta el ${new Date(benefit.validUntil).toLocaleDateString("es-AR")}`;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
@@ -505,6 +562,7 @@ export default component$(() => {
       }
 
       // ── BENEFICIARIO ─────────────────────────────────────────────────────
+      pageBreakIfNeeded(30 + 12 + 40 + 24);
       sectionTitle("Beneficiario");
       const boxH = 30;
       doc.setFillColor(247, 248, 250);
