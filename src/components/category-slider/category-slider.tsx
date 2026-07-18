@@ -159,7 +159,7 @@ export const CategorySlider = component$<CategorySliderProps>(({
               key={cat.id}
               href={href}
               class={[
-                "relative flex flex-col items-center justify-center text-center p-3 rounded-2xl border transition-all duration-300 w-28 h-28 flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm",
+                "relative flex flex-col items-center justify-center text-center px-2 py-1.5 rounded-xl border transition-all duration-300 w-24 h-[68px] flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm",
                 isSelected
                   ? "bg-brand-green border-brand-green text-white shadow-lg shadow-brand-green/20 scale-105"
                   : "bg-white border-slate-200 hover:border-brand-green/45 text-slate-700 hover:text-brand-green hover:shadow-md hover:scale-105"
@@ -168,7 +168,7 @@ export const CategorySlider = component$<CategorySliderProps>(({
               {/* Floating Benefit Count Badge */}
               <span
                 class={[
-                  "absolute top-2 right-2 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[18px] h-4.5",
+                  "absolute top-1 right-1 text-[8px] font-black px-1 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[16px] h-4 leading-none",
                   isSelected
                     ? "bg-brand-gold text-slate-950 shadow-md shadow-brand-gold/10"
                     : "bg-slate-100 text-slate-500 group-hover:bg-brand-green group-hover:text-white"
@@ -183,9 +183,9 @@ export const CategorySlider = component$<CategorySliderProps>(({
                   isSelected ? "text-white" : "text-brand-green/85 group-hover:text-brand-green"
                 ]}
               >
-                {getCategoryIcon(cat.descripcion, "w-8 h-8 text-current stroke-[1.5]")}
+                {getCategoryIcon(cat.descripcion, "w-6 h-6 text-current stroke-[1.5]")}
               </span>
-              <span class="text-[10px] font-black uppercase tracking-wider mt-2.5 truncate max-w-[96px]">
+              <span class="text-[9px] font-black uppercase tracking-wide mt-1 truncate max-w-[84px] leading-tight">
                 {cat.descripcion}
               </span>
             </Link>

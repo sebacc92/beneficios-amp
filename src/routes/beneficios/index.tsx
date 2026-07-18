@@ -1,5 +1,5 @@
-import { component$, useComputed$ } from "@builder.io/qwik";
-import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
+import { component$, useComputed$, useSignal, useVisibleTask$, $ } from "@builder.io/qwik";
+import { routeLoader$, Link, useLocation, useNavigate, type DocumentHead } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { getSettings } from "~/server/chatbotDb";
 import { CategorySlider } from "~/components/category-slider/category-slider";
@@ -60,6 +60,44 @@ export default component$(() => {
 
   const displayBenefits = benefits;
 
+  const loc = useLocation();
+  const nav = useNavigate();
+
+  // Scroll suave a la barra de resultados cuando cambia el filtro (el search de la
+  // URL) DENTRO de /beneficios. No scrollea en la carga inicial (baseline) ni al
+  // navegar al detalle de un beneficio (pathname distinto).
+  const prevSearch = useSignal<string | null>(null);
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const pathname = track(() => loc.url.pathname);
+    const search = track(() => loc.url.search);
+    if (pathname !== "/beneficios") return;
+    if (prevSearch.value === null) {
+      prevSearch.value = search; // baseline: primera carga, no scrollear
+      return;
+    }
+    if (search !== prevSearch.value) {
+      prevSearch.value = search;
+      document.getElementById("resultados-bar")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  // Navegación SPA (useNavigate) para tener feedback (loading + scroll) al filtrar.
+  const submitSearch = $((raw: string) => {
+    const sp = new URLSearchParams(loc.url.search);
+    const q = raw.trim();
+    if (q) sp.set("buscar", q); else sp.delete("buscar");
+    sp.set("page", "1");
+    nav(`/beneficios?${sp.toString()}`);
+  });
+
+  const setLocationFilter = $((value: string) => {
+    const sp = new URLSearchParams(loc.url.search);
+    if (value) sp.set("ubicacion", value); else sp.delete("ubicacion");
+    sp.set("page", "1");
+    nav(`/beneficios?${sp.toString()}`);
+  });
+
   // Calculate dynamic Map URL
   const mapHref = useComputed$(() => {
     const params = new URLSearchParams();
@@ -107,7 +145,7 @@ export default component$(() => {
       {/* Search Header Info */}
       <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 print:hidden text-left">
         {/* Beautiful Horizontal Category Slider Bar */}
-        <div class="relative mb-4 pb-2 border-b border-slate-200/50">
+        <div class="relative mb-3 pb-1 border-b border-slate-200/50">
           <CategorySlider
             categorias={filters.categorias}
             activeCategoryId={activeFilters.categoryId}
@@ -117,7 +155,7 @@ export default component$(() => {
         </div>
 
         {/* Beautiful Horizontal Offer Slider Bar */}
-        <div class="relative mb-5 pb-2 border-b border-slate-200/50">
+        <div class="relative mb-3 pb-1 border-b border-slate-200/50">
           <OfferSlider
             ofertas={filters.ofertas}
             activeOfferId={activeFilters.offerId}
@@ -128,173 +166,96 @@ export default component$(() => {
       </section>
 
       {/* Main Catalog View Container */}
-      <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden">
-        <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-250 pb-5 mb-8 gap-4 text-left">
-          <div>
-            <h1 class="text-3xl font-display font-black text-brand-green-dark tracking-tight leading-none flex items-center">
-              <span>Ver todos los beneficios</span>
-            </h1>
-            <p class="text-slate-500 text-sm mt-2 font-medium">
-              {total} beneficios encontrados en total
-            </p>
-          </div>
+      <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-8 print:hidden">
+        {/* Título + toggle Listado/Mapa */}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 text-left">
+          <h1 class="text-2xl sm:text-3xl font-display font-black text-brand-green-dark tracking-tight leading-none">
+            Ver todos los beneficios
+          </h1>
 
-          <div class="flex items-center gap-3 flex-wrap">
-
-
-            {/* List/Map View Mode Toggle Button */}
-            <div class="flex items-center bg-slate-200/60 p-1 rounded-2xl border border-slate-200/40 shadow-inner z-20 select-none">
-              <div
-                class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-white text-brand-green shadow-sm border border-slate-200/20 flex items-center gap-2"
-              >
-                <LuList class="w-4 h-4 stroke-[2]" />
-                <span>Listado</span>
-              </div>
-              <Link
-                href={mapHref.value}
-                class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 text-slate-500 hover:text-slate-800"
-              >
-                <LuMap class="w-4 h-4 stroke-[2]" />
-                <span>Mapa</span>
-              </Link>
+          <div class="flex items-center bg-slate-200/60 p-1 rounded-2xl border border-slate-200/40 shadow-inner z-20 select-none self-start sm:self-auto">
+            <div class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-white text-brand-green shadow-sm border border-slate-200/20 flex items-center gap-2">
+              <LuList class="w-4 h-4 stroke-[2]" />
+              <span>Listado</span>
             </div>
+            <Link
+              href={mapHref.value}
+              class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 text-slate-500 hover:text-slate-800"
+            >
+              <LuMap class="w-4 h-4 stroke-[2]" />
+              <span>Mapa</span>
+            </Link>
           </div>
         </div>
 
-        {/* Row 2: Unified Search and Filters Bar (Full Width & Generous Spacing) */}
-        <div class="bg-white rounded-[2rem] border border-slate-200/60 p-6 md:p-8 mb-8 shadow-sm flex flex-col gap-6 text-left">
-          {/* Keyword Search - Spanning Full Width */}
-          <div class="w-full relative text-left">
-            <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Buscar por palabra clave o marca</label>
-            <div class="relative flex items-center">
-              <input
-                type="text"
-                id="catalog-search-input"
-                placeholder="Ej: Gimnasio, Hoteles, Restaurante, Heladería..."
-                value={activeFilters.query || ""}
-                onKeyDown$={(ev, el) => {
-                  if (ev.key === "Enter") {
-                    const searchParams = new URLSearchParams(window.location.search);
-                    if (el.value.trim()) {
-                      searchParams.set("buscar", el.value.trim());
-                    } else {
-                      searchParams.delete("buscar");
-                    }
-                    searchParams.set("page", "1");
-                    window.location.href = `/beneficios?${searchParams.toString()}`;
-                  }
-                }}
-                class="w-full bg-slate-50 text-slate-800 text-sm pl-12 pr-28 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all placeholder-slate-400 font-medium"
-              />
-              <span class="absolute left-4.5 text-slate-400">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
-              <button
-                type="button"
-                onClick$={() => {
-                  const input = document.getElementById("catalog-search-input") as HTMLInputElement | null;
-                  if (input) {
-                    const searchParams = new URLSearchParams(window.location.search);
-                    if (input.value.trim()) {
-                      searchParams.set("buscar", input.value.trim());
-                    } else {
-                      searchParams.delete("buscar");
-                    }
-                    searchParams.set("page", "1");
-                    window.location.href = `/beneficios?${searchParams.toString()}`;
-                  }
-                }}
-                class="absolute right-2 px-6 py-2.5 bg-brand-green hover:bg-brand-green-light text-xs font-black uppercase tracking-wider text-white rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
-              >
-                Buscar
-              </button>
+        {/* Búsqueda en una sola fila: input + ubicación + Buscar (hace wrap en mobile) */}
+        <form
+          preventdefault:submit
+          onSubmit$={(_, form) => {
+            const q = new FormData(form).get("buscar");
+            submitSearch(String(q || ""));
+          }}
+          class="flex flex-wrap items-stretch gap-2 sm:gap-3 mb-5"
+        >
+          <div class="relative flex-1 min-w-[200px]">
+            <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              name="buscar"
+              aria-label="Buscar beneficios por palabra clave o marca"
+              placeholder="Buscar beneficio, marca o categoría..."
+              value={activeFilters.query || ""}
+              class="w-full bg-white text-slate-800 text-sm pl-11 pr-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all placeholder-slate-400 font-medium shadow-sm"
+            />
+          </div>
+
+          <div class="relative w-full sm:w-56">
+            <select
+              aria-label="Filtrar por ubicación"
+              onChange$={(_, el) => setLocationFilter(el.value)}
+              class="w-full h-full bg-white text-slate-800 text-sm pl-4 pr-10 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:outline-none appearance-none cursor-pointer font-medium shadow-sm"
+            >
+              <option value="">Todas las ubicaciones</option>
+              {filters.ubicaciones.map((locItem) => (
+                <option key={locItem.id} value={locItem.id} selected={activeFilters.locationId === locItem.id}>
+                  {locItem.descripcion}
+                </option>
+              ))}
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+              <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+              </svg>
             </div>
           </div>
 
-          {/* Filters Selectors Grid - Two Equal Columns with beautiful chevrons */}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-            {/* Location Dropdown Filter */}
-            <div class="text-left w-full">
-              <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Filtrar por Ubicación</label>
-              <div class="relative w-full">
-                <select
-                  onChange$={(ev, el) => {
-                    const searchParams = new URLSearchParams(window.location.search);
-                    if (el.value) {
-                      searchParams.set("ubicacion", el.value);
-                    } else {
-                      searchParams.delete("ubicacion");
-                    }
-                    searchParams.set("page", "1");
-                    window.location.href = `/beneficios?${searchParams.toString()}`;
-                  }}
-                  class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-10 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none appearance-none cursor-pointer font-medium"
-                >
-                  <option value="">Todas las ubicaciones</option>
-                  {filters.ubicaciones.map((loc) => (
-                    <option
-                      key={loc.id}
-                      value={loc.id}
-                      selected={activeFilters.locationId === loc.id}
-                    >
-                      {loc.descripcion}
-                    </option>
-                  ))}
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
+          <button
+            type="submit"
+            class="px-6 py-3 bg-brand-green hover:bg-brand-green-light text-xs font-black uppercase tracking-wider text-white rounded-2xl transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+          >
+            Buscar
+          </button>
+        </form>
 
-            {/* Offer type / Discount Dropdown Filter */}
-            <div class="text-left w-full">
-              <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2.5 pl-1">Filtrar por Descuento</label>
-              <div class="relative w-full">
-                <select
-                  onChange$={(ev, el) => {
-                    const searchParams = new URLSearchParams(window.location.search);
-                    if (el.value) {
-                      searchParams.set("oferta", el.value);
-                    } else {
-                      searchParams.delete("oferta");
-                    }
-                    searchParams.set("page", "1");
-                    window.location.href = `/beneficios?${searchParams.toString()}`;
-                  }}
-                  class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-10 py-4 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none appearance-none cursor-pointer font-medium"
-                >
-                  <option value="">Todos los descuentos</option>
-                  {filters.ofertas.map((off) => (
-                    <option
-                      key={off.id}
-                      value={off.id}
-                      selected={activeFilters.offerId === off.id}
-                    >
-                      {off.descripcion}
-                    </option>
-                  ))}
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Barra de resultados (ancla del scroll): contador + filtros activos */}
+        <div
+          id="resultados-bar"
+          class="scroll-mt-28 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/70 pb-4 mb-6 text-left"
+        >
+          <p class="text-sm font-bold text-slate-600 shrink-0">
+            <span class={["text-brand-green-dark font-black transition-opacity duration-200", loc.isNavigating ? "opacity-40" : "opacity-100"]}>
+              {total}
+            </span>{" "}
+            {total === 1 ? "beneficio encontrado" : "beneficios encontrados"}
+          </p>
 
-          {/* Active filters pill list */}
           {hasActiveFilters && (
-            <div class="flex flex-wrap items-center gap-2 mt-4 md:mt-0 mb-6">
-              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
-                Filtros activos:
-              </span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">Filtros:</span>
 
               {activeFilters.isCampaign && (
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
@@ -331,8 +292,6 @@ export default component$(() => {
                 </span>
               )}
 
-
-
               <Link
                 href="/beneficios"
                 class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors duration-200"
@@ -341,7 +300,9 @@ export default component$(() => {
               </Link>
             </div>
           )}
+        </div>
 
+        <div class={["transition-opacity duration-200", loc.isNavigating ? "opacity-40 pointer-events-none" : "opacity-100"]}>
         {displayBenefits.length === 0 ? (
           <div class="flex flex-col items-center justify-center py-20 bg-white border border-slate-100 rounded-[2.5rem] text-center p-8 max-w-xl mx-auto shadow-sm">
             <span class="text-4xl mb-4">🔍</span>
@@ -365,6 +326,7 @@ export default component$(() => {
             })}
           </div>
         )}
+        </div>
 
         {/* Pagination Controls */}
         {totalPages > 1 && (
