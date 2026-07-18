@@ -5,9 +5,9 @@ import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
-import { getFilters } from "~/server/cache";
+import { getFilters, persistBenefitDiscounts } from "~/server/cache";
 import { mergeContacts } from "~/utils/benefit-contacts";
-import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
+import { type Discount, parseDiscounts, offerIdForDiscounts, formatDiscountChip, deriveDiscountBadge } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
@@ -254,10 +254,18 @@ export const useCreateBenefitAction = routeAction$(
         }
       }
 
+      // Descuentos múltiples: se parsea la lista del form y se deriva el offerId
+      // (para el filtro por descuento) y el resumen/badge desde el 1º (principal).
+      const discounts: Discount[] = parseDiscounts(data.discountsJson).filter((d) => d.pct || d.label);
+      const filters = await getFilters();
+      const derivedOfferId = (offerIdForDiscounts(discounts, filters.ofertas) ?? Number(data.offerId || 0)) || 1;
+      const derivedResumen =
+        formatDiscountChip(discounts) || deriveDiscountBadge(discounts[0]?.pct || "") || "Beneficio";
+
       await db.insert(customBenefitsTable).values({
         id: uuid,
         titulo: data.titulo,
-        resumen: data.resumen,
+        resumen: derivedResumen,
         descripcion: mergeContacts(sanitizeRichText(data.descripcion), data.whatsapp || "", data.instagram || "", data.direccion || ""),
         imagen: uploadedImageUrl,
         imagenMobile: uploadedImageMobileUrl,
@@ -266,7 +274,7 @@ export const useCreateBenefitAction = routeAction$(
         isFeatured: data.isFeatured === "on",
         categoryId: Number(data.categoryId),
         locationId: Number(data.locationId),
-        offerId: Number(data.offerId),
+        offerId: derivedOfferId,
         couponCode: data.couponCode || null,
         validUntil: data.isActive !== "on" ? `draft|${data.validUntil || ""}` : (data.validUntil || null),
         terms: data.terms || null,
@@ -275,6 +283,9 @@ export const useCreateBenefitAction = routeAction$(
         longitud: lng,
         createdAt: new Date().toISOString(),
       });
+
+      // Persistir la lista de descuentos (columna JSON gestionada por SQL crudo).
+      await persistBenefitDiscounts(db, uuid, discounts);
     } catch (err: any) {
       console.error(err);
       return requestEvent.fail(500, { message: "Error al crear el beneficio." });
@@ -284,7 +295,7 @@ export const useCreateBenefitAction = routeAction$(
   },
   zod$({
     titulo: z.string().min(3),
-    resumen: z.string().min(5),
+    resumen: z.string().optional(),
     descripcion: z.string().min(5),
     whatsapp: z.string().optional(),
     instagram: z.string().optional(),
@@ -294,7 +305,8 @@ export const useCreateBenefitAction = routeAction$(
     isFeatured: z.string().optional(),
     categoryId: z.string(),
     locationId: z.string(),
-    offerId: z.string(),
+    offerId: z.string().optional(),
+    discountsJson: z.string().optional(),
     couponCode: z.string().optional(),
     validUntil: z.string().optional(),
     isActive: z.string().optional(),
@@ -350,30 +362,35 @@ export default component$(() => {
   const createPreviewCategory = useSignal("");
   const createPreviewLocation = useSignal("");
 
-  // Descuento: el badge (resumen) se autogenera desde la oferta seleccionada,
-  // salvo que se active "personalizar texto".
-  const createOfferDesc = useSignal("");
-  const createResumen = useSignal("");
-  const createOverrideResumen = useSignal(false);
+  // Descuentos: lista editable (% + condición). El primero es el principal.
+  const createDiscounts = useSignal<Discount[]>([{ pct: "", label: "" }]);
 
   useTask$(({ track }) => {
     track(() => adminFilters.value);
     if (adminFilters.value) {
       if (!createPreviewCategory.value) createPreviewCategory.value = adminFilters.value.categorias[0]?.descripcion || "Categoría";
       if (!createPreviewLocation.value) createPreviewLocation.value = adminFilters.value.ubicaciones[0]?.descripcion || "La Plata";
-      if (!createOfferDesc.value) createOfferDesc.value = adminFilters.value.ofertas[0]?.descripcion || "";
     }
   });
 
-  // Sincroniza el badge con la oferta cuando NO hay override manual.
+  // El badge del preview muestra TODOS los porcentajes cargados.
   useTask$(({ track }) => {
-    track(() => createOfferDesc.value);
-    track(() => createOverrideResumen.value);
-    if (!createOverrideResumen.value) {
-      const badge = deriveDiscountBadge(createOfferDesc.value);
-      createResumen.value = badge;
-      createPreviewResumen.value = badge;
-    }
+    track(() => createDiscounts.value);
+    createPreviewResumen.value = formatDiscountChip(createDiscounts.value) || "Exclusivo";
+  });
+
+  const addCreateDiscount = $(() => {
+    createDiscounts.value = [...createDiscounts.value, { pct: "", label: "" }];
+    createDirty.value = true;
+  });
+  const removeCreateDiscount = $((idx: number) => {
+    const next = createDiscounts.value.filter((_, i) => i !== idx);
+    createDiscounts.value = next.length ? next : [{ pct: "", label: "" }];
+    createDirty.value = true;
+  });
+  const updateCreateDiscount = $((idx: number, field: "pct" | "label", value: string) => {
+    createDiscounts.value = createDiscounts.value.map((d, i) => (i === idx ? { ...d, [field]: value } : d));
+    createDirty.value = true;
   });
 
   // Galería: optimiza y agrega múltiples imágenes (máx. 9 adicionales)
@@ -560,68 +577,68 @@ export default component$(() => {
         onInput$={() => { createDirty.value = true; }}
         onChange$={() => { createDirty.value = true; }}
         class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-0 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
-            <input
-              type="text"
-              name="titulo"
-              required
-              placeholder="Ej: Spa Platense Masajes"
-              onInput$={(e) => { createPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-            />
-          </div>
+        <div class="space-y-1">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
+          <input
+            type="text"
+            name="titulo"
+            required
+            placeholder="Ej: Spa Platense Masajes"
+            onInput$={(e) => { createPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
+            class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+          />
+        </div>
 
-          <div class="space-y-1">
-            <div class="flex items-center justify-between gap-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
-              <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+        {/* Descuentos: lista editable (% + condición). El primero es el principal. */}
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descuentos</label>
+          <p class="text-[10px] text-slate-400 font-medium">
+            Agregá uno o más. El <b>primero</b> es el principal (define el badge y el filtro). La condición es opcional: "lunes a jueves", "en efectivo", "en mano de obra"…
+          </p>
+          <div class="space-y-2">
+            {createDiscounts.value.map((d, i) => (
+              <div key={i} class="flex items-center gap-2">
+                <div class="relative w-24 shrink-0">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={d.pct}
+                    onInput$={(e) => updateCreateDiscount(i, "pct", (e.target as HTMLInputElement).value)}
+                    placeholder="20"
+                    class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-7 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
+                  />
+                  <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">%</span>
+                </div>
                 <input
-                  type="checkbox"
-                  checked={createOverrideResumen.value}
-                  onChange$={(e) => { createOverrideResumen.value = (e.target as HTMLInputElement).checked; }}
-                  class="accent-brand-green w-3.5 h-3.5"
+                  type="text"
+                  value={d.label}
+                  onInput$={(e) => updateCreateDiscount(i, "label", (e.target as HTMLInputElement).value)}
+                  placeholder="Condición (opcional): lunes a jueves, en efectivo…"
+                  class="flex-1 bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
-                Personalizar texto
-              </label>
-            </div>
-            <input
-              type="text"
-              name="resumen"
-              required
-              readOnly={!createOverrideResumen.value}
-              placeholder="Ej: 20% de descuento"
-              value={createResumen.value}
-              onInput$={(e) => {
-                createResumen.value = (e.target as HTMLInputElement).value;
-                createPreviewResumen.value = (e.target as HTMLInputElement).value;
-              }}
-              class={[
-                "w-full text-slate-800 text-sm px-4 py-3 rounded-2xl border transition-all focus:outline-none",
-                createOverrideResumen.value
-                  ? "bg-white border-slate-200 focus:border-brand-green"
-                  : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed",
-              ]}
-            />
-            {!createOverrideResumen.value ? (
-              <p class="text-[10px] text-slate-400 font-medium">Se genera automáticamente desde la oferta seleccionada.</p>
-            ) : (
-              (() => {
-                const textPct = pctFromText(createResumen.value);
-                const offerPct = pctFromText(deriveDiscountBadge(createOfferDesc.value));
-                if (textPct && offerPct && textPct !== offerPct) {
-                  return (
-                    <p class="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
-                      <span>⚠</span>
-                      El texto dice {textPct}% pero la oferta seleccionada es {offerPct}%.
-                    </p>
-                  );
-                }
-                return <p class="text-[10px] text-slate-400 font-medium">Texto personalizado.</p>;
-              })()
-            )}
+                {i === 0 ? (
+                  <span class="text-[9px] font-black uppercase tracking-wider text-brand-green bg-brand-green/10 px-2 py-1 rounded-lg shrink-0">Principal</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick$={() => removeCreateDiscount(i)}
+                    class="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition-all"
+                    title="Quitar descuento"
+                  >
+                    <span class="text-lg leading-none">×</span>
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
+          <button
+            type="button"
+            onClick$={addCreateDiscount}
+            class="text-xs font-bold text-brand-green hover:text-brand-green-dark inline-flex items-center gap-1 mt-1"
+          >
+            <span class="text-base leading-none">+</span> Agregar descuento
+          </button>
+          <input type="hidden" name="discountsJson" value={JSON.stringify(createDiscounts.value)} />
         </div>
 
         <div class="space-y-1">
@@ -653,7 +670,7 @@ export default component$(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Categoría</label>
             <select
@@ -684,20 +701,6 @@ export default component$(() => {
             </select>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
-            <select
-              name="offerId"
-              onChange$={(e, el) => { createOfferDesc.value = el.options[el.selectedIndex].text; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
-            >
-              {adminFilters.value.ofertas.map((off) => (
-                <option key={off.id} value={off.id}>
-                  {off.descripcion}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Dirección y ubicación en el mapa */}

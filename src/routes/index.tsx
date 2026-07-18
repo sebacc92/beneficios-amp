@@ -7,6 +7,7 @@ import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import { HeroSlider } from "~/components/hero-slider/hero-slider";
 import { CuratedRow } from "~/components/curated-row/curated-row";
+import { benefitDiscounts, formatDiscountBadge, formatDiscountChip } from "~/utils/discount";
 import { EditorialCards } from "~/components/editorial-cards/editorial-cards";
 import { SponsorMarquee } from "~/components/sponsor-marquee/sponsor-marquee";
 import { PopupModal } from "~/components/popup-modal/popup-modal";
@@ -260,7 +261,9 @@ export default component$(() => {
                   <div class="w-full xl:flex-1 relative z-10 flex items-center">
                     <div class={`grid gap-5 sm:gap-6 w-full ${gridColsClass}`}>
                       {curatedRows.cafecitos.map((benefit: Benefit) => {
-                        const discountText = benefit.resumen.replace("Descuento del", "").trim();
+                        const discounts = benefitDiscounts(benefit);
+                        const discountText = formatDiscountBadge(discounts) || "Beneficio";
+                        const discountFull = formatDiscountChip(discounts) || discountText;
                         const isLongDiscount = discountText.length > 12;
 
                         return (
@@ -307,7 +310,7 @@ export default component$(() => {
                                   <div class="flex items-start gap-1.5 self-start bg-brand-gold/10 border border-brand-gold/20 rounded-xl px-2.5 py-1.5">
                                     <span class="text-brand-gold text-[10px] leading-tight mt-px">✨</span>
                                     <span class="text-brand-gold text-[10px] font-extrabold uppercase tracking-wide line-clamp-2 leading-tight">
-                                      {discountText}
+                                      {discountFull}
                                     </span>
                                   </div>
                                 )}

@@ -2,6 +2,7 @@ import type { RequestEventBase } from "@builder.io/qwik-city";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { customBenefits, heroSlides } from "~/db/schema";
+import { type Discount, parseDiscounts, benefitDiscounts } from "~/utils/discount";
 
 export interface Category {
   id: number;
@@ -51,6 +52,7 @@ export interface Benefit {
   terms?: string | null; // Términos y condiciones
   isActive?: boolean;
   orden?: number; // Orden manual del listado (0 = sin orden → va al final)
+  discounts?: Discount[]; // Lista de descuentos (% + condición). El 1º es el principal.
 }
 
 export interface Filters {
@@ -343,6 +345,8 @@ export async function ensureTrackingSchema(db: any) {
   await addColumn("ALTER TABLE custom_benefits ADD COLUMN pdf_downloads INTEGER NOT NULL DEFAULT 0");
   // Orden manual del listado (0 = sin orden asignado → va al final).
   await addColumn("ALTER TABLE custom_benefits ADD COLUMN orden INTEGER NOT NULL DEFAULT 0");
+  // Lista de descuentos (JSON: [{pct,label}]). Vacío = se deriva del resumen/oferta.
+  await addColumn("ALTER TABLE custom_benefits ADD COLUMN discounts TEXT");
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS credential_scans (
       id TEXT PRIMARY KEY,
@@ -416,6 +420,18 @@ export async function persistBenefitOrder(requestEvent: RequestEventBase, ordere
   await db.run(sql`UPDATE custom_benefits SET orden = CASE id ${sql.join(whens, sql` `)} ELSE orden END`);
 }
 
+/**
+ * Persiste la lista de descuentos (JSON) de un beneficio por id. Se hace por SQL
+ * crudo porque la columna `discounts` vive fuera del schema de Drizzle. `db` es la
+ * instancia que ya tiene la action.
+ */
+export async function persistBenefitDiscounts(db: any, id: string, discounts: Discount[]): Promise<void> {
+  await ensureTrackingSchema(db);
+  const { sql } = await import("drizzle-orm");
+  const json = discounts && discounts.length ? JSON.stringify(discounts) : null;
+  await db.run(sql`UPDATE custom_benefits SET discounts = ${json} WHERE id = ${id}`);
+}
+
 /** Registra un escaneo de verificación de credencial (válido o no). No bloquea si falla. */
 export async function recordCredentialScan(requestEvent: RequestEventBase, ok: boolean): Promise<void> {
   try {
@@ -485,15 +501,19 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
     const dbBenefits = await db.select().from(customBenefits);
     const filters = await getFilters();
 
-    // Orden manual (columna gestionada por SQL crudo, fuera del schema de Drizzle).
+    // Columnas gestionadas por SQL crudo (fuera del schema de Drizzle): orden y discounts.
     let ordenMap: Record<string, number> = {};
+    const discountsMap: Record<string, string | null> = {};
     try {
       await ensureTrackingSchema(db);
       const { sql } = await import("drizzle-orm");
-      const ordenRows = (await db.all(sql`SELECT id, COALESCE(orden, 0) AS orden FROM custom_benefits`)) as any[];
-      for (const r of ordenRows) ordenMap[String(r.id)] = Number(r.orden || 0);
+      const rows = (await db.all(sql`SELECT id, COALESCE(orden, 0) AS orden, discounts FROM custom_benefits`)) as any[];
+      for (const r of rows) {
+        ordenMap[String(r.id)] = Number(r.orden || 0);
+        discountsMap[String(r.id)] = r.discounts ?? null;
+      }
     } catch (e) {
-      console.error("[Orden] no se pudo leer el orden manual:", e);
+      console.error("[Orden/Discounts] no se pudieron leer las columnas crudas:", e);
       ordenMap = {};
     }
 
@@ -501,6 +521,13 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
       const cat = filters.categorias.find((c) => c.id === cb.categoryId) || { id: cb.categoryId, descripcion: "Otro" };
       const loc = filters.ubicaciones.find((l) => l.id === cb.locationId) || { id: cb.locationId, descripcion: "La Plata" };
       const off = filters.ofertas.find((o) => o.id === cb.offerId) || { id: cb.offerId, descripcion: "Especial" };
+
+      // Descuentos múltiples: usa la columna `discounts` (JSON); si está vacía,
+      // deriva un único descuento del resumen/oferta (compatibilidad hacia atrás).
+      const parsedDiscounts = parseDiscounts(discountsMap[cb.id]);
+      const discounts = parsedDiscounts.length
+        ? parsedDiscounts
+        : benefitDiscounts({ resumen: cb.resumen, ofertas: [off] });
 
       // Derive numerical ID from slug string or use a hashed representation
       const numId = cb.slug.split("-")[0] && !isNaN(Number(cb.slug.split("-")[0]))
@@ -551,6 +578,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         created_at: cb.createdAt,
         isActive,
         orden: ordenMap[cb.id] ?? 0,
+        discounts,
       } as Benefit;
     });
 

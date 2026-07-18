@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
-import { getFilters, ensureBenefitDefaultsCleanup } from "~/server/cache";
+import { getFilters, ensureBenefitDefaultsCleanup, ensureTrackingSchema, persistBenefitDiscounts } from "~/server/cache";
 import { mergeContacts, splitContacts } from "~/utils/benefit-contacts";
-import { deriveDiscountBadge, pctFromText } from "~/utils/discount";
+import { type Discount, parseDiscounts, offerIdForDiscounts, formatDiscountChip, deriveDiscountBadge, benefitDiscounts } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 import { RichTextEditor } from "~/components/rich-text-editor/rich-text-editor";
 import { LocationPicker } from "~/components/location-picker/location-picker";
@@ -35,7 +35,16 @@ export const useBenefitLoader = routeLoader$(async (event) => {
   if (!benefit) {
     throw event.redirect(302, "/admin/benefits/");
   }
-  return benefit;
+  // La lista de descuentos vive en la columna `discounts` (JSON), fuera del schema
+  // de Drizzle: se lee por SQL crudo para precargar el editor de descuentos.
+  let discountsRaw: string | null = null;
+  try {
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+    const rows = (await db.all(sql`SELECT discounts FROM custom_benefits WHERE id = ${event.params.id} LIMIT 1`)) as any[];
+    discountsRaw = rows?.[0]?.discounts ?? null;
+  } catch { /* ignore */ }
+  return { ...benefit, discountsRaw };
 });
 
 export const useEditBenefitAction = routeAction$(
@@ -276,11 +285,18 @@ export const useEditBenefitAction = routeAction$(
         }
       }
 
+      // Descuentos múltiples: se deriva offerId (filtro) y resumen (badge) del 1º.
+      const discounts: Discount[] = parseDiscounts(data.discountsJson).filter((d) => d.pct || d.label);
+      const filters = await getFilters();
+      const derivedOfferId = (offerIdForDiscounts(discounts, filters.ofertas) ?? Number(data.offerId || 0)) || 1;
+      const derivedResumen =
+        formatDiscountChip(discounts) || deriveDiscountBadge(discounts[0]?.pct || "") || "Beneficio";
+
       await db
         .update(customBenefitsTable)
         .set({
           titulo: data.titulo,
-          resumen: data.resumen,
+          resumen: derivedResumen,
           descripcion: mergeContacts(sanitizeRichText(data.descripcion), data.whatsapp || "", data.instagram || "", data.direccion || ""),
           imagen: finalImageUrl,
           imagenMobile: finalImageMobileUrl,
@@ -288,7 +304,7 @@ export const useEditBenefitAction = routeAction$(
           isFeatured: data.isFeatured === "on",
           categoryId: Number(data.categoryId),
           locationId: Number(data.locationId),
-          offerId: Number(data.offerId),
+          offerId: derivedOfferId,
           couponCode: data.couponCode || null,
           validUntil: data.isActive !== "on" ? `draft|${data.validUntil || ""}` : (data.validUntil || null),
           terms: data.terms || null,
@@ -297,6 +313,9 @@ export const useEditBenefitAction = routeAction$(
           longitud: lng,
         })
         .where(eq(customBenefitsTable.id, data.id));
+
+      // Persistir la lista de descuentos (columna JSON, SQL crudo).
+      await persistBenefitDiscounts(db, data.id, discounts);
     } catch (err: any) {
       console.error(err);
       return requestEvent.fail(500, { message: "Error al modificar el beneficio." });
@@ -307,7 +326,7 @@ export const useEditBenefitAction = routeAction$(
   zod$({
     id: z.string(),
     titulo: z.string().min(3),
-    resumen: z.string().min(5),
+    resumen: z.string().optional(),
     descripcion: z.string().min(5),
     whatsapp: z.string().optional(),
     instagram: z.string().optional(),
@@ -317,7 +336,8 @@ export const useEditBenefitAction = routeAction$(
     isFeatured: z.string().optional(),
     categoryId: z.string(),
     locationId: z.string(),
-    offerId: z.string(),
+    offerId: z.string().optional(),
+    discountsJson: z.string().optional(),
     couponCode: z.string().optional(),
     validUntil: z.string().optional(),
     isActive: z.string().optional(),
@@ -425,25 +445,36 @@ export default component$(() => {
     adminFilters.value.ubicaciones.find((l) => l.id === benefit.value.locationId)?.descripcion || "La Plata"
   );
 
-  // Descuento: badge autogenerado desde la oferta, con override manual.
-  const initialOfferDesc =
-    adminFilters.value.ofertas.find((o) => o.id === benefit.value.offerId)?.descripcion || "";
-  const editOfferDesc = useSignal(initialOfferDesc);
-  const editResumen = useSignal(benefit.value.resumen || "");
-  // Si el resumen guardado no coincide con el autogenerado, arranca en modo manual.
-  const editOverrideResumen = useSignal(
-    (benefit.value.resumen || "").trim() !== deriveDiscountBadge(initialOfferDesc).trim()
+  // Descuentos: lista editable, precargada desde la columna `discounts` (JSON) o,
+  // si el beneficio es previo (sin esa columna), derivada del resumen/oferta.
+  const initialDiscounts = (() => {
+    const parsed = parseDiscounts(benefit.value.discountsRaw);
+    if (parsed.length) return parsed;
+    const off = adminFilters.value.ofertas.find((o) => o.id === benefit.value.offerId);
+    return benefitDiscounts({ resumen: benefit.value.resumen, ofertas: off ? [off] : [] });
+  })();
+  const editDiscounts = useSignal<Discount[]>(
+    initialDiscounts.length ? initialDiscounts : [{ pct: "", label: "" }]
   );
 
-  // Sincroniza el badge con la oferta cuando NO hay override manual.
+  // El badge del preview muestra TODOS los porcentajes cargados.
   useTask$(({ track }) => {
-    track(() => editOfferDesc.value);
-    track(() => editOverrideResumen.value);
-    if (!editOverrideResumen.value) {
-      const badge = deriveDiscountBadge(editOfferDesc.value);
-      editResumen.value = badge;
-      editPreviewResumen.value = badge;
-    }
+    track(() => editDiscounts.value);
+    editPreviewResumen.value = formatDiscountChip(editDiscounts.value) || "Exclusivo";
+  });
+
+  const addEditDiscount = $(() => {
+    editDiscounts.value = [...editDiscounts.value, { pct: "", label: "" }];
+    editDirty.value = true;
+  });
+  const removeEditDiscount = $((idx: number) => {
+    const next = editDiscounts.value.filter((_, i) => i !== idx);
+    editDiscounts.value = next.length ? next : [{ pct: "", label: "" }];
+    editDirty.value = true;
+  });
+  const updateEditDiscount = $((idx: number, field: "pct" | "label", value: string) => {
+    editDiscounts.value = editDiscounts.value.map((d, i) => (i === idx ? { ...d, [field]: value } : d));
+    editDirty.value = true;
   });
 
   // Galería: optimiza y agrega múltiples imágenes (máx. 9)
@@ -640,69 +671,69 @@ export default component$(() => {
         class="relative bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 pb-0 shadow-sm space-y-5 w-full max-w-3xl mx-auto">
         <input type="hidden" name="id" value={benefit.value.id} />
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
-            <input
-              type="text"
-              name="titulo"
-              required
-              value={benefit.value.titulo}
-              placeholder="Ej: Spa Platense Masajes"
-              onInput$={(e) => { editPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-            />
-          </div>
+        <div class="space-y-1">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título</label>
+          <input
+            type="text"
+            name="titulo"
+            required
+            value={benefit.value.titulo}
+            placeholder="Ej: Spa Platense Masajes"
+            onInput$={(e) => { editPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
+            class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+          />
+        </div>
 
-          <div class="space-y-1">
-            <div class="flex items-center justify-between gap-2">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resumen (badge descuento)</label>
-              <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer select-none">
+        {/* Descuentos: lista editable (% + condición). El primero es el principal. */}
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descuentos</label>
+          <p class="text-[10px] text-slate-400 font-medium">
+            Agregá uno o más. El <b>primero</b> es el principal (define el badge y el filtro). La condición es opcional: "lunes a jueves", "en efectivo", "en mano de obra"…
+          </p>
+          <div class="space-y-2">
+            {editDiscounts.value.map((d, i) => (
+              <div key={i} class="flex items-center gap-2">
+                <div class="relative w-24 shrink-0">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={d.pct}
+                    onInput$={(e) => updateEditDiscount(i, "pct", (e.target as HTMLInputElement).value)}
+                    placeholder="20"
+                    class="w-full bg-slate-50 text-slate-800 text-sm pl-4 pr-7 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
+                  />
+                  <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">%</span>
+                </div>
                 <input
-                  type="checkbox"
-                  checked={editOverrideResumen.value}
-                  onChange$={(e) => { editOverrideResumen.value = (e.target as HTMLInputElement).checked; }}
-                  class="accent-brand-green w-3.5 h-3.5"
+                  type="text"
+                  value={d.label}
+                  onInput$={(e) => updateEditDiscount(i, "label", (e.target as HTMLInputElement).value)}
+                  placeholder="Condición (opcional): lunes a jueves, en efectivo…"
+                  class="flex-1 bg-slate-50 text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
-                Personalizar texto
-              </label>
-            </div>
-            <input
-              type="text"
-              name="resumen"
-              required
-              readOnly={!editOverrideResumen.value}
-              placeholder="Ej: 20% de descuento"
-              value={editResumen.value}
-              onInput$={(e) => {
-                editResumen.value = (e.target as HTMLInputElement).value;
-                editPreviewResumen.value = (e.target as HTMLInputElement).value;
-              }}
-              class={[
-                "w-full text-slate-800 text-sm px-4 py-3 rounded-2xl border transition-all focus:outline-none",
-                editOverrideResumen.value
-                  ? "bg-white border-slate-200 focus:border-brand-green"
-                  : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed",
-              ]}
-            />
-            {!editOverrideResumen.value ? (
-              <p class="text-[10px] text-slate-400 font-medium">Se genera automáticamente desde la oferta seleccionada.</p>
-            ) : (
-              (() => {
-                const textPct = pctFromText(editResumen.value);
-                const offerPct = pctFromText(deriveDiscountBadge(editOfferDesc.value));
-                if (textPct && offerPct && textPct !== offerPct) {
-                  return (
-                    <p class="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
-                      <span>⚠</span>
-                      El texto dice {textPct}% pero la oferta seleccionada es {offerPct}%.
-                    </p>
-                  );
-                }
-                return <p class="text-[10px] text-slate-400 font-medium">Texto personalizado.</p>;
-              })()
-            )}
+                {i === 0 ? (
+                  <span class="text-[9px] font-black uppercase tracking-wider text-brand-green bg-brand-green/10 px-2 py-1 rounded-lg shrink-0">Principal</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick$={() => removeEditDiscount(i)}
+                    class="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition-all"
+                    title="Quitar descuento"
+                  >
+                    <span class="text-lg leading-none">×</span>
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
+          <button
+            type="button"
+            onClick$={addEditDiscount}
+            class="text-xs font-bold text-brand-green hover:text-brand-green-dark inline-flex items-center gap-1 mt-1"
+          >
+            <span class="text-base leading-none">+</span> Agregar descuento
+          </button>
+          <input type="hidden" name="discountsJson" value={JSON.stringify(editDiscounts.value)} />
         </div>
 
         <div class="space-y-1">
@@ -736,7 +767,7 @@ export default component$(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Categoría</label>
             <select
@@ -767,20 +798,6 @@ export default component$(() => {
             </select>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
-            <select
-              name="offerId"
-              onChange$={(e, el) => { editOfferDesc.value = el.options[el.selectedIndex].text; }}
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
-            >
-              {adminFilters.value.ofertas.map((off) => (
-                <option key={off.id} value={off.id} selected={off.id === benefit.value.offerId}>
-                  {off.descripcion}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Dirección y ubicación en el mapa */}

@@ -8,7 +8,7 @@ import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
 import { maskDni } from "~/utils/mask";
-import { pctFromText } from "~/utils/discount";
+import { benefitDiscounts, formatDiscountBadge, formatDiscountChip, pctDisplay } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -738,14 +738,11 @@ export default component$(() => {
   // el descuento real es 12%, tal como figura en el resumen y en la descripción).
   // Por eso NO leemos el facet para mostrar el porcentaje: badge, chip y detalle
   // se derivan todos del mismo `resumen`.
-  const resumenFull = (benefit.resumen || "").trim();
-  const resumenText = resumenFull
-    .replace(/^Descuentos?\s+del\s*/i, "")
-    .replace(/^Bonificaci[oó]n\s+del\s*/i, "")
-    .trim();
-  // Etiqueta corta para el círculo: el % del resumen si lo hay, si no el texto corto.
-  const discountPct = pctFromText(resumenFull);
-  const offerLabel = discountPct ? `${discountPct}%` : resumenText || "Beneficio";
+  // Descuentos (múltiples): el círculo muestra el compacto ("20/25%" o "Hasta 25%"),
+  // el chip todos los porcentajes, y el cuerpo lista cada uno con su condición.
+  const discounts = benefitDiscounts(benefit);
+  const offerLabel = formatDiscountBadge(discounts) || "Beneficio";
+  const discountChip = formatDiscountChip(discounts) || (benefit.resumen || "").trim();
 
   return (
     <div class="relative min-h-screen py-10 bg-slate-50">
@@ -867,10 +864,10 @@ export default component$(() => {
                     </span>
                   </div>
 
-                  {/* Chip de descuento: misma fuente que el badge (el resumen). */}
-                  {resumenFull && (
+                  {/* Chip con TODOS los porcentajes de descuento. */}
+                  {discountChip && (
                     <div class="flex items-center text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                      <span>{resumenFull}</span>
+                      <span>{discountChip}</span>
                     </div>
                   )}
                 </div>
@@ -882,6 +879,25 @@ export default component$(() => {
                     {benefit.titulo}
                   </h1>
                 </div>
+
+                {/* Detalle de descuentos: cada uno con su condición (si tiene). Solo se
+                    muestra cuando hay más de uno o alguno tiene condición cargada. */}
+                {(discounts.length > 1 || discounts.some((d) => d.label)) && (
+                  <div class="space-y-2">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Descuentos</h3>
+                    <div class="flex flex-wrap gap-2">
+                      {discounts.map((d, i) => (
+                        <div
+                          key={i}
+                          class="inline-flex items-center gap-2 bg-brand-green/5 border border-brand-green/15 rounded-2xl px-3.5 py-2"
+                        >
+                          <span class="text-brand-green-dark font-black text-base leading-none">{pctDisplay(d.pct)}</span>
+                          {d.label && <span class="text-slate-500 text-xs font-semibold">{d.label}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Utility Print / Share actions bar */}
                 <div class="flex flex-wrap items-center gap-3 mt-4 print-hidden pb-6 border-b border-slate-100">

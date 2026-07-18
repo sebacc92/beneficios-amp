@@ -1,6 +1,7 @@
 import { component$ } from "@builder.io/qwik";
 import { Link } from "@builder.io/qwik-city";
 import type { Benefit } from "~/server/cache";
+import { benefitDiscounts, formatDiscountBadge, formatDiscountChip } from "~/utils/discount";
 
 interface BenefitCardProps {
   benefit: Benefit;
@@ -143,14 +144,11 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
   const primaryCat = benefit.categorias?.[0]?.descripcion || "Beneficios";
   const primaryLoc = benefit.ubicacion?.[0]?.descripcion || "La Plata";
 
-  // Badge corto = facet estructurado de oferta ("10%", "20%", "Promociones").
-  // El resumen (frase completa) va como línea de texto aparte, con line-clamp.
-  const formattedDiscount = (benefit.resumen || "Exclusivo").replace("Descuento del", "").trim();
-  const offerLabel = (benefit.ofertas?.[0]?.descripcion || "").trim() || formattedDiscount || "Beneficio";
-  const resumenText = (benefit.resumen || "")
-    .replace(/^Descuentos?\s+del\s*/i, "")
-    .replace(/^Bonificaci[oó]n\s+del\s*/i, "")
-    .trim();
+  // Descuentos (múltiples): badge compacto ("20/25%" o "Hasta 25%") + chip con
+  // todos los porcentajes ("5% / 20%"). Compatible con beneficios de 1 descuento.
+  const discounts = benefitDiscounts(benefit);
+  const offerLabel = formatDiscountBadge(discounts) || "Beneficio";
+  const resumenText = formatDiscountChip(discounts);
 
   // --- 1. VARIANT: GOLD ---
   if (variant === "gold") {
