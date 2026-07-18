@@ -500,28 +500,18 @@ export default component$(() => {
                 </h4>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior (Pre-Título)</label>
-                  <input
-                    type="text"
-                    name="preTitle"
-                    bind:value={createPreTitle}
-                    placeholder="Ej: La Plata y City Bell"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
-                  />
-                </div>
+              {/* El orden se gestiona arrastrando las tarjetas; el slide nuevo se agrega al final. */}
+              <input type="hidden" name="orderIndex" value={localSlides.list.length + 1} />
 
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Orden de Visualización</label>
-                  <input
-                    type="number"
-                    name="orderIndex"
-                    value={localSlides.list.length + 1}
-                    min="1"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
-                  />
-                </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior (Pre-Título)</label>
+                <input
+                  type="text"
+                  name="preTitle"
+                  bind:value={createPreTitle}
+                  placeholder="Ej: La Plata y City Bell"
+                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
+                />
               </div>
 
               <div class="space-y-1">
@@ -957,28 +947,18 @@ export default component$(() => {
               <div class="flex-1 overflow-y-auto p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
               {/* Modal Left Col: Metadata fields */}
               <div class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-1">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior</label>
-                    <input
-                      type="text"
-                      name="preTitle"
-                      bind:value={editPreTitle}
-                      placeholder="Ej: Exclusivo AMP+"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
-                    />
-                  </div>
+                {/* El orden se gestiona arrastrando las tarjetas; acá se preserva el actual. */}
+                <input type="hidden" name="orderIndex" value={editingSlide.value.orderIndex} />
 
-                  <div class="space-y-1">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Orden de Visualización</label>
-                    <input
-                      type="number"
-                      name="orderIndex"
-                      value={editingSlide.value.orderIndex}
-                      min="1"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
-                    />
-                  </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Etiqueta Superior</label>
+                  <input
+                    type="text"
+                    name="preTitle"
+                    bind:value={editPreTitle}
+                    placeholder="Ej: Exclusivo AMP+"
+                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
+                  />
                 </div>
 
                 <div class="space-y-1">
