@@ -353,6 +353,12 @@ export default component$(() => {
   const isDragOverDesktop = useSignal(false);
   const isDragOverMobile = useSignal(false);
 
+  // Textos en vivo para la miniatura WYSIWYG del hero (form de creación).
+  const createPreTitle = useSignal("");
+  const createTitle = useSignal("");
+  const createSubtitle = useSignal("");
+  const createBtnText = useSignal("Explorar");
+
   // Drag and Drop Uploader State (Edition Form Modal)
   const editingSlide = useSignal<any | null>(null);
   const editDesktopPreview = useSignal<string | null>(null);
@@ -361,6 +367,11 @@ export default component$(() => {
   const editMobileInputRef = useSignal<HTMLInputElement | undefined>(undefined);
   const isDragOverEditDesktop = useSignal(false);
   const isDragOverEditMobile = useSignal(false);
+  // Textos en vivo para la miniatura WYSIWYG del hero (modal de edición).
+  const editPreTitle = useSignal("");
+  const editTitle = useSignal("");
+  const editSubtitle = useSignal("");
+  const editBtnText = useSignal("");
 
   // Client-side Visual Array of Slides for HTML5 Drag & Drop sorting
   const localSlides = useStore<{ list: any[] }>({ list: [] });
@@ -495,6 +506,7 @@ export default component$(() => {
                   <input
                     type="text"
                     name="preTitle"
+                    bind:value={createPreTitle}
                     placeholder="Ej: La Plata y City Bell"
                     class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
                   />
@@ -518,6 +530,7 @@ export default component$(() => {
                   type="text"
                   name="title"
                   required
+                  bind:value={createTitle}
                   placeholder="Ej: Temporada de Invierno AMP+"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
                 />
@@ -529,6 +542,7 @@ export default component$(() => {
                   name="subtitle"
                   required
                   rows={2}
+                  bind:value={createSubtitle}
                   placeholder="Ej: Presentá tu credencial digital y disfrutá de los mejores descuentos..."
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
                 />
@@ -540,6 +554,7 @@ export default component$(() => {
                   <input
                     type="text"
                     name="buttonText"
+                    bind:value={createBtnText}
                     placeholder="Explorar"
                     class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
                   />
@@ -607,7 +622,7 @@ export default component$(() => {
 
                   {desktopPreview.value ? (
                     <>
-                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_DESKTOP} />
+                      <ImageFramePreview src={desktopPreview.value} targetRatio={RATIO_DESKTOP} preTitle={createPreTitle.value} title={createTitle.value} subtitle={createSubtitle.value} buttonText={createBtnText.value} />
                       <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Desktop
@@ -663,7 +678,7 @@ export default component$(() => {
 
                   {mobilePreview.value ? (
                     <>
-                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_MOBILE} />
+                      <ImageFramePreview src={mobilePreview.value} targetRatio={RATIO_MOBILE} preTitle={createPreTitle.value} title={createTitle.value} subtitle={createSubtitle.value} buttonText={createBtnText.value} />
                       <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                         <LuImage class="w-5 h-5" />
                         Reemplazar Imagen Mobile
@@ -847,6 +862,10 @@ export default component$(() => {
                             editingSlide.value = slide;
                             editDesktopPreview.value = slide.imageUrl;
                             editMobilePreview.value = slide.imageMobile || slide.imageUrl;
+                            editPreTitle.value = slide.preTitle || "";
+                            editTitle.value = slide.title || "";
+                            editSubtitle.value = slide.subtitle || "";
+                            editBtnText.value = slide.buttonText || "";
                           }}
                           class="p-2 text-slate-650 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/60 shadow-xs transition-all cursor-pointer active:scale-90"
                           title="Editar Slide"
@@ -930,10 +949,12 @@ export default component$(() => {
                 editDesktopPreview.value = null;
                 editMobilePreview.value = null;
               }}
-              class="flex-1 overflow-y-auto p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-left"
+              class="flex flex-col flex-1 min-h-0"
             >
               <input type="hidden" name="id" value={editingSlide.value.id} />
 
+              {/* Contenido scrolleable: solo esto scrollea, el footer queda fijo. */}
+              <div class="flex-1 overflow-y-auto p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
               {/* Modal Left Col: Metadata fields */}
               <div class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -942,7 +963,7 @@ export default component$(() => {
                     <input
                       type="text"
                       name="preTitle"
-                      value={editingSlide.value.preTitle || ""}
+                      bind:value={editPreTitle}
                       placeholder="Ej: Exclusivo AMP+"
                       class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
                     />
@@ -966,7 +987,7 @@ export default component$(() => {
                     type="text"
                     name="title"
                     required
-                    value={editingSlide.value.title}
+                    bind:value={editTitle}
                     placeholder="Ej: Temporada de Invierno"
                     class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-extrabold"
                   />
@@ -978,7 +999,7 @@ export default component$(() => {
                     name="subtitle"
                     required
                     rows={2}
-                    value={editingSlide.value.subtitle}
+                    bind:value={editSubtitle}
                     placeholder="Ej: Descuentos increíbles..."
                     class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
                   />
@@ -990,7 +1011,7 @@ export default component$(() => {
                     <input
                       type="text"
                       name="buttonText"
-                      value={editingSlide.value.buttonText || ""}
+                      bind:value={editBtnText}
                       placeholder="Explorar"
                       class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
                     />
@@ -1057,7 +1078,7 @@ export default component$(() => {
 
                     {editDesktopPreview.value ? (
                       <>
-                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_DESKTOP} />
+                        <ImageFramePreview src={editDesktopPreview.value} targetRatio={RATIO_DESKTOP} preTitle={editPreTitle.value} title={editTitle.value} subtitle={editSubtitle.value} buttonText={editBtnText.value} />
                         <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Desktop
@@ -1110,7 +1131,7 @@ export default component$(() => {
 
                     {editMobilePreview.value ? (
                       <>
-                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_MOBILE} />
+                        <ImageFramePreview src={editMobilePreview.value} targetRatio={RATIO_MOBILE} preTitle={editPreTitle.value} title={editTitle.value} subtitle={editSubtitle.value} buttonText={editBtnText.value} />
                         <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2 z-30 backdrop-blur-xs">
                           <LuImage class="w-4 h-4" />
                           Cambiar Imagen Mobile
@@ -1134,8 +1155,10 @@ export default component$(() => {
                 </div>
               </div>
 
-              {/* Modal Footer Controls */}
-              <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-150 gap-3">
+              </div>{/* fin contenido scrolleable */}
+
+              {/* Footer fijo: Guardar/Cancelar siempre visibles, no scrollea. */}
+              <div class="shrink-0 bg-slate-50 px-6 sm:px-8 py-4 flex justify-end border-t border-slate-200 gap-3">
                 <button
                   type="button"
                   onClick$={() => {

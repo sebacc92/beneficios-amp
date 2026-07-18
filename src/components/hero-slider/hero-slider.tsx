@@ -45,7 +45,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
 
   return (
     <section
-      class="relative w-full h-[340px] md:h-[480px] lg:h-auto lg:aspect-[1600/646] bg-[#020617] overflow-hidden print:hidden group"
+      class="relative w-full aspect-[4/5] md:aspect-auto md:h-[480px] lg:h-auto lg:aspect-[1600/646] bg-[#020617] overflow-hidden print:hidden group"
       onMouseEnter$={() => (isPaused.value = true)}
       onMouseLeave$={() => (isPaused.value = false)}
     >
