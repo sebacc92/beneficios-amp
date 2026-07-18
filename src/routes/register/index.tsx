@@ -41,6 +41,12 @@ export default component$(() => {
           <p class="pt-1.5 border-t border-amber-200/50 font-semibold">
             Por favor, ponete en contacto con la administración de la AMP para solicitar tu alta de usuario.
           </p>
+          <p class="pt-1.5">
+            Para consultas sobre tu agremiación escribí a{" "}
+            <a href="mailto:info@amepla.org.ar" class="font-bold text-brand-green hover:text-brand-green-dark underline">
+              info@amepla.org.ar
+            </a>
+          </p>
         </div>
 
         {/* Action Link to Login */}
