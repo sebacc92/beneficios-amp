@@ -16,6 +16,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
 
   const suggestions = useSignal<any[]>([]);
   const showSuggestions = useSignal(false);
+  const isSearching = useSignal(false);
   const activeIndex = useSignal<number>(-1);
   const searchContainerRef = useSignal<HTMLDivElement | undefined>(undefined);
   const mobileSearchContainerRef = useSignal<HTMLDivElement | undefined>(undefined);
@@ -26,15 +27,22 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
     if (searchInput.value.trim().length < 2) {
       suggestions.value = [];
       showSuggestions.value = false;
+      isSearching.value = false;
       activeIndex.value = -1;
       return;
     }
 
     const delayId = setTimeout(async () => {
-      const results = await getSearchSuggestions(searchInput.value);
-      suggestions.value = results;
-      showSuggestions.value = results.length > 0;
+      // Se abre el panel con estado de carga apenas arranca la consulta.
+      isSearching.value = true;
+      showSuggestions.value = true;
       activeIndex.value = -1;
+      try {
+        const results = await getSearchSuggestions(searchInput.value);
+        suggestions.value = results;
+      } finally {
+        isSearching.value = false;
+      }
     }, 300);
 
     cleanup(() => clearTimeout(delayId));
@@ -151,11 +159,24 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               </form>
 
               {/* Suggestions Dropdown (Desktop) */}
-              {showSuggestions.value && suggestions.value.length > 0 && (
+              {showSuggestions.value && searchInput.value.trim().length >= 2 && (
                 <div class="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden z-50 text-left animate-scale-in">
-                  <div class="px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Sugerencias
+                  <div class="px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    {isSearching.value && (
+                      <span class="w-3 h-3 border-2 border-brand-green border-t-transparent rounded-full animate-spin inline-block" />
+                    )}
+                    {isSearching.value ? "Buscando..." : "Sugerencias"}
                   </div>
+                  {isSearching.value ? (
+                    <div class="px-5 py-6 flex items-center justify-center gap-2 text-slate-400 text-xs font-bold">
+                      <span class="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                      Buscando beneficios...
+                    </div>
+                  ) : suggestions.value.length === 0 ? (
+                    <div class="px-5 py-6 text-center text-xs text-slate-400 font-medium">
+                      Sin resultados para "{searchInput.value.trim()}"
+                    </div>
+                  ) : (
                   <div class="max-h-80 overflow-y-auto divide-y divide-slate-100">
                     {suggestions.value.map((item, idx) => (
                       <Link
@@ -181,6 +202,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                       </Link>
                     ))}
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -319,11 +341,24 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               </form>
 
               {/* Suggestions Dropdown (Mobile) */}
-              {showSuggestions.value && suggestions.value.length > 0 && (
+              {showSuggestions.value && searchInput.value.trim().length >= 2 && (
                 <div class="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-50 text-left animate-scale-in">
-                  <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Sugerencias
+                  <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    {isSearching.value && (
+                      <span class="w-3 h-3 border-2 border-brand-green border-t-transparent rounded-full animate-spin inline-block" />
+                    )}
+                    {isSearching.value ? "Buscando..." : "Sugerencias"}
                   </div>
+                  {isSearching.value ? (
+                    <div class="px-4 py-5 flex items-center justify-center gap-2 text-slate-400 text-xs font-bold">
+                      <span class="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                      Buscando...
+                    </div>
+                  ) : suggestions.value.length === 0 ? (
+                    <div class="px-4 py-5 text-center text-xs text-slate-400 font-medium">
+                      Sin resultados para "{searchInput.value.trim()}"
+                    </div>
+                  ) : (
                   <div class="max-h-60 overflow-y-auto divide-y divide-slate-100">
                     {suggestions.value.map((item, idx) => (
                       <Link
@@ -350,6 +385,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                       </Link>
                     ))}
                   </div>
+                  )}
                 </div>
               )}
             </div>

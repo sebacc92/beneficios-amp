@@ -13,6 +13,37 @@ import { sanitizeRichText } from "~/utils/sanitize-html";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 
+// Carga robusta de Leaflet en el navegador: reutiliza el <script> si ya existe y
+// ESPERA a que window.L esté disponible (poll). Antes se asumía que si estaba el
+// <link> del CSS entonces L ya estaba listo, y si no lo estaba el mapa quedaba
+// "Cargando..." para siempre. Devuelve la instancia global L.
+function ensureLeaflet(): Promise<any> {
+  return new Promise((resolve) => {
+    const w = window as any;
+    if (w.L) return resolve(w.L);
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    let script = document.getElementById("leaflet-js") as HTMLScriptElement | null;
+    const waitForL = (): void => {
+      if (w.L) resolve(w.L);
+      else setTimeout(waitForL, 50);
+    };
+    if (!script) {
+      script = document.createElement("script");
+      script.id = "leaflet-js";
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      document.head.appendChild(script);
+    }
+    script.addEventListener("load", waitForL);
+    waitForL();
+  });
+}
+
 // Extracts structured contact details from the raw HTML description
 function extractContacts(html: string) {
   const contacts: {
@@ -632,63 +663,55 @@ export default component$(() => {
     return `tel:${num.replace(/[^0-9+]/g, "")}`;
   };
 
-  // Client-side initialization of Leaflet Map once component is visible
+  // Inicialización del mapa Leaflet en el cliente (evita crash de SSR).
   // eslint-disable-next-line qwik/no-use-visible-task
-  useVisibleTask$(({ cleanup }) => {
+  useVisibleTask$(async ({ cleanup }) => {
     if (!benefit.latitud || !benefit.longitud) return;
 
-    // Dynamically load Leaflet assets to prevent SSR crash and maintain 100/100 LCP
-    const loadMap = () => {
-      const L = (window as any).L;
-      if (!L) return;
+    const L = await ensureLeaflet();
+    const el = document.getElementById("leaflet-map") as any;
+    if (!el) return;
 
-      const lat = parseFloat(benefit.latitud!);
-      const lng = parseFloat(benefit.longitud!);
-
-      const map = L.map("leaflet-map", {
-        scrollWheelZoom: false,
-        dragging: !L.Browser.mobile,
-        tap: !L.Browser.mobile
-      }).setView([lat, lng], 15);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      }).addTo(map);
-
-      // Custom elegant gold marker icon using SVGs
-      const goldIcon = L.divIcon({
-        className: "custom-div-icon",
-        html: `<div class='w-8 h-8 rounded-full bg-brand-gold border-2 border-white flex items-center justify-center shadow-lg text-brand-green-dark'><svg class='w-4 h-4 fill-current' viewBox='0 0 24 24'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/></svg></div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 30]
-      });
-
-      L.marker([lat, lng], { icon: goldIcon })
-        .addTo(map)
-        .bindPopup(`<b class="font-display text-brand-green-dark">${benefit.titulo}</b><br/>${contacts.address || "Ubicación"}`)
-        .openPopup();
-
-      isMapLoaded.value = true;
-
-      cleanup(() => {
-        map.remove();
-      });
-    };
-
-    if (document.getElementById("leaflet-css")) {
-      loadMap();
-    } else {
-      const link = document.createElement("link");
-      link.id = "leaflet-css";
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.onload = loadMap;
-      document.head.appendChild(script);
+    // Si el contenedor viene reusado por una navegación SPA (Leaflet le deja un
+    // _leaflet_id), lo soltamos para evitar "Map container is already initialized".
+    if (el._leaflet_id) {
+      el._leaflet_id = null;
+      el.innerHTML = "";
     }
+
+    const lat = parseFloat(benefit.latitud!);
+    const lng = parseFloat(benefit.longitud!);
+
+    const map = L.map(el, {
+      scrollWheelZoom: false,
+      dragging: !L.Browser.mobile,
+      tap: !L.Browser.mobile
+    }).setView([lat, lng], 15);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Custom elegant gold marker icon using SVGs
+    const goldIcon = L.divIcon({
+      className: "custom-div-icon",
+      html: `<div class='w-8 h-8 rounded-full bg-brand-gold border-2 border-white flex items-center justify-center shadow-lg text-brand-green-dark'><svg class='w-4 h-4 fill-current' viewBox='0 0 24 24'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/></svg></div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 30]
+    });
+
+    L.marker([lat, lng], { icon: goldIcon })
+      .addTo(map)
+      .bindPopup(`<b class="font-display text-brand-green-dark">${benefit.titulo}</b><br/>${contacts.address || "Ubicación"}`)
+      .openPopup();
+
+    // El contenedor puede cambiar de tamaño al montarse; recalcular el layout.
+    setTimeout(() => map.invalidateSize(), 200);
+    isMapLoaded.value = true;
+
+    cleanup(() => {
+      map.remove();
+    });
   });
 
   const imageUrl = benefit.imagen
