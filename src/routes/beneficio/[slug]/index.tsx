@@ -909,23 +909,25 @@ export default component$(() => {
           {/* LEFT: Benefit Main Description Card (2 Columns wide) */}
           <div class="lg:col-span-2 space-y-8">
             <div class="glass-card border rounded-2xl overflow-hidden shadow-md bg-white">
-              {/* Feature Hero Image */}
-              <div class="relative bg-slate-50 p-5 sm:p-8 flex items-center justify-center">
+              {/* Hero: la imagen es protagonista (ancho completo, object-cover) con el
+                  descuento y la categoría superpuestos. Usa la imagen mobile/desktop
+                  según viewport. */}
+              <div class="relative w-full h-72 sm:h-80 lg:h-96 bg-slate-900 overflow-hidden">
                 {imageUrl ? (
-                  <picture class="relative w-full max-w-[440px] aspect-square rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center">
+                  <picture>
                     {imageMobileUrl && !activeImageUrl.value && (
                       <source media="(max-width: 640px)" srcset={imageMobileUrl} />
                     )}
                     <img
                       src={activeImageUrl.value || imageUrl}
                       alt={benefit.titulo}
-                      class="w-full h-full object-contain p-3"
-                      width={800}
+                      class="w-full h-full object-cover select-none"
+                      width={1200}
                       height={800}
                     />
                   </picture>
                 ) : (
-                  <div class="w-full max-w-[440px] aspect-square rounded-2xl border border-slate-200 bg-gradient-to-br from-brand-green-dark to-brand-green flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+                  <div class="w-full h-full bg-gradient-to-br from-brand-green-dark to-brand-green flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
                     <span class="absolute -right-6 -bottom-10 font-display font-black text-[12rem] leading-none text-white/10 select-none pointer-events-none">+</span>
                     <span class="relative font-display font-black text-white text-3xl sm:text-4xl leading-tight line-clamp-4">
                       {benefit.titulo}
@@ -936,27 +938,32 @@ export default component$(() => {
                   </div>
                 )}
 
-                {/* Floating Gold Discount Badge — muestra la oferta corta (facet), no el resumen largo */}
-                <div class="absolute top-6 right-6 z-10 animate-float">
-                  <span class="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full bg-brand-gold text-brand-green-dark border-4 border-white shadow-xl px-2 text-center">
-                    <span
-                      class={[
-                        "font-black font-display leading-none",
-                        offerLabel.length <= 4 ? "text-3xl" : offerLabel.length <= 8 ? "text-xl" : "text-sm uppercase",
-                      ]}
-                    >
-                      {offerLabel}
-                    </span>
-                    <span class="text-[11px] uppercase font-extrabold tracking-wider mt-1">Beneficio</span>
-                  </span>
-                </div>
+                {/* Scrim: asegura contraste de los overlays sobre cualquier imagen. */}
+                <div class="absolute inset-0 z-0 bg-gradient-to-t from-black/60 via-black/10 to-black/30 pointer-events-none" />
 
-                {/* Floating Category Pill */}
-                <div class="absolute bottom-6 left-6 z-10 flex space-x-2">
+                {/* Descuento (esquina superior derecha) */}
+                {offerLabel && (
+                  <div class="absolute top-4 right-4 sm:top-5 sm:right-5 z-10">
+                    <span class="inline-flex flex-col items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-brand-gold text-brand-green-dark border-4 border-white shadow-xl px-2 text-center">
+                      <span
+                        class={[
+                          "font-black font-display leading-none",
+                          offerLabel.length <= 4 ? "text-2xl sm:text-3xl" : offerLabel.length <= 8 ? "text-lg sm:text-xl" : "text-xs sm:text-sm uppercase",
+                        ]}
+                      >
+                        {offerLabel}
+                      </span>
+                      <span class="text-[10px] sm:text-[11px] uppercase font-extrabold tracking-wider mt-1">Beneficio</span>
+                    </span>
+                  </div>
+                )}
+
+                {/* Categoría (esquina inferior izquierda) */}
+                <div class="absolute bottom-4 left-4 sm:bottom-5 sm:left-5 z-10 flex flex-wrap gap-2">
                   {benefit.categorias.map((c) => (
                     <span
                       key={c.id}
-                      class="inline-flex items-center px-4.5 py-2.5 rounded-2xl text-sm font-black bg-black/60 text-white backdrop-blur-md border border-white/20 uppercase tracking-widest"
+                      class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black bg-black/55 text-white backdrop-blur-md border border-white/20 uppercase tracking-widest"
                     >
                       {c.descripcion}
                     </span>
@@ -1361,9 +1368,6 @@ export default component$(() => {
 
                     {/* Text content */}
                     <div class="flex-grow text-center sm:text-left space-y-1">
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-750 border border-red-100 uppercase tracking-widest">
-                        Del comercio
-                      </span>
                       <h3 class="text-lg font-black text-brand-green-dark tracking-tight leading-snug">
                         Información del comercio
                       </h3>
