@@ -53,6 +53,7 @@ export interface Benefit {
   isActive?: boolean;
   orden?: number; // Orden manual del listado (0 = sin orden → va al final)
   discounts?: Discount[]; // Lista de descuentos (% + condición). El 1º es el principal.
+  dbId?: string; // id real en custom_benefits (para linkear al editor del admin)
 }
 
 export interface Filters {
@@ -484,6 +485,15 @@ export async function ensureGalleryTable(db: any) {
   `);
 }
 
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
 // Transforms DB custom benefits schema into standard cached Benefit interface elements
 export async function getCustomBenefits(requestEvent: RequestEventBase): Promise<Benefit[]> {
   // Memoización por request: una misma solicitud puede pedir el catálogo varias
@@ -532,7 +542,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
       // Derive numerical ID from slug string or use a hashed representation
       const numId = cb.slug.split("-")[0] && !isNaN(Number(cb.slug.split("-")[0]))
         ? Number(cb.slug.split("-")[0])
-        : Math.floor(Math.random() * 10000) + 90000;
+        : (hashCode(cb.slug) % 10000) + 90000;
 
       // Extract real validUntil and isActive status
       const rawValidUntil = cb.validUntil;
@@ -579,6 +589,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         isActive,
         orden: ordenMap[cb.id] ?? 0,
         discounts,
+        dbId: cb.id,
       } as Benefit;
     });
 

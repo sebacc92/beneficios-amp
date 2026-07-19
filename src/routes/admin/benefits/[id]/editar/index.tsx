@@ -657,13 +657,24 @@ export default component$(() => {
     <div class="w-full px-6 sm:px-10 pt-10 space-y-8 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
       {/* Header */}
       <div class="flex flex-col gap-3 border-b border-slate-200 pb-7 w-full max-w-3xl mx-auto">
-        <Link
-          href="/admin/benefits/"
-          class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-brand-green transition-colors w-fit"
-        >
-          <LuChevronLeft class="w-4 h-4" />
-          Volver al listado
-        </Link>
+        <div class="flex items-center justify-between gap-3">
+          <Link
+            href="/admin/benefits/"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-brand-green transition-colors w-fit"
+          >
+            <LuChevronLeft class="w-4 h-4" />
+            Volver al listado
+          </Link>
+          <a
+            href={`/beneficio/${benefit.value.slug}`}
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-brand-green hover:text-brand-green text-slate-600 text-xs font-bold transition-all cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /></svg>
+            Ver ficha
+          </a>
+        </div>
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-brand-green"></span>

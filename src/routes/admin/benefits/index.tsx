@@ -642,6 +642,17 @@ export default component$(() => {
                             )}
                           </button>
 
+                          {/* Ver ficha pública (nueva pestaña) */}
+                          <a
+                            href={`/beneficio/${benefit.slug}`}
+                            target="_blank"
+                            rel="noopener"
+                            class="p-2 text-slate-500 hover:text-brand-green hover:bg-emerald-50 rounded-full transition-all cursor-pointer"
+                            title="Ver ficha del beneficio"
+                          >
+                            <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /></svg>
+                          </a>
+
                           {/* Edit Button */}
                           <Link
                             href={`/admin/benefits/${benefit.id}/editar`}

@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
+import { verifyAdminSessionToken, ADMIN_SESSION_COOKIE } from "~/server/admin-auth";
 import { maskDni } from "~/utils/mask";
 import { benefitDiscounts, formatDiscountBadge, formatDiscountChip, pctDisplay } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
@@ -93,16 +94,27 @@ function extractContacts(html: string) {
   return contacts;
 }
 
-// Construye la URL de una red/sitio a partir de lo que cargó el admin (handle o URL).
+// Construye la URL de una red/sitio a partir de lo que cargó el admin. Es
+// tolerante: acepta el username ("@sebacc92"), el dominio+ruta ("instagram.com/
+// sebacc92", "www.x.com/...") o la URL completa ("https://…"). Nunca duplica el
+// dominio.
 function socialUrl(kind: "instagram" | "facebook" | "twitter" | "website", raw?: string): string {
   const v = (raw || "").trim();
   if (!v) return "";
+  // URL completa → tal cual.
   if (/^https?:\/\//i.test(v)) return v;
+  // Ya trae el dominio de una red o un dominio con TLD (sitio web) → solo falta
+  // el protocolo. Cubre "instagram.com/x", "www.facebook.com/x", "milocal.com".
+  if (/^(?:www\.)?(?:instagram\.com|facebook\.com|fb\.com|twitter\.com|x\.com)\//i.test(v) ||
+      (kind === "website" && /^[\w-]+(?:\.[\w-]+)+/.test(v))) {
+    return `https://${v.replace(/^\/+/, "")}`;
+  }
+  // Username pelado → perfil de la red.
   const handle = v.replace(/^@/, "").replace(/^\/+/, "");
   if (kind === "instagram") return `https://www.instagram.com/${handle}`;
   if (kind === "facebook") return `https://www.facebook.com/${handle}`;
   if (kind === "twitter") return `https://x.com/${handle}`;
-  return `https://${v.replace(/^\/+/, "")}`; // website
+  return `https://${handle}`; // website sin punto (raro): igual lo intentamos
 }
 
 // Quita del cuerpo del "Detalle del Beneficio" las líneas de contacto que ya se
@@ -121,7 +133,12 @@ function stripDuplicatedContactLines(html: string): string {
 export const useBenefitData = routeLoader$(async (event) => {
   const benefit = await getBenefitBySlug(event.params.slug, event);
   const user = event.sharedMap.get("user") as AuthenticatedUser | null;
-  const isAdmin = user?.role === "admin";
+  // Admin: por sesión regular (rol admin) o por la sesión del panel (cookie
+  // admin_session, que sólo se emite a admins). Así el botón "Editar" aparece
+  // aunque el admin esté logueado sólo en el panel.
+  const adminSessionValid =
+    (await verifyAdminSessionToken(event.env, event.cookie.get(ADMIN_SESSION_COOKIE)?.value)) !== null;
+  const isAdmin = user?.role === "admin" || adminSessionValid;
 
   if (!benefit || (benefit.isActive === false && !isAdmin)) {
     event.status(404);
@@ -208,6 +225,7 @@ export const useBenefitData = routeLoader$(async (event) => {
     contacts: extractedContacts,
     activeCoupon,
     verifyUrl,
+    isAdmin,
   };
 });
 
@@ -832,6 +850,31 @@ export default component$(() => {
           <span>/</span>
           <span class="text-slate-600 truncate max-w-[200px]">{benefit.titulo}</span>
         </nav>
+
+        {/* Barra de administrador: sólo visible con sesión de admin. Da acceso
+            directo a editar este beneficio en el panel. */}
+        {data.value?.isAdmin && benefit.dbId && (
+          <div class="flex flex-wrap items-center justify-between gap-3 -mt-3 mb-8 px-4 py-3 rounded-2xl bg-brand-green/5 border border-brand-green/15 print:hidden">
+            <span class="text-xs font-black uppercase tracking-wider text-brand-green-dark flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-brand-green"></span> Vista de administrador
+            </span>
+            <div class="flex items-center gap-2">
+              <Link
+                href={`/admin/benefits/${benefit.dbId}/editar`}
+                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <svg class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Editar beneficio
+              </Link>
+              <Link
+                href="/admin/benefits/"
+                class="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Panel
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* B. Main Details Grid */}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
