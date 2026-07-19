@@ -1,5 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/* Fuentes self-hosted (antes venían de fonts.googleapis → gstatic, ~1.4s de
+   ruta crítica). Son las fuentes VARIABLES de Google (subset latin, cubre los
+   acentos del español) servidas desde /public/fonts, así que un solo archivo
+   por familia cubre todos los pesos con font-weight en rango. font-display:swap
+   evita el bloqueo de render. El woff2 principal (Inter) va con preload. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/outfit-latin.woff2") format("woff2");
+}
 
 
 @theme {

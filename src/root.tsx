@@ -22,11 +22,14 @@ export default component$(() => {
     <QwikCityProvider>
       <head>
         <meta charset="utf-8" />
-        {/* Preconnect a orígenes críticos: el CDN de Vercel Blob (imágenes del
-            hero/beneficios, LCP) y gstatic (fuentes). Adelanta el handshake
-            TLS y recorta la ruta crítica. */}
+        {/* Preconnect al CDN de Vercel Blob (imágenes del hero/beneficios, LCP):
+            adelanta el handshake TLS y recorta la ruta crítica. Las fuentes ya
+            son self-hosted (mismo origen), así que no hace falta preconnect a
+            gstatic. */}
         <link rel="preconnect" href="https://lzvshzkth0usbwli.public.blob.vercel-storage.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Preload de la fuente principal (Inter). Los woff2 se piden en modo
+            CORS aunque sean del mismo origen, por eso crossorigin. */}
+        <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <meta name="theme-color" content="#0f3d2e" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
