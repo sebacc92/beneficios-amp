@@ -3,7 +3,6 @@ import { routeLoader$, routeAction$, Form, Link, z, zod$, type DocumentHead } fr
 import { LuImage, LuSmartphone, LuSparkles, LuChevronLeft } from "@qwikest/icons/lucide";
 import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
 import { eq } from "drizzle-orm";
-import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters, ensureBenefitDefaultsCleanup, ensureTrackingSchema, persistBenefitDiscounts } from "~/server/cache";
@@ -54,6 +53,9 @@ export const useEditBenefitAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
+      // Import dinámico: @vercel/blob es server-only (arrastra un polyfill de crypto
+      // de Node). Estático al tope, entra al bundle del cliente y rompe otros chunks.
+      const { put } = await import("@vercel/blob");
 
       const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
       if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });

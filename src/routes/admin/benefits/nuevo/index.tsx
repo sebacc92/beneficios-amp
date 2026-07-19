@@ -2,7 +2,6 @@ import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, Link, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuImage, LuSmartphone, LuSparkles, LuChevronLeft } from "@qwikest/icons/lucide";
 import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
-import { put } from "@vercel/blob";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable } from "~/db/schema";
 import { getFilters, persistBenefitDiscounts } from "~/server/cache";
@@ -40,6 +39,9 @@ export const useCreateBenefitAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
+      // Import dinámico: @vercel/blob es server-only (arrastra un polyfill de crypto
+      // de Node). Estático al tope, entra al bundle del cliente y rompe otros chunks.
+      const { put } = await import("@vercel/blob");
       const uuid = "cb-" + Date.now().toString();
       const slug = uuid + "-" + data.titulo.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
 

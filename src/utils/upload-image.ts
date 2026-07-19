@@ -1,5 +1,4 @@
 import { server$ } from "@builder.io/qwik-city";
-import { put } from "@vercel/blob";
 
 export type UploadResult = { url: string } | { error: string };
 
@@ -32,6 +31,9 @@ export const uploadImageDataUrl = server$(async function (
     const token = process.env.BLOB_READ_WRITE_TOKEN || this.env.get("BLOB_READ_WRITE_TOKEN");
 
     if (token) {
+      // Import dinámico: @vercel/blob es server-only (arrastra crypto de Node). Si
+      // se importa estático, entra al bundle del cliente y rompe otros chunks.
+      const { put } = await import("@vercel/blob");
       const blob = await put(fileName, bytes, { access: "public", token });
       return { url: blob.url };
     }
@@ -45,5 +47,47 @@ export const uploadImageDataUrl = server$(async function (
   } catch (err: any) {
     console.error("[uploadImageDataUrl] falló la subida:", err?.message || err);
     return { error: "No se pudo subir la imagen. Probá de nuevo." };
+  }
+});
+
+/**
+ * Sube un archivo genérico (ej. PDF) a Vercel Blob desde un data URL base64.
+ * Corre en el servidor (server$) y hace el `put` ahí, evitando `@vercel/blob/client`
+ * en el navegador (que arrastraba un polyfill de crypto roto). El archivo viaja
+ * en el cuerpo del server$ (límite ~4.5 MB de Vercel; suficiente para PDFs de
+ * menú/lista de precios).
+ */
+export const uploadFileDataUrl = server$(async function (
+  dataUrl: string,
+  filename: string,
+  prefix = "file"
+): Promise<UploadResult> {
+  try {
+    const comma = dataUrl.indexOf(",");
+    const base64Data = comma >= 0 ? dataUrl.slice(comma + 1) : "";
+    if (!base64Data) return { error: "Archivo inválido." };
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+
+    const safeName = (filename || "archivo").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const fileName = `${prefix}-${Date.now()}-${safeName}`;
+    const token = process.env.BLOB_READ_WRITE_TOKEN || this.env.get("BLOB_READ_WRITE_TOKEN");
+
+    if (token) {
+      const { put } = await import("@vercel/blob");
+      const blob = await put(fileName, bytes, { access: "public", token });
+      return { url: blob.url };
+    }
+
+    // Fallback local (dev sin Blob configurado).
+    const fsModule = await import("fs/promises");
+    const uploadsDir = `${process.cwd()}/public/uploads`;
+    await fsModule.mkdir(uploadsDir, { recursive: true });
+    await fsModule.writeFile(`${uploadsDir}/${fileName}`, bytes);
+    return { url: `/uploads/${fileName}` };
+  } catch (err: any) {
+    console.error("[uploadFileDataUrl] falló la subida:", err?.message || err);
+    return { error: "No se pudo subir el archivo. Probá de nuevo." };
   }
 });
