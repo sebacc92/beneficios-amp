@@ -101,7 +101,7 @@ export const CategorySlider = component$<CategorySliderProps>(({
   return (
     <div class="w-full text-left">
       <div class="flex items-center justify-between mb-2 border-b border-slate-200/60 pb-1">
-        <h3 class="text-[12px] font-black tracking-widest text-slate-400 uppercase pl-1 m-0">
+        <h3 class="text-[12px] font-black tracking-widest text-slate-500 uppercase pl-1 m-0">
           {title}
         </h3>
         {/* Category scroll controllers */}

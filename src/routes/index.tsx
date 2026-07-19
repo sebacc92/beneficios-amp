@@ -163,6 +163,11 @@ export default component$(() => {
 
   return (
     <div class="relative min-h-screen bg-slate-50">
+      {/* h1 de la página (visualmente oculto): el diseño arranca con el carrusel
+          cuyos títulos son <h2> por slide; sin un h1 la jerarquía empezaba en h2.
+          Este h1 establece h1→h2→h3 sin alterar el diseño. */}
+      <h1 class="sr-only">Portal de Beneficios AMP+ — Agremiación Médica Platense</h1>
+
       {/* Curated Showcase (homepage only) */}
       {curatedRows && (
         <>
@@ -316,9 +321,12 @@ export default component$(() => {
                                 )}
 
                                 <div class="text-left space-y-1">
-                                  <h4 class="text-[10px] font-extrabold text-brand-gold uppercase tracking-wider line-clamp-1">
+                                  {/* La ubicación es una etiqueta, no un encabezado: iba como <h4>
+                                      antes del <h3> del título (bajo el <h2> de la sección), lo que
+                                      producía un salto h2→h4. Se baja a <p> para respetar la jerarquía. */}
+                                  <p class="text-[10px] font-extrabold text-brand-gold uppercase tracking-wider line-clamp-1">
                                     {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                                  </h4>
+                                  </p>
                                   <h3 class="text-sm font-display font-bold text-slate-200 group-hover:text-white line-clamp-2 leading-snug min-h-[2.5rem]">
                                     {benefit.titulo}
                                   </h3>

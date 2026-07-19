@@ -225,7 +225,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
         {/* Card Body - Optimized padding (pb-8) and custom spacing for maximum breathing room */}
         <div class="pt-5 px-6 pb-8 flex flex-col justify-between h-[220px] bg-white text-left">
           <div class="space-y-1.5">
-            <h3 class="text-[12px] font-black text-slate-400 uppercase tracking-widest truncate leading-none">
+            <h3 class="text-[12px] font-black text-slate-500 uppercase tracking-widest truncate leading-none">
               {primaryLoc}
             </h3>
             <h4 class="text-[15.5px] font-display font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-green transition-colors duration-200">
@@ -234,7 +234,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
           </div>
           <div class="flex items-center justify-between pt-3.5 border-t border-slate-100 mt-auto">
             <div class="flex flex-col text-left">
-              <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">Inicio</span>
+              <span class="text-[8.5px] font-black text-slate-500 uppercase tracking-widest leading-none">Inicio</span>
               <span class="text-[12px] font-bold text-slate-650 tracking-tight mt-0.5 leading-none">{formattedDate}</span>
             </div>
             <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-black bg-emerald-50 text-emerald-705 border border-emerald-100/70 shadow-sm uppercase tracking-wide">

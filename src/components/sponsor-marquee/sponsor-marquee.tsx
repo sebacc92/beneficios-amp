@@ -27,9 +27,13 @@ const LOGO_IMG = "max-w-full max-h-32 w-auto object-contain";
 
 const SponsorLogo = ({ sponsor, ariaHidden }: { sponsor: Sponsor; ariaHidden?: boolean }) => (
   <a
-    href={sponsor.linkUrl || "#"}
-    target={sponsor.linkUrl ? "_blank" : undefined}
-    rel={sponsor.linkUrl ? "noopener noreferrer" : undefined}
+    // Los clones del marquee infinito son decorativos: sin href navegable ni
+    // foco (tabindex=-1), para no violar "aria-hidden no debe ser enfocable"
+    // ni duplicar destinos en el orden de tabulación.
+    href={ariaHidden ? undefined : sponsor.linkUrl || "#"}
+    target={!ariaHidden && sponsor.linkUrl ? "_blank" : undefined}
+    rel={!ariaHidden && sponsor.linkUrl ? "noopener noreferrer" : undefined}
+    tabIndex={ariaHidden ? -1 : undefined}
     class={LOGO_CELL}
     aria-hidden={ariaHidden ? "true" : undefined}
   >
