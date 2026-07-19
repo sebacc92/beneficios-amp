@@ -31,6 +31,10 @@ export default component$(() => {
             CORS aunque sean del mismo origen, por eso crossorigin. */}
         <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <meta name="theme-color" content="#0f3d2e" />
+        {/* `apple-mobile-web-app-capable` está deprecado (Chrome lo reporta en
+            Lighthouse). El estándar es `mobile-web-app-capable`; se mantiene el
+            apple para iOS viejo. */}
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="AMP+ Beneficios" />
