@@ -362,6 +362,33 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 
 ---
 
+## 9.b Performance (Core Web Vitals y peso de imágenes)
+
+Medir con **PageSpeed Insights / Lighthouse en producción**, pestaña **Mobile**.
+
+**Umbrales objetivo (mobile):**
+- [ ] **Rendimiento ≥ 90** en la **home** (`/`). ✅
+- [ ] **Rendimiento ≥ 90** en una **ficha de beneficio** (`/beneficio/...`). ✅
+- [ ] **LCP < 2.5 s** en la **home**. ✅ (el LCP suele ser la imagen del primer slide del hero)
+- [ ] **LCP < 2.5 s** en una **ficha de beneficio**. ✅ (el LCP suele ser la imagen protagonista del hero)
+- [ ] **FCP < 1.8 s** en la home. ✅
+- [ ] Accesibilidad y Prácticas recomendadas sin regresiones (objetivo 100 / ≥ 90). ✅
+
+**Imágenes del hero (la causa #1 del LCP):**
+- [ ] Subir un slide nuevo (desktop y mobile) desde `/admin/slides` con un JPG/PNG pesado (2–4 MB). ✅ Se muestra "Optimizando..." y el submit espera a que termine.
+- [ ] En la home, inspeccionar la imagen del primer slide (DevTools → Network). ✅ Es **`.webp`** y pesa **decenas de KiB** (no cientos): desktop ≤ ~250 KiB, mobile ≤ ~170 KiB.
+- [ ] El ancho real del archivo respeta los máximos: **desktop ≤ 1920px**, **mobile ≤ 1080px**. ✅
+- [ ] En el `<head>` de la home hay un `<link rel="preload" as="image">` de la imagen del **primer** slide, con `media` (variante desktop/mobile) y `fetchpriority="high"`. ✅
+- [ ] El primer slide del hero usa `fetchpriority="high"` + `loading="eager"`; el resto `loading="lazy"`. ✅
+- [ ] Hay `preconnect` al CDN de Vercel Blob y **preload del woff2** de la fuente principal; **no** hay `<link>` ni `@import` a `fonts.googleapis.com`. ✅
+- [ ] (Slides viejos) Tras correr `scripts/optimize-existing-slides.mjs --apply`, los slides existentes también son `.webp` livianos. ✅
+
+**Regresión de red / terceros:**
+- [ ] Con los headers nuevos, el **mapa** (Leaflet/tiles), el **blob** (imágenes) y el **chatbot** siguen funcionando. ✅
+- [ ] La consola de la home **no** muestra las advertencias de APIs obsoletas (`apple-mobile-web-app-capable`, Shared Storage, Attribution Reporting). ✅
+
+---
+
 ## 10. Cierre y entrega
 - [ ] Barrido de datos de prueba: sin beneficios TEST, sin Lorem Ipsum, sin cupones/chats/sugerencias de prueba, sin datos personales del desarrollador (Instagram, direcciones).
 - [ ] Lighthouse en producción: home y una ficha de beneficio, performance ≥ 90 mobile.
