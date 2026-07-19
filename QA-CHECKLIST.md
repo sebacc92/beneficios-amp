@@ -334,7 +334,35 @@ Marcá cada casilla cuando la prueba pase con el **resultado esperado** indicado
 
 ---
 
-## 9. Cierre y entrega
+## 9. Vencimiento, hero, métricas y perfil (release actual)
+
+**Vencimiento de beneficios (validez por fecha, hora Argentina):**
+- [ ] Beneficio **sin** fecha de vigencia: se comporta como siempre (no vence). ✅
+- [ ] Beneficio con vigencia **futura**: aparece normal en listados y se puede descargar. ✅
+- [ ] Beneficio **vencido** (fecha pasada): NO aparece en listado, home, buscador, sugerencias del mapa, similares ni chatbot. ✅
+- [ ] La **ficha del vencido** sigue accesible por URL, con banner **"Este beneficio venció el [fecha]"** y **sin** botón de descarga. ✅
+- [ ] Intentar generar el **PDF/cupón de un vencido** (con la URL guardada) se **bloquea en el server**. ⚠️ ✅
+- [ ] En el **admin**, los vencidos SÍ se ven, con badge **"Vencido"**, y el filtro de estado **"Vencidos"** los lista. ✅
+- [ ] El día exacto de la fecha de vigencia el beneficio **todavía es válido** (vence al día siguiente). ✅
+
+**Hero de la ficha (imagen protagonista):**
+- [ ] La imagen ocupa **todo el ancho** del hero (object-cover, altura generosa), con el **descuento** (esquina) y la **categoría** superpuestos y legibles (scrim). ✅
+- [ ] Funciona con imágenes **horizontales y verticales**; en mobile usa la imagen mobile a ancho completo. ✅
+- [ ] En "Información del comercio" **ya no está** el badge "Del comercio". ✅
+
+**Métricas por beneficio (admin):**
+- [ ] En `/admin/benefits` cada fila muestra **Vistas**, **Cupones** y **PDF**. ✅
+- [ ] "Beneficios más vistos" en `/admin/stats` muestra **10** y **"Ver todos"** lleva a `/admin/benefits` **ordenado por vistas** (`?sort=views`). ✅
+- [ ] Nota: los **escaneos NO** se muestran por beneficio (son por credencial). ✅
+
+**Perfil del agremiado:**
+- [ ] El **DNI** figura como **solo lectura** (no editable) y la **Matrícula** es editable. ✅
+- [ ] El **Email** es editable y validado; un email ya usado por otra cuenta avisa sin romper. ⚠️ ✅
+- [ ] Ya **no** se muestra la "Fecha de Creación" de la cuenta. ✅
+
+---
+
+## 10. Cierre y entrega
 - [ ] Barrido de datos de prueba: sin beneficios TEST, sin Lorem Ipsum, sin cupones/chats/sugerencias de prueba, sin datos personales del desarrollador (Instagram, direcciones).
 - [ ] Lighthouse en producción: home y una ficha de beneficio, performance ≥ 90 mobile.
 - [ ] Env vars de producción documentadas (nombre y propósito, sin valores).

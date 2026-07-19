@@ -100,10 +100,18 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 **La lista:** muestra todos los beneficios propios. Arriba tenés herramientas para encontrarlos:
 - **Buscador** por título.
 - **Filtro por categoría** y **por ubicación** (las mismas opciones que ve el público).
-- **Filtro por estado**: Todos / Activos / Borradores.
+- **Filtro por estado**: Todos / Activos / Borradores / **Vencidos**.
 - La línea **"Mostrando X de N beneficios"** te dice cuántos quedan con los filtros puestos.
 - Botón **"Limpiar filtros"** para volver a ver todo.
 - La lista se pagina de a **25**.
+
+**Métricas por beneficio (columnas de la tabla):**
+- **Vistas:** cuántas veces se abrió la ficha del beneficio.
+- **Cupones:** cuántos cupones generaron los agremiados para ese beneficio.
+- **PDF:** cuántas veces se descargó el PDF del cupón.
+- Comparando **Vistas** contra **Cupones** ves qué tan bien "convierte" cada beneficio (mucha vista y pocos cupones = quizás la oferta no engancha).
+- Desde **Estadísticas → "Beneficios más vistos" → "Ver todos"** llegás a esta tabla **ordenada por vistas** (de mayor a menor).
+> Los **escaneos de credencial** no se muestran por beneficio: se registran por credencial (en Estadísticas verás el total), no por comercio.
 
 **Ordenar el listado (arrastrar):** cada fila tiene un **tirador** (⠿) a la izquierda. Arrastrá las filas para definir el **orden en que se ven en el sitio público**. Los beneficios que nunca ordenaste quedan al final.
 > Para poder arrastrar tenés que **no** tener filtros puestos. Si hay filtros activos, el sistema te avisa "Limpiá los filtros para reordenar".
@@ -141,6 +149,8 @@ Está pensada para personas sin conocimientos técnicos: te explica **qué es ca
 11. **Guardá** desde la **barra inferior fija** (siempre visible mientras scrolleás). Cuando hay cambios sin guardar, aparece el aviso **"• Cambios sin guardar"**. Aparece el aviso "creado exitosamente".
 
 > Nota: antes todos los beneficios mostraban una vigencia y condiciones genéricas por defecto. Eso **ya no pasa**: si no cargás estos campos, no se muestra nada.
+
+> ⏳ **Vencimiento automático:** si cargás una **fecha de vigencia**, el beneficio **se oculta solo** del sitio (listados, buscador, home, mapa y asistente) **a partir del día siguiente** a esa fecha — **no hace falta desactivarlo a mano**. La ficha sigue accesible por link, pero muestra un cartel de "beneficio vencido" y **no** deja descargar el cupón. En el panel, los vencidos **siguen visibles** con un badge **"Vencido"**; podés listarlos con el filtro de estado **"Vencidos"**. Sin fecha, el beneficio **no vence**.
 
 > 🎟️ **El cupón (PDF) que descarga el agremiado incluye ahora**: todos los descuentos con su condición, el resumen, las **condiciones/términos** (inclusiones y exclusiones) y la vigencia. Por eso conviene cargar bien las **condiciones**: es lo que el comercio va a leer del voucher.
 
