@@ -1,7 +1,9 @@
 import { component$, useSignal, useTask$, $, type QRL } from "@builder.io/qwik";
 import { Form } from "@builder.io/qwik-city";
-import { LuImage, LuMonitor, LuSmartphone, LuX, LuCheck, LuPencil, LuSparkles } from "@qwikest/icons/lucide";
+import { LuImage, LuMonitor, LuSmartphone, LuX, LuCheck, LuPencil, LuSparkles, LuLoader } from "@qwikest/icons/lucide";
 import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
+import { uploadImageDataUrl } from "~/utils/upload-image";
+import { optimizeImageFileToWebp, SLIDE_MAX_DESKTOP, SLIDE_MAX_MOBILE } from "~/utils/optimize-image";
 
 // Relaciones de aspecto REALES del hero (ver hero-slider.tsx): desktop 1600×646
 // (~2.48:1) y mobile 4:5. Se usan también para la previsualización con recorte.
@@ -48,32 +50,62 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
   const dragDesktop = useSignal(false);
   const dragMobile = useSignal(false);
 
+  // URLs finales (en Blob) que viajan por el form. Se optimizan y suben en el
+  // navegador —igual que el alta de beneficios— para que NUNCA suba el JPG/PNG
+  // crudo (antes 800–1080 KiB por slide, causa #1 del LCP). El input de archivo
+  // se limpia tras optimizar, así el multipart no reenvía el original pesado.
+  const desktopUrl = useSignal<string>(slide?.imageUrl ?? "");
+  const mobileUrl = useSignal<string>(slide?.imageMobile ?? "");
+  const uploading = useSignal(0);
+  const uploadError = useSignal<string | null>(null);
+
   // Marca que hubo un submit desde ESTA instancia, para no cerrar por un
   // action.value.success viejo (el store de la acción persiste entre aperturas).
   const submitted = useSignal(false);
 
+  // Optimiza (WebP + resize) y sube a Blob una imagen ya elegida; guarda la URL
+  // resultante en el campo correspondiente y limpia el <input type=file>.
+  const processFile = $(async (file: File, which: "desktop" | "mobile") => {
+    if (!file.type.startsWith("image/")) return;
+    uploadError.value = null;
+    // Preview inmediata con el archivo local mientras se sube.
+    const objectUrl = URL.createObjectURL(file);
+    if (which === "desktop") desktopPreview.value = objectUrl;
+    else mobilePreview.value = objectUrl;
+
+    uploading.value++;
+    try {
+      const max = which === "desktop" ? SLIDE_MAX_DESKTOP : SLIDE_MAX_MOBILE;
+      const webpDataUrl = await optimizeImageFileToWebp(file, max.maxW, max.maxH);
+      const res = await uploadImageDataUrl(webpDataUrl, `slide-${which}`);
+      if ("url" in res) {
+        if (which === "desktop") desktopUrl.value = res.url;
+        else mobileUrl.value = res.url;
+      } else {
+        uploadError.value = res.error;
+      }
+    } catch (err: any) {
+      uploadError.value = err?.message || "No se pudo procesar la imagen.";
+    } finally {
+      uploading.value--;
+      // El archivo crudo ya no debe viajar por el multipart: solo la URL en Blob.
+      if (which === "desktop" && desktopRef.value) desktopRef.value.value = "";
+      else if (which === "mobile" && mobileRef.value) mobileRef.value.value = "";
+    }
+  });
+
   const onFileChange = $((ev: Event, which: "desktop" | "mobile") => {
     const input = ev.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
-    const url = URL.createObjectURL(input.files[0]);
-    if (which === "desktop") desktopPreview.value = url;
-    else mobilePreview.value = url;
+    processFile(input.files[0], which);
   });
 
   const onDrop = $((ev: DragEvent, which: "desktop" | "mobile") => {
     if (!ev.dataTransfer || ev.dataTransfer.files.length === 0) return;
     const file = ev.dataTransfer.files[0];
-    if (!file.type.startsWith("image/")) return;
-    const url = URL.createObjectURL(file);
-    if (which === "desktop") {
-      dragDesktop.value = false;
-      desktopPreview.value = url;
-      if (desktopRef.value) desktopRef.value.files = ev.dataTransfer.files;
-    } else {
-      dragMobile.value = false;
-      mobilePreview.value = url;
-      if (mobileRef.value) mobileRef.value.files = ev.dataTransfer.files;
-    }
+    if (which === "desktop") dragDesktop.value = false;
+    else dragMobile.value = false;
+    processFile(file, which);
   });
 
   // Cierra al terminar con éxito (solo si el submit salió de esta instancia).
@@ -212,7 +244,7 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                   )}
                 </div>
                 <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
-                <input type="text" name="imageUrl" value={slide?.imageUrl ?? ""} placeholder="Ó ingresá URL de Imagen Desktop Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
+                <input type="text" name="imageUrl" bind:value={desktopUrl} placeholder="Ó ingresá URL de Imagen Desktop Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
               </div>
 
               {/* Mobile (vertical 4:5, igual que el hero real) */}
@@ -248,10 +280,23 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                   )}
                 </div>
                 <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
-                <input type="text" name="imageMobileUrl" value={slide?.imageMobile ?? ""} placeholder="Ó ingresá URL de Imagen Mobile Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
+                <input type="text" name="imageMobileUrl" bind:value={mobileUrl} placeholder="Ó ingresá URL de Imagen Mobile Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
               </div>
             </div>
           </div>
+
+          {/* Estado de optimización/subida de imágenes */}
+          {uploading.value > 0 && (
+            <div class="shrink-0 px-6 sm:px-8 py-2.5 bg-emerald-50 text-emerald-700 text-xs font-bold border-t border-emerald-100 flex items-center gap-2">
+              <LuLoader class="w-4 h-4 animate-spin" />
+              Optimizando y subiendo imagen (WebP)…
+            </div>
+          )}
+          {uploadError.value && (
+            <div class="shrink-0 px-6 sm:px-8 py-2.5 bg-red-50 text-red-700 text-xs font-bold border-t border-red-100">
+              {uploadError.value}
+            </div>
+          )}
 
           {/* Error (no bloqueante) */}
           {action.value?.failed && (
@@ -265,9 +310,9 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
             <button type="button" onClick$={onClose} class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-250 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95">
               Cancelar
             </button>
-            <button type="submit" disabled={action.isRunning} class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1.5">
+            <button type="submit" disabled={action.isRunning || uploading.value > 0} class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1.5">
               <LuCheck class="w-4 h-4" />
-              {action.isRunning ? "Guardando..." : isEdit ? "Guardar Cambios" : "Registrar Slide"}
+              {uploading.value > 0 ? "Optimizando..." : action.isRunning ? "Guardando..." : isEdit ? "Guardar Cambios" : "Registrar Slide"}
             </button>
           </div>
         </Form>
