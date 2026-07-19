@@ -1,5 +1,5 @@
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
-import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
+import { routeLoader$, Link, useLocation, type DocumentHead, type DocumentLink, server$ } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded, ensureGalleryTable, ensureMerchantRequestsTable } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
@@ -384,11 +384,45 @@ export default component$(() => {
   );
 });
 
-export const head: DocumentHead = {
-  title: "Portal de Beneficios Oficial - Agremiación Médica Platense",
-  meta: [
-    { name: "description", content: "Exclusivo club de beneficios para agremiados y empleados de la AMP. Disfrutá de más de 250 comercios con descuentos especiales, promociones, y sorteos increíbles." },
-    { property: "og:title", content: "Portal de Beneficios Oficial - Agremiación Médica Platense" },
-    { property: "og:description", content: "Ahorrá y disfrutá con la cartilla de beneficios médicos de la AMP. Descuentos en turismo, gastronomía, indumentaria, belleza y mucho más." }
-  ]
+export const head: DocumentHead = ({ resolveValue }) => {
+  // Preload de la imagen del PRIMER slide activo (el LCP de la home). Se sirve
+  // la variante correcta según viewport con `media`: desktop desde md (768px),
+  // mobile por debajo —igual que el breakpoint del hero (hero-slider.tsx)—.
+  const data = resolveValue(useBenefitsData);
+  const first = data?.slides?.[0];
+  const links: DocumentLink[] = [];
+  if (first) {
+    const desktop = first.imageUrl as string | undefined;
+    const mobile = (first.imageMobile || first.imageUrl) as string | undefined;
+    if (desktop) {
+      links.push({
+        rel: "preload",
+        as: "image",
+        href: desktop,
+        media: "(min-width: 768px)",
+        fetchpriority: "high",
+        key: "preload-hero-desktop",
+      } as DocumentLink);
+    }
+    if (mobile) {
+      links.push({
+        rel: "preload",
+        as: "image",
+        href: mobile,
+        media: "(max-width: 767px)",
+        fetchpriority: "high",
+        key: "preload-hero-mobile",
+      } as DocumentLink);
+    }
+  }
+
+  return {
+    title: "Portal de Beneficios Oficial - Agremiación Médica Platense",
+    meta: [
+      { name: "description", content: "Exclusivo club de beneficios para agremiados y empleados de la AMP. Disfrutá de más de 250 comercios con descuentos especiales, promociones, y sorteos increíbles." },
+      { property: "og:title", content: "Portal de Beneficios Oficial - Agremiación Médica Platense" },
+      { property: "og:description", content: "Ahorrá y disfrutá con la cartilla de beneficios médicos de la AMP. Descuentos en turismo, gastronomía, indumentaria, belleza y mucho más." }
+    ],
+    links,
+  };
 };

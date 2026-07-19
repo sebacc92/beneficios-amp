@@ -22,6 +22,11 @@ export default component$(() => {
     <QwikCityProvider>
       <head>
         <meta charset="utf-8" />
+        {/* Preconnect a orígenes críticos: el CDN de Vercel Blob (imágenes del
+            hero/beneficios, LCP) y gstatic (fuentes). Adelanta el handshake
+            TLS y recorta la ruta crítica. */}
+        <link rel="preconnect" href="https://lzvshzkth0usbwli.public.blob.vercel-storage.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <meta name="theme-color" content="#0f3d2e" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
