@@ -78,43 +78,43 @@ export default component$(() => {
   const theme =
     data.status === "valid"
       ? {
-          ring: "from-brand-green-dark to-brand-green",
-          badgeBg: "bg-emerald-50",
-          badgeBorder: "border-emerald-200",
-          badgeText: "text-emerald-700",
-          icon: "text-emerald-600",
-          title: "Credencial Válida",
-          subtitle: "Verificada en tiempo real contra el padrón oficial de la AMP",
-        }
+        ring: "from-brand-green-dark to-brand-green",
+        badgeBg: "bg-emerald-50",
+        badgeBorder: "border-emerald-200",
+        badgeText: "text-emerald-700",
+        icon: "text-emerald-600",
+        title: "Credencial Válida",
+        subtitle: "Verificada en tiempo real contra el padrón oficial de la AMP",
+      }
       : data.status === "notfound"
         ? {
-            ring: "from-red-700 to-red-600",
-            badgeBg: "bg-red-50",
-            badgeBorder: "border-red-200",
-            badgeText: "text-red-700",
-            icon: "text-red-600",
-            title: "Credencial Inválida",
-            subtitle: "El DNI no figura en el padrón de agremiados de la AMP",
-          }
+          ring: "from-red-700 to-red-600",
+          badgeBg: "bg-red-50",
+          badgeBorder: "border-red-200",
+          badgeText: "text-red-700",
+          icon: "text-red-600",
+          title: "Credencial Inválida",
+          subtitle: "El DNI no figura en el padrón de agremiados de la AMP",
+        }
         : data.status === "unavailable"
           ? {
-              ring: "from-amber-600 to-amber-500",
-              badgeBg: "bg-amber-50",
-              badgeBorder: "border-amber-200",
-              badgeText: "text-amber-700",
-              icon: "text-amber-600",
-              title: "No se pudo verificar",
-              subtitle: "El padrón de la AMP no respondió. Volvé a intentar en unos minutos",
-            }
+            ring: "from-amber-600 to-amber-500",
+            badgeBg: "bg-amber-50",
+            badgeBorder: "border-amber-200",
+            badgeText: "text-amber-700",
+            icon: "text-amber-600",
+            title: "No se pudo verificar",
+            subtitle: "El padrón de la AMP no respondió. Volvé a intentar en unos minutos",
+          }
           : {
-              ring: "from-slate-700 to-slate-600",
-              badgeBg: "bg-slate-100",
-              badgeBorder: "border-slate-200",
-              badgeText: "text-slate-600",
-              icon: "text-slate-500",
-              title: "Enlace inválido",
-              subtitle: "Este código de verificación no es válido o fue manipulado",
-            };
+            ring: "from-slate-700 to-slate-600",
+            badgeBg: "bg-slate-100",
+            badgeBorder: "border-slate-200",
+            badgeText: "text-slate-600",
+            icon: "text-slate-500",
+            title: "Enlace inválido",
+            subtitle: "Este código de verificación no es válido o fue manipulado",
+          };
 
   const showData = data.status !== "invalid";
 
@@ -197,7 +197,7 @@ export default component$(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                 </svg>
                 <p class="text-[10px] font-medium text-slate-500 leading-relaxed">
-                  Verificación realizada el {formatDateTime(data.checkedAt)} hs. La validez se consulta en vivo contra el padrón oficial de la Agremiación Médica Platense.
+                  Verificación realizada el {formatDateTime(data.checkedAt)} hs.
                 </p>
               </div>
             </div>
