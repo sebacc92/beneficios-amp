@@ -29,7 +29,8 @@ export const useUserLoader = routeLoader$(async (event) => {
 
 // Historial de descargas de cupones del agremiado logueado. Sale de la tabla
 // `coupons` (que se alimenta al descargar el cupón). El slug para linkear se
-// resuelve contra el catálogo (benefitId guardado = String(benefit.id)).
+// resuelve contra el catálogo (benefitId guardado = String(benefit.id)),
+// con un fallback de coincidencia por título en caso de IDs aleatorios legados.
 export const useCouponHistory = routeLoader$(async (event) => {
   const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
   if (!user) return [];
@@ -38,12 +39,21 @@ export const useCouponHistory = routeLoader$(async (event) => {
     const rows = await db.select().from(coupons).where(eq(coupons.userId, user.id));
     const list = await getCustomBenefits(event).catch(() => []);
     const slugById: Record<string, string> = {};
-    for (const b of list) slugById[String(b.id)] = b.url;
+    const slugByTitle: Record<string, string> = {};
+    for (const b of list) {
+      slugById[String(b.id)] = b.url;
+      if (b.titulo) {
+        slugByTitle[b.titulo.toLowerCase().trim()] = b.url;
+      }
+    }
     return rows
       .map((c) => ({
         code: c.code,
         benefitTitle: c.benefitTitle,
-        slug: slugById[c.benefitId] || null,
+        slug:
+          slugById[c.benefitId] ||
+          slugByTitle[c.benefitTitle.toLowerCase().trim()] ||
+          null,
         status: c.status,
         createdAt: c.createdAt,
       }))
@@ -194,7 +204,7 @@ export default component$(() => {
         }
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(pushKey.value),
+          applicationServerKey: urlBase64ToUint8Array(pushKey.value) as BufferSource,
         });
         const res = await pushSubscribeServer(JSON.stringify(sub.toJSON()));
         if (res.success) pushEnabled.value = true;
