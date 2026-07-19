@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { customBenefits, heroSlides } from "~/db/schema";
 import { type Discount, parseDiscounts, benefitDiscounts } from "~/utils/discount";
+import { isExpired } from "~/utils/expiry";
 
 export interface Category {
   id: number;
@@ -54,6 +55,7 @@ export interface Benefit {
   orden?: number; // Orden manual del listado (0 = sin orden → va al final)
   discounts?: Discount[]; // Lista de descuentos (% + condición). El 1º es el principal.
   dbId?: string; // id real en custom_benefits (para linkear al editor del admin)
+  isExpired?: boolean; // true si validUntil ya pasó (hora Argentina)
 }
 
 export interface Filters {
@@ -127,7 +129,7 @@ export async function getFilters(requestEvent?: RequestEventBase): Promise<Filte
   if (requestEvent) {
     try {
       const dbBenefits = await getCustomBenefits(requestEvent);
-      countingBenefits = dbBenefits.filter((b) => b.mostrar_app !== 0 && b.isActive !== false);
+      countingBenefits = dbBenefits.filter((b) => b.mostrar_app !== 0 && b.isActive !== false && !b.isExpired);
     } catch (e) {
       console.error("[getFilters] no se pudo contar desde la base; se usa el seed:", e);
     }
@@ -590,6 +592,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         orden: ordenMap[cb.id] ?? 0,
         discounts,
         dbId: cb.id,
+        isExpired: isExpired(cleanValidUntil),
       } as Benefit;
     });
 
@@ -666,8 +669,8 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
 
   let filtered = uniqueBenefits;
 
-  // Filter out inactive benefits for public viewing
-  filtered = filtered.filter(b => b.mostrar_app !== 0);
+  // Filter out inactive AND expired benefits for public viewing.
+  filtered = filtered.filter(b => b.mostrar_app !== 0 && !b.isExpired);
 
   // 1. Campaign filter (highest priority before specific queries)
   if (params.isCampaignOnly && params.requestEvent) {

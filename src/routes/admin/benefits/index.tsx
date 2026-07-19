@@ -8,7 +8,17 @@ import { getFilters, ensureDbSeeded, getBenefitOrdenMap, persistBenefitOrder } f
 import { hashPassword } from "~/utils/crypto";
 import { ensureMerchantsTable } from "~/server/merchant-auth";
 import { sendPushToAll } from "~/server/webpush";
+import { isExpired } from "~/utils/expiry";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+
+// Estado de vigencia de una fila del admin a partir de su validUntil crudo
+// (que puede venir con prefijo "draft|"). Un borrador no cuenta como vencido.
+function benefitStatus(validUntil?: string | null): { isDraft: boolean; expired: boolean } {
+  const v = validUntil || null;
+  const isDraft = !!(v && (v.startsWith("draft|") || v === "draft"));
+  const clean = isDraft ? (v === "draft" ? null : (v as string).substring(6) || null) : v;
+  return { isDraft, expired: !isDraft && isExpired(clean) };
+}
 
 // --- SECURITY & LOADERS ---
 
@@ -253,7 +263,7 @@ export default component$(() => {
   // Pagination & Search state
   const currentPage = useSignal(1);
   const searchQuery = useSignal("");
-  const statusFilter = useSignal<"all" | "active" | "inactive">("all");
+  const statusFilter = useSignal<"all" | "active" | "inactive" | "expired">("all");
   const categoryFilter = useSignal<string>("all");
   const locationFilter = useSignal<string>("all");
 
@@ -272,9 +282,12 @@ export default component$(() => {
     const isDraft = (b: any) => b.validUntil?.startsWith("draft|") || b.validUntil === "draft";
     let items = workingOrder.value;
     if (statusFilter.value === "active") {
-      items = items.filter(b => !isDraft(b));
+      // Activos = publicados y NO vencidos.
+      items = items.filter(b => !isDraft(b) && !benefitStatus(b.validUntil).expired);
     } else if (statusFilter.value === "inactive") {
       items = items.filter(b => isDraft(b));
+    } else if (statusFilter.value === "expired") {
+      items = items.filter(b => benefitStatus(b.validUntil).expired);
     }
     if (categoryFilter.value !== "all") {
       const catId = Number(categoryFilter.value);
@@ -429,6 +442,7 @@ export default component$(() => {
               <option value="all">Todos los estados</option>
               <option value="active">Activos</option>
               <option value="inactive">Borradores</option>
+              <option value="expired">Vencidos</option>
             </select>
           </div>
 
@@ -533,7 +547,8 @@ export default component$(() => {
                   const globalIdx = (currentPage.value - 1) * itemsPerPage + localIdx;
                   const catDesc = adminFilters.value.categorias.find(c => c.id === benefit.categoryId)?.descripcion || `Cat #${benefit.categoryId}`;
                   const locDesc = adminFilters.value.ubicaciones.find(l => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`;
-                  const isActive = !(benefit.validUntil?.startsWith("draft|") || benefit.validUntil === "draft");
+                  const { isDraft: rowIsDraft, expired: rowExpired } = benefitStatus(benefit.validUntil);
+                  const isActive = !rowIsDraft;
 
                   const access = benefitAccess.value[benefit.slug];
                   const isAccessOpen = accessForSlug.value === benefit.slug;
@@ -600,6 +615,11 @@ export default component$(() => {
                             </span>
                           </label>
                         </div>
+                        {rowExpired && (
+                          <span class="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-600 border border-red-200">
+                            Vencido
+                          </span>
+                        )}
                       </td>
                       <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center gap-1.5">

@@ -8,6 +8,7 @@ import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import { makeCredentialToken } from "~/server/credential-token";
 import { verifyAdminSessionToken, ADMIN_SESSION_COOKIE } from "~/server/admin-auth";
+import { formatExpiryDate } from "~/utils/expiry";
 import { maskDni } from "~/utils/mask";
 import { benefitDiscounts, formatDiscountBadge, formatDiscountChip, pctDisplay } from "~/utils/discount";
 import { sanitizeRichText } from "~/utils/sanitize-html";
@@ -160,6 +161,7 @@ export const useBenefitData = routeLoader$(async (event) => {
         b.id !== benefit.id &&
         b.mostrar_app !== 0 &&
         b.isActive !== false &&
+        !b.isExpired &&
         b.categorias.some((c) => categoryIds.includes(c.id))
     )
     .slice(0, 3);
@@ -244,6 +246,13 @@ export const generateCouponAction = server$(async function (
   const user = this.sharedMap.get("user") as AuthenticatedUser | null;
   if (!user) {
     throw new Error("No estás autenticado");
+  }
+
+  // Guarda server-side: no se puede generar cupón de un beneficio vencido, aunque
+  // alguien tenga la URL guardada o llame a la acción directamente.
+  const benefit = await getBenefitBySlug(this.params.slug, this);
+  if (!benefit || benefit.isExpired) {
+    throw new Error("Este beneficio venció y ya no se puede descargar.");
   }
 
   const db = getDB(this);
@@ -876,6 +885,24 @@ export default component$(() => {
           </div>
         )}
 
+        {/* Banner de beneficio vencido: la ficha sigue accesible por URL, pero se
+            avisa claramente y no se puede descargar el cupón. */}
+        {benefit.isExpired && (
+          <div class="flex items-start gap-3 mb-8 px-5 py-4 rounded-2xl bg-red-50 border border-red-200 text-red-800">
+            <svg class="w-6 h-6 flex-shrink-0 mt-0.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <div>
+              <p class="font-black text-sm uppercase tracking-wide">
+                Este beneficio venció{benefit.validUntil ? ` el ${formatExpiryDate(benefit.validUntil)}` : ""}
+              </p>
+              <p class="text-xs font-medium text-red-700/90 mt-0.5">
+                Ya no está vigente: no se puede descargar el cupón. Consultá otros beneficios activos.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* B. Main Details Grid */}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
@@ -1253,7 +1280,14 @@ export default component$(() => {
                     </div>
                   </div>
 
-                  {user.value ? (
+                  {benefit.isExpired ? (
+                    <div class="rounded-2xl bg-white/5 border border-red-400/30 p-5 text-center">
+                      <p class="text-sm font-black text-red-200 uppercase tracking-wider">Beneficio vencido</p>
+                      <p class="text-xs text-slate-200/80 mt-1">
+                        Este beneficio ya no está vigente, por eso no se puede descargar el cupón.
+                      </p>
+                    </div>
+                  ) : user.value ? (
                     <div class="space-y-4">
                       {generatedCoupon.value && (
                         <div class="flex flex-wrap items-center gap-3 text-xs">

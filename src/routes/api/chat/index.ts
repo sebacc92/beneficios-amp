@@ -79,7 +79,7 @@ export const onPost: RequestHandler = async (requestEvent) => {
         allBenefits = await getBenefits();
       }
       // Solo beneficios visibles/activos.
-      const publicBenefits = allBenefits.filter((b) => b.mostrar_app !== 0 && b.isActive !== false);
+      const publicBenefits = allBenefits.filter((b) => b.mostrar_app !== 0 && b.isActive !== false && !b.isExpired);
       totalBenefits = publicBenefits.length;
 
       if (publicBenefits.length > 0) {
