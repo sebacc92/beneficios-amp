@@ -4,7 +4,7 @@ import { LuPlus, LuTicket, LuTrash2, LuPencil, LuChevronLeft, LuChevronRight, Lu
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { customBenefits as customBenefitsTable, merchants as merchantsTable } from "~/db/schema";
-import { getFilters, ensureDbSeeded, getBenefitOrdenMap, persistBenefitOrder } from "~/server/cache";
+import { getFilters, ensureDbSeeded, getBenefitOrdenMap, persistBenefitOrder, ensureTrackingSchema, deriveBenefitNumId } from "~/server/cache";
 import { hashPassword } from "~/utils/crypto";
 import { ensureMerchantsTable } from "~/server/merchant-auth";
 import { sendPushToAll } from "~/server/webpush";
@@ -36,6 +36,41 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
   } catch (err) {
     console.error("Failed to load custom benefits:", err);
     return [];
+  }
+});
+
+// Métricas por beneficio (keyed por id de DB): vistas, descargas de PDF y cupones
+// generados. Vistas/PDF salen de columnas SQL crudas; los cupones se cuentan por
+// benefit_id (= id numérico derivado del slug).
+export const useBenefitMetrics = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user || user.role !== "admin") return {} as Record<string, { views: number; pdf: number; coupons: number }>;
+  try {
+    const db = getDB(event);
+    await ensureTrackingSchema(db);
+    const { sql } = await import("drizzle-orm");
+    const rows = (await db.all(
+      sql`SELECT id, slug, COALESCE(views,0) AS views, COALESCE(pdf_downloads,0) AS pdf FROM custom_benefits`
+    )) as any[];
+    const couponRows = (await db.all(
+      sql`SELECT benefit_id AS bid, COUNT(*) AS n FROM coupons GROUP BY benefit_id`
+    )) as any[];
+    const couponsByNumId: Record<string, number> = {};
+    for (const c of couponRows) couponsByNumId[String(c.bid)] = Number(c.n || 0);
+
+    const metrics: Record<string, { views: number; pdf: number; coupons: number }> = {};
+    for (const r of rows) {
+      const numId = deriveBenefitNumId(String(r.slug));
+      metrics[String(r.id)] = {
+        views: Number(r.views || 0),
+        pdf: Number(r.pdf || 0),
+        coupons: couponsByNumId[String(numId)] || 0,
+      };
+    }
+    return metrics;
+  } catch (err) {
+    console.error("Failed to load benefit metrics:", err);
+    return {} as Record<string, { views: number; pdf: number; coupons: number }>;
   }
 });
 
@@ -229,6 +264,7 @@ export const useDeleteBenefitAction = routeAction$(
 
 export default component$(() => {
   const customBenefits = useAdminCustomBenefitsLoader();
+  const metrics = useBenefitMetrics();
   const adminFilters = useAdminFiltersLoader();
   const deleteBenefitAction = useDeleteBenefitAction();
   const toggleBenefitActiveAction = useToggleBenefitActiveAction();
@@ -306,7 +342,10 @@ export default component$(() => {
           b.descripcion?.toLowerCase().includes(query)
       );
     }
-    // Se preserva el orden de trabajo (manual). El drag define el orden público.
+    // Orden por vistas (desc) si viene ?sort=views; si no, se preserva el orden manual.
+    if (location.url.searchParams.get("sort") === "views") {
+      items = [...items].sort((a, b) => (metrics.value[b.id]?.views || 0) - (metrics.value[a.id]?.views || 0));
+    }
     return items;
   });
 
@@ -324,12 +363,16 @@ export default component$(() => {
     reorderAction.submit({ orderedIds: JSON.stringify(arr.map((b: any) => b.id)) });
   });
 
+  // Orden por vistas (viene de "Ver todos" en /admin/stats: ?sort=views).
+  const sortByViews = useComputed$(() => location.url.searchParams.get("sort") === "views");
+
   const hasActiveFilters = useComputed$(
     () =>
       searchQuery.value.trim() !== "" ||
       statusFilter.value !== "all" ||
       categoryFilter.value !== "all" ||
-      locationFilter.value !== "all"
+      locationFilter.value !== "all" ||
+      sortByViews.value
   );
 
   // El drag se habilita sólo sin filtros. Se declara DESPUÉS de hasActiveFilters:
@@ -524,6 +567,9 @@ export default component$(() => {
                 <th class="px-6 py-4">Título</th>
                 <th class="px-6 py-4">Resumen / Desc.</th>
                 <th class="px-6 py-4">Filtros (Categoría/Ubicación)</th>
+                <th class="px-3 py-4 text-center" title="Vistas de la ficha">Vistas</th>
+                <th class="px-3 py-4 text-center" title="Cupones generados">Cupones</th>
+                <th class="px-3 py-4 text-center" title="Descargas del PDF del cupón">PDF</th>
                 <th class="px-6 py-4 text-center">Estado</th>
                 <th class="px-6 py-4 text-center">Acciones</th>
               </tr>
@@ -531,7 +577,7 @@ export default component$(() => {
             <tbody class="divide-y divide-slate-100 font-medium">
               {paginatedBenefits.value.length === 0 ? (
                 <tr>
-                  <td colSpan={6} class="px-6 py-12 text-center text-slate-450">
+                  <td colSpan={9} class="px-6 py-12 text-center text-slate-450">
                     <div class="flex items-center justify-center gap-2">
                       <LuTicket class="w-5 h-5 text-purple-400" />
                       <span>
@@ -549,6 +595,7 @@ export default component$(() => {
                   const locDesc = adminFilters.value.ubicaciones.find(l => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`;
                   const { isDraft: rowIsDraft, expired: rowExpired } = benefitStatus(benefit.validUntil);
                   const isActive = !rowIsDraft;
+                  const m = metrics.value[benefit.id] || { views: 0, pdf: 0, coupons: 0 };
 
                   const access = benefitAccess.value[benefit.slug];
                   const isAccessOpen = accessForSlug.value === benefit.slug;
@@ -597,6 +644,11 @@ export default component$(() => {
                       <td class="px-6 py-4 text-slate-500 font-bold">
                         {catDesc} <span class="text-slate-300 mx-1">|</span> <span class="font-normal text-slate-400">{locDesc}</span>
                       </td>
+                      {/* Métricas por beneficio */}
+                      <td class="px-3 py-4 text-center text-sm font-bold text-slate-700 tabular-nums">{m.views}</td>
+                      <td class="px-3 py-4 text-center text-sm font-bold text-slate-700 tabular-nums">{m.coupons}</td>
+                      <td class="px-3 py-4 text-center text-sm font-bold text-slate-700 tabular-nums">{m.pdf}</td>
+
                       {/* Estado Toggle Column */}
                       <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center">
@@ -701,7 +753,7 @@ export default component$(() => {
 
                     {isAccessOpen && (
                       <tr class="bg-slate-50/70">
-                        <td colSpan={6} class="px-6 py-5">
+                        <td colSpan={9} class="px-6 py-5">
                           <div class="max-w-2xl">
                             <div class="flex items-center justify-between mb-3">
                               <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">

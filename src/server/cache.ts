@@ -496,6 +496,16 @@ function hashCode(str: string): number {
   return Math.abs(hash);
 }
 
+/**
+ * Deriva el id numérico público de un beneficio a partir de su slug (prefijo
+ * numérico si lo tiene, o un hash estable si no). Es el `benefit.id` que se guarda
+ * en `coupons.benefit_id`, así que sirve para contar cupones por beneficio.
+ */
+export function deriveBenefitNumId(slug: string): number {
+  const first = slug.split("-")[0];
+  return first && !isNaN(Number(first)) ? Number(first) : (hashCode(slug) % 10000) + 90000;
+}
+
 // Transforms DB custom benefits schema into standard cached Benefit interface elements
 export async function getCustomBenefits(requestEvent: RequestEventBase): Promise<Benefit[]> {
   // Memoización por request: una misma solicitud puede pedir el catálogo varias
@@ -542,9 +552,7 @@ export async function getCustomBenefits(requestEvent: RequestEventBase): Promise
         : benefitDiscounts({ resumen: cb.resumen, ofertas: [off] });
 
       // Derive numerical ID from slug string or use a hashed representation
-      const numId = cb.slug.split("-")[0] && !isNaN(Number(cb.slug.split("-")[0]))
-        ? Number(cb.slug.split("-")[0])
-        : (hashCode(cb.slug) % 10000) + 90000;
+      const numId = deriveBenefitNumId(cb.slug);
 
       // Extract real validUntil and isActive status
       const rawValidUntil = cb.validUntil;

@@ -1,5 +1,5 @@
 import { component$, $ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { LuUsers, LuTicket, LuMessageSquare, LuDownload, LuCheckCircle2, LuPercent, LuStore, LuBell, LuInbox, LuUserCheck, LuFileText, LuMapPin } from "@qwikest/icons/lucide";
 import { desc } from "drizzle-orm";
 import { getDB } from "~/db";
@@ -204,7 +204,7 @@ export const useTrackingStats = routeLoader$(async (event) => {
       .map((r) => ({ titulo: String(r.titulo), views: Number(r.views || 0) }))
       .filter((r) => r.views > 0)
       .sort((a, b) => b.views - a.views)
-      .slice(0, 5);
+      .slice(0, 10);
 
     const scanRows = (await db.all(sql`SELECT ok, created_at AS createdAt FROM credential_scans`)) as any[];
     const now = Date.now();
@@ -586,9 +586,17 @@ export default component$(() => {
 
           {/* Beneficios más vistos */}
           <div class="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div>
-              <h3 class="text-base font-bold text-slate-800 uppercase tracking-wide">Beneficios más vistos</h3>
-              <p class="text-xs text-slate-400 font-medium">Vistas acumuladas de la ficha del beneficio.</p>
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-slate-800 uppercase tracking-wide">Beneficios más vistos</h3>
+                <p class="text-xs text-slate-400 font-medium">Top 10 por vistas acumuladas de la ficha.</p>
+              </div>
+              <Link
+                href="/admin/benefits/?sort=views"
+                class="shrink-0 text-[11px] font-black uppercase tracking-wider text-brand-green hover:text-brand-green-dark whitespace-nowrap"
+              >
+                Ver todos →
+              </Link>
             </div>
             {tracking.value.topViewed.length === 0 ? (
               <div class="flex items-center gap-2.5 py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-100">
