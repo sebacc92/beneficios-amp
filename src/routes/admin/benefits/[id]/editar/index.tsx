@@ -299,7 +299,15 @@ export const useEditBenefitAction = routeAction$(
         .set({
           titulo: data.titulo,
           resumen: derivedResumen,
-          descripcion: mergeContacts(sanitizeRichText(data.descripcion), data.whatsapp || "", data.instagram || "", data.direccion || ""),
+          descripcion: mergeContacts(sanitizeRichText(data.descripcion), {
+            direccion: data.direccion,
+            whatsapp: data.whatsapp,
+            telefono: data.telefono,
+            instagram: data.instagram,
+            facebook: data.facebook,
+            twitter: data.twitter,
+            website: data.website,
+          }),
           imagen: finalImageUrl,
           imagenMobile: finalImageMobileUrl,
           galeria: finalGaleria,
@@ -331,7 +339,11 @@ export const useEditBenefitAction = routeAction$(
     resumen: z.string().optional(),
     descripcion: z.string().min(5),
     whatsapp: z.string().optional(),
+    telefono: z.string().optional(),
     instagram: z.string().optional(),
+    facebook: z.string().optional(),
+    twitter: z.string().optional(),
+    website: z.string().optional(),
     direccion: z.string().optional(),
     imagen: z.string().optional(),
     imagenMobile: z.string().optional(),
@@ -429,9 +441,13 @@ export default component$(() => {
   // Ubicación (mapa) y contactos
   const editLat = useSignal<string>(benefit.value.latitud || "");
   const editLng = useSignal<string>(benefit.value.longitud || "");
-  const editWhatsapp = useSignal<string>(split.whatsapp);
-  const editInstagram = useSignal<string>(split.instagram);
-  const editDireccion = useSignal<string>(split.direccion);
+  const editWhatsapp = useSignal<string>(split.whatsapp || "");
+  const editTelefono = useSignal<string>(split.telefono || "");
+  const editInstagram = useSignal<string>(split.instagram || "");
+  const editFacebook = useSignal<string>(split.facebook || "");
+  const editTwitter = useSignal<string>(split.twitter || "");
+  const editWebsite = useSignal<string>(split.website || "");
+  const editDireccion = useSignal<string>(split.direccion || "");
 
   // "Usar la misma imagen de desktop para móvil"
 
@@ -745,27 +761,36 @@ export default component$(() => {
           <p class="text-[10px] text-slate-400 font-medium">Formato disponible: negrita, itálica, listas y enlaces.</p>
         </div>
 
-        {/* Contacto del local (se muestra en la ficha pública) */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">WhatsApp / Teléfono</label>
-            <input
-              type="text"
-              name="whatsapp"
-              value={editWhatsapp.value}
-              placeholder="Ej: 549 221 555 1234"
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-            />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Instagram (usuario o link)</label>
-            <input
-              type="text"
-              name="instagram"
-              value={editInstagram.value}
-              placeholder="Ej: @milocal o instagram.com/milocal"
-              class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
-            />
+        {/* Contacto y redes (opcional, se muestra en la ficha pública) */}
+        <div class="space-y-3 border border-slate-150 rounded-2xl p-4 sm:p-5 bg-slate-50/40">
+          <h4 class="text-xs font-bold text-slate-450 uppercase tracking-widest">
+            Contacto y redes <span class="text-slate-350 font-medium normal-case tracking-normal">· todos opcionales</span>
+          </h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">WhatsApp</label>
+              <input type="text" name="whatsapp" value={editWhatsapp.value} placeholder="Ej: 549 221 555 1234" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Teléfono fijo</label>
+              <input type="text" name="telefono" value={editTelefono.value} placeholder="Ej: 221 421 0000" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Instagram</label>
+              <input type="text" name="instagram" value={editInstagram.value} placeholder="@milocal o instagram.com/milocal" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Facebook</label>
+              <input type="text" name="facebook" value={editFacebook.value} placeholder="facebook.com/milocal" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">X (Twitter)</label>
+              <input type="text" name="twitter" value={editTwitter.value} placeholder="@milocal o x.com/milocal" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Sitio web</label>
+              <input type="text" name="website" value={editWebsite.value} placeholder="https://milocal.com" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+            </div>
           </div>
         </div>
 

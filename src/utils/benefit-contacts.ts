@@ -1,70 +1,76 @@
-// Helpers para integrar Instagram y WhatsApp dentro de la descripción HTML del
-// beneficio. La ficha pública (extractContacts) lee estos datos de la descripción,
-// así que se guardan ahí en un formato normalizado.
+// Helpers para integrar los datos de contacto (dirección, WhatsApp, teléfono,
+// redes y sitio web) dentro de la descripción HTML del beneficio. Se guardan como
+// bloques <p><b>ETIQUETA</b>: valor</p> al final de la descripción; la ficha
+// pública los lee (extractContacts) y arma los enlaces al renderizar.
+
+export interface BenefitContacts {
+  direccion?: string;
+  whatsapp?: string;
+  telefono?: string; // teléfono fijo (separado de WhatsApp)
+  instagram?: string;
+  facebook?: string;
+  twitter?: string; // X (Twitter)
+  website?: string; // sitio web
+}
+
+// Etiquetas de los bloques de contacto (para poder quitarlos del cuerpo).
+const LABELS = "DIRECCIÓN|DOMICILIO|WHATSAPP|TELÉFONO|INSTAGRAM|FACEBOOK|TWITTER|SITIO WEB";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** Quita los bloques <p> de DIRECCIÓN/WHATSAPP/INSTAGRAM de la descripción. */
+/** Quita del cuerpo los bloques de contacto (para editar/mostrar sin duplicar). */
 export function stripContactBlocks(html: string): string {
-  return (html || "")
-    .replace(/<p>(?:(?!<\/p>).)*?<b>\s*(?:DIRECCIÓN|DOMICILIO)\s*<\/b>(?:(?!<\/p>).)*?<\/p>/gis, "")
-    .replace(/<p>(?:(?!<\/p>).)*?<b>\s*WHATSAPP\s*<\/b>(?:(?!<\/p>).)*?<\/p>/gis, "")
-    .replace(/<p>(?:(?!<\/p>).)*?<b>\s*INSTAGRAM\s*<\/b>(?:(?!<\/p>).)*?<\/p>/gis, "")
-    .trim();
+  const re = new RegExp(`<p>(?:(?!</p>).)*?<b>\\s*(?:${LABELS})\\s*</b>(?:(?!</p>).)*?</p>`, "gis");
+  return (html || "").replace(re, "").trim();
 }
 
-/** Separa la descripción en cuerpo + dirección + whatsapp + instagram (para editar). */
-export function splitContacts(html: string): { body: string; whatsapp: string; instagram: string; direccion: string } {
-  const source = html || "";
-  let whatsapp = "";
-  let instagram = "";
-  let direccion = "";
-
-  const dir = source.match(/<b>\s*(?:DIRECCIÓN|DOMICILIO)\s*<\/b>\s*:?\s*([^<]+)/i);
-  if (dir) direccion = dir[1].trim();
-
-  const ws = source.match(/<b>\s*WHATSAPP\s*<\/b>\s*:?\s*([^<]+)/i);
-  if (ws) whatsapp = ws[1].trim();
-
-  const igLink = source.match(/href="([^"]*instagram\.com[^"]*)"/i);
-  if (igLink) {
-    instagram = igLink[1].trim();
-  } else {
-    const igText = source.match(/<b>\s*INSTAGRAM\s*<\/b>\s*:?\s*([^<]+)/i);
-    if (igText) instagram = igText[1].trim();
-  }
-
-  return { body: stripContactBlocks(source), whatsapp, instagram, direccion };
+// Devuelve el texto que sigue a una etiqueta <b>LABEL</b>: ... (o "" si no está).
+function textAfterLabel(html: string, label: string): string {
+  const m = html.match(new RegExp(`<b>\\s*${label}\\s*</b>\\s*:?\\s*([^<]+)`, "i"));
+  return m ? m[1].trim() : "";
+}
+// Devuelve el href que contiene `needle` (para descripciones heredadas con links).
+function hrefContaining(html: string, needle: string): string {
+  const m = html.match(new RegExp(`href="([^"]*${needle.replace(/\./g, "\\.")}[^"]*)"`, "i"));
+  return m ? m[1].trim() : "";
 }
 
-/** Normaliza el input de Instagram a una URL + texto a mostrar. */
-function normalizeInstagram(input: string): { url: string; display: string } | null {
-  const t = (input || "").trim();
-  if (!t) return null;
-  if (/^https?:\/\//i.test(t)) {
-    const handle = t.replace(/\/+$/, "").split("/").pop() || t;
-    return { url: t, display: handle.startsWith("@") ? handle : "@" + handle };
-  }
-  const handle = t.replace(/^@/, "");
-  return { url: `https://www.instagram.com/${handle}`, display: "@" + handle };
+/** Separa la descripción en cuerpo + todos los datos de contacto (para editar). */
+export function splitContacts(html: string): { body: string } & BenefitContacts {
+  const s = html || "";
+  return {
+    body: stripContactBlocks(s),
+    direccion: textAfterLabel(s, "(?:DIRECCIÓN|DOMICILIO)"),
+    whatsapp: textAfterLabel(s, "WHATSAPP"),
+    telefono: textAfterLabel(s, "TELÉFONO"),
+    // Redes: primero el bloque de texto propio; si no, un href heredado.
+    instagram: textAfterLabel(s, "INSTAGRAM") || hrefContaining(s, "instagram.com"),
+    facebook: textAfterLabel(s, "FACEBOOK") || hrefContaining(s, "facebook.com"),
+    twitter: textAfterLabel(s, "TWITTER") || hrefContaining(s, "twitter.com") || hrefContaining(s, "x.com"),
+    website: textAfterLabel(s, "SITIO WEB"),
+  };
 }
 
-/** Reconstruye la descripción integrando Dirección, WhatsApp e Instagram normalizados. */
-export function mergeContacts(body: string, whatsapp: string, instagram: string, direccion: string = ""): string {
+/**
+ * Reconstruye la descripción integrando los datos de contacto como bloques de
+ * TEXTO crudo (no links): la ficha arma los enlaces al renderizar. Guardar el
+ * valor tal cual el admin lo escribió permite editarlo sin pérdidas.
+ */
+export function mergeContacts(body: string, contacts: BenefitContacts): string {
   const clean = stripContactBlocks(body || "");
   const parts: string[] = [clean].filter(Boolean);
-
-  if (direccion && direccion.trim()) {
-    parts.push(`<p><b>DIRECCIÓN</b>: ${escapeHtml(direccion.trim())}</p>`);
-  }
-  if (whatsapp && whatsapp.trim()) {
-    parts.push(`<p><b>WHATSAPP</b>: ${escapeHtml(whatsapp.trim())}</p>`);
-  }
-  const ig = normalizeInstagram(instagram);
-  if (ig) {
-    parts.push(`<p><b>INSTAGRAM</b>: <a href="${ig.url}" target="_blank" rel="noopener">${escapeHtml(ig.display)}</a></p>`);
-  }
+  const block = (label: string, value?: string) => {
+    const v = (value || "").trim();
+    if (v) parts.push(`<p><b>${label}</b>: ${escapeHtml(v)}</p>`);
+  };
+  block("DIRECCIÓN", contacts.direccion);
+  block("WHATSAPP", contacts.whatsapp);
+  block("TELÉFONO", contacts.telefono);
+  block("INSTAGRAM", contacts.instagram);
+  block("FACEBOOK", contacts.facebook);
+  block("TWITTER", contacts.twitter);
+  block("SITIO WEB", contacts.website);
   return parts.join("");
 }

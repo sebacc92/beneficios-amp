@@ -44,7 +44,7 @@ function ensureLeaflet(): Promise<any> {
   });
 }
 
-// Extracts structured contact details from the raw HTML description
+// Extrae los datos de contacto (bloques <b>ETIQUETA</b>: valor + fallbacks legados).
 function extractContacts(html: string) {
   const contacts: {
     phone?: string;
@@ -52,39 +52,57 @@ function extractContacts(html: string) {
     email?: string;
     website?: string;
     instagram?: string;
+    facebook?: string;
+    twitter?: string;
     address?: string;
   } = {};
 
   if (!html) return contacts;
 
-  // Address extraction
-  const addressMatch = html.match(/<b>(?:DIRECCIÓN|DOMICILIO)<\/b>\.?:\s*([^<]+)/i);
-  if (addressMatch) contacts.address = addressMatch[1].trim();
+  const after = (label: string): string => {
+    const m = html.match(new RegExp(`<b>\\s*${label}\\s*</b>\\.?\\s*:?\\s*([^<]+)`, "i"));
+    return m ? m[1].trim() : "";
+  };
 
-  // Phone / Cel extraction
-  const celMatch = html.match(/<b>(?:CEL|TEL|TELÉFONO)<\/b>\.?:\s*([^<]+)/i);
-  if (celMatch) contacts.phone = celMatch[1].trim();
+  contacts.address = after("(?:DIRECCIÓN|DOMICILIO)") || undefined;
+  contacts.whatsapp = after("WHATSAPP") || undefined;
+  contacts.phone = after("(?:TELÉFONO|TEL|CEL)") || undefined; // teléfono fijo
+  contacts.instagram = after("INSTAGRAM") || undefined;
+  contacts.facebook = after("FACEBOOK") || undefined;
+  contacts.twitter = after("TWITTER") || undefined;
+  contacts.website = after("SITIO WEB") || undefined;
 
-  // WhatsApp extraction
-  const wsMatch = html.match(/<b>(?:WHATSAPP)<\/b>\.?:\s*([^<]+)/i);
-  if (wsMatch) {
-    contacts.whatsapp = wsMatch[1].trim();
-  } else if (contacts.phone && (contacts.phone.startsWith("221") || contacts.phone.startsWith("11") || contacts.phone.includes("-"))) {
+  // WhatsApp heredado desde un teléfono con formato de celular.
+  if (!contacts.whatsapp && contacts.phone && (contacts.phone.startsWith("221") || contacts.phone.startsWith("11") || contacts.phone.includes("-"))) {
     contacts.whatsapp = contacts.phone;
   }
 
-  // Email extraction
+  // Email
   const emailMatch = html.match(/href="mailto:([^"]+)"/i) || html.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
   if (emailMatch) contacts.email = (emailMatch[1] || emailMatch[0]).trim();
 
-  // Website and Instagram extraction
-  const links = [...html.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+  // Fallback legado: links sueltos en descripciones importadas (sin bloques propios).
+  const links = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
   for (const l of links) {
-    if (l.includes("instagram.com")) contacts.instagram = l;
-    else if (!l.includes("mailto:") && !l.includes("tel:") && !l.includes("facebook.com")) contacts.website = l;
+    if (!contacts.instagram && l.includes("instagram.com")) contacts.instagram = l;
+    else if (!contacts.facebook && l.includes("facebook.com")) contacts.facebook = l;
+    else if (!contacts.twitter && (l.includes("twitter.com") || l.includes("x.com"))) contacts.twitter = l;
+    else if (!contacts.website && !l.includes("mailto:") && !l.includes("tel:") && !l.includes("instagram.com") && !l.includes("facebook.com") && !l.includes("twitter.com") && !l.includes("x.com")) contacts.website = l;
   }
 
   return contacts;
+}
+
+// Construye la URL de una red/sitio a partir de lo que cargó el admin (handle o URL).
+function socialUrl(kind: "instagram" | "facebook" | "twitter" | "website", raw?: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, "").replace(/^\/+/, "");
+  if (kind === "instagram") return `https://www.instagram.com/${handle}`;
+  if (kind === "facebook") return `https://www.facebook.com/${handle}`;
+  if (kind === "twitter") return `https://x.com/${handle}`;
+  return `https://${v.replace(/^\/+/, "")}`; // website
 }
 
 // Quita del cuerpo del "Detalle del Beneficio" las líneas de contacto que ya se
@@ -94,7 +112,7 @@ function extractContacts(html: string) {
 // Facebook).
 function stripDuplicatedContactLines(html: string): string {
   if (!html) return html;
-  const labels = "TEL|TELÉFONO|TELEFONO|CEL|CELULAR|WHATSAPP|E-MAIL|EMAIL|MAIL|WEBSITE|SITIO WEB|WEB|INSTAGRAM";
+  const labels = "DIRECCIÓN|DIRECCION|DOMICILIO|TEL|TELÉFONO|TELEFONO|CEL|CELULAR|WHATSAPP|E-MAIL|EMAIL|MAIL|WEBSITE|SITIO WEB|WEB|INSTAGRAM|FACEBOOK|TWITTER";
   const re = new RegExp(`<p>\\s*(?:<b>\\s*)?(?:${labels})\\b[\\s\\S]*?<\\/p>`, "gi");
   return html.replace(re, "").trim();
 }
@@ -971,7 +989,7 @@ export default component$(() => {
                 </div>
 
                 {/* Glassmorphic Contact Actions Tray */}
-                {(contacts.phone || contacts.whatsapp || contacts.email || contacts.website || contacts.instagram) && (
+                {(contacts.phone || contacts.whatsapp || contacts.email || contacts.website || contacts.instagram || contacts.facebook || contacts.twitter) && (
                   <div class="p-5 rounded-2xl glass-panel-dark border space-y-4">
                     <h3 class="text-xs font-extrabold uppercase tracking-wider text-brand-green-light">
                       Contacto Directo
@@ -1018,7 +1036,7 @@ export default component$(() => {
 
                       {contacts.website && (
                         <a
-                          href={contacts.website}
+                          href={socialUrl("website", contacts.website)}
                           target="_blank"
                           rel="noopener"
                           class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-brand-gold-dark hover:text-brand-gold-dark text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
@@ -1032,7 +1050,7 @@ export default component$(() => {
 
                       {contacts.instagram && (
                         <a
-                          href={contacts.instagram}
+                          href={socialUrl("instagram", contacts.instagram)}
                           target="_blank"
                           rel="noopener"
                           class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
@@ -1043,6 +1061,34 @@ export default component$(() => {
                             <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                           </svg>
                           <span class="text-[12px] font-black uppercase tracking-wide">Instagram</span>
+                        </a>
+                      )}
+
+                      {contacts.facebook && (
+                        <a
+                          href={socialUrl("facebook", contacts.facebook)}
+                          target="_blank"
+                          rel="noopener"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-blue-600 hover:text-blue-600 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                        >
+                          <svg class="w-5 h-5 text-slate-400 group-hover:text-blue-600 mb-1.5 transition-colors fill-current" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                          </svg>
+                          <span class="text-[12px] font-black uppercase tracking-wide">Facebook</span>
+                        </a>
+                      )}
+
+                      {contacts.twitter && (
+                        <a
+                          href={socialUrl("twitter", contacts.twitter)}
+                          target="_blank"
+                          rel="noopener"
+                          class="flex flex-col items-center justify-center p-3.5 rounded-xl bg-white border border-slate-200 hover:border-slate-900 hover:text-slate-900 text-slate-700 text-center shadow-sm hover:shadow-md transition-all active:scale-95 group cursor-pointer"
+                        >
+                          <svg class="w-5 h-5 text-slate-400 group-hover:text-slate-900 mb-1.5 transition-colors fill-current" viewBox="0 0 24 24">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                          </svg>
+                          <span class="text-[12px] font-black uppercase tracking-wide">X</span>
                         </a>
                       )}
 
