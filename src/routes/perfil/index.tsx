@@ -88,11 +88,21 @@ export const useUpdateProfileAction = routeAction$(
       if (!user) return requestEvent.fail(401, { message: "Sesión expirada." });
 
       const db = getDB(requestEvent);
+      const email = data.email.trim().toLowerCase();
+
+      // El email es único: si ya lo usa OTRA cuenta, avisamos sin romper.
+      const [taken] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (taken && taken.id !== user.id) {
+        return requestEvent.fail(409, { message: "Ese correo ya está en uso por otra cuenta." });
+      }
+
+      // OJO: el DNI NO se actualiza acá (viene del padrón, es de solo lectura).
       await db
         .update(users)
         .set({
           name: data.name.trim(),
           matricula: data.matricula.trim(),
+          email,
         })
         .where(eq(users.id, user.id));
 
@@ -105,6 +115,7 @@ export const useUpdateProfileAction = routeAction$(
   zod$({
     name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     matricula: z.string().min(2, "Por favor ingresá tu matrícula provincial."),
+    email: z.string().email("Ingresá un correo electrónico válido."),
   })
 );
 
@@ -427,7 +438,7 @@ export default component$(() => {
 
                     <div class="space-y-1">
                       <label for="matricula" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-                        DNI (Matrícula)
+                        Matrícula
                       </label>
                       <input
                         type="text"
@@ -438,7 +449,38 @@ export default component$(() => {
                         class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                       />
                     </div>
+
+                    <div class="space-y-1">
+                      <label class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
+                        DNI <span class="normal-case text-slate-400 font-medium tracking-normal">· del padrón, no editable</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={user.dni || "No registrado"}
+                        readOnly
+                        disabled
+                        class="w-full bg-slate-100 text-slate-500 text-sm px-4 py-3 rounded-2xl border border-slate-200 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div class="space-y-1">
+                      <label for="email" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
+                        Correo Electrónico <span class="normal-case text-slate-400 font-medium tracking-normal">· opcional</span>
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={user.email || ""}
+                        placeholder="tu@email.com"
+                        class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                      />
+                    </div>
                   </div>
+
+                  {updateAction.value?.failed && updateAction.value.fieldErrors?.email && (
+                    <p class="text-xs font-bold text-red-600">{updateAction.value.fieldErrors.email}</p>
+                  )}
 
                   <button
                     type="submit"
@@ -461,15 +503,13 @@ export default component$(() => {
                   </div>
 
                   <div class="space-y-1">
-                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">DNI (Matrícula)</span>
-                    <span class="font-semibold text-slate-800">{user.matricula || "No registrada"}</span>
+                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">DNI</span>
+                    <span class="font-semibold text-slate-800">{user.dni || "No registrado"}</span>
                   </div>
 
                   <div class="space-y-1">
-                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">Fecha de Creación</span>
-                    <span class="font-semibold text-slate-800">
-                      {new Date(user.createdAt).toLocaleDateString("es-AR")}
-                    </span>
+                    <span class="text-xs font-bold text-slate-400 uppercase block tracking-wider">Matrícula</span>
+                    <span class="font-semibold text-slate-800">{user.matricula || "No registrada"}</span>
                   </div>
                 </div>
               )}
