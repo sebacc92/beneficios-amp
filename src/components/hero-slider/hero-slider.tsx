@@ -58,26 +58,24 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
               }`}
           >
             <div class="absolute inset-0 bg-gradient-to-t from-[#020617]/95 via-[#020617]/40 to-transparent z-10" />
-            {/* Desktop Image */}
-            <img
-              src={slide.imageUrl}
-              alt={slide.title}
-              fetchPriority={idx === 0 ? "high" : "low"}
-              loading={idx === 0 ? "eager" : "lazy"}
-              class="hidden md:block w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
-              width={1600}
-              height={646}
-            />
-            {/* Mobile Image */}
-            <img
-              src={slide.imageMobile || slide.imageUrl}
-              alt={slide.title}
-              fetchPriority={idx === 0 ? "high" : "low"}
-              loading={idx === 0 ? "eager" : "lazy"}
-              class="block md:hidden w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
-              width={480}
-              height={600}
-            />
+            {/* Una sola imagen responsive con <picture>: el navegador baja SOLO
+                la variante del viewport. Antes había dos <img> (desktop
+                `hidden md:block` + mobile `block md:hidden`); el <img> oculto
+                con display:none IGUAL se descarga, así que en mobile la variante
+                desktop (más pesada) competía por el ancho de banda con el LCP y
+                lo retrasaba (~2s de "load delay"). */}
+            <picture class="block w-full h-full">
+              <source media="(min-width: 768px)" srcset={slide.imageUrl} />
+              <img
+                src={slide.imageMobile || slide.imageUrl}
+                alt={slide.title}
+                fetchPriority={idx === 0 ? "high" : "low"}
+                loading={idx === 0 ? "eager" : "lazy"}
+                class="w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-1000"
+                width={480}
+                height={600}
+              />
+            </picture>
             <div class="absolute bottom-12 left-6 md:left-14 lg:left-20 z-20 max-w-2xl text-white text-left animate-fade-in-up">
               <span class="inline-flex items-center px-5 py-2 rounded-full text-[12px] font-black bg-brand-gold text-brand-green-dark mb-4 shadow-lg tracking-widest uppercase border border-white/10">
                 {slide.preTitle || "Exclusivo AMP+"}
