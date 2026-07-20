@@ -29,7 +29,7 @@ export const EditorialCards = component$<EditorialCardsProps>(({ user }) => {
   return (
     <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-14 print:hidden text-left">
       <div class="border-t border-slate-200/80 pt-12 mb-10 space-y-2 animate-fade-in-up">
-        <p class="text-[11px] font-black tracking-widest text-slate-400 uppercase">Beneficios y Novedades</p>
+        <p class="text-[11px] font-black tracking-widest text-slate-500 uppercase">Beneficios y Novedades</p>
         <h2 class="text-3xl sm:text-4xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
           Tu espacio Club AMP<span class="text-brand-gold">+</span>
         </h2>
