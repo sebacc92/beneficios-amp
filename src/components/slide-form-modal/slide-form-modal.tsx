@@ -3,7 +3,7 @@ import { Form } from "@builder.io/qwik-city";
 import { LuImage, LuMonitor, LuSmartphone, LuX, LuCheck, LuPencil, LuSparkles, LuLoader } from "@qwikest/icons/lucide";
 import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-preview";
 import { uploadImageDataUrl } from "~/utils/upload-image";
-import { optimizeImageFileToWebp, SLIDE_MAX_DESKTOP, SLIDE_MAX_MOBILE } from "~/utils/optimize-image";
+import { optimizeImageFileToWebpVariants, buildSrcset, SLIDE_WIDTHS_DESKTOP, SLIDE_WIDTHS_MOBILE } from "~/utils/optimize-image";
 
 // Relaciones de aspecto REALES del hero (ver hero-slider.tsx): desktop 1600×646
 // (~2.48:1) y mobile 4:5. Se usan también para la previsualización con recorte.
@@ -56,6 +56,11 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
   // se limpia tras optimizar, así el multipart no reenvía el original pesado.
   const desktopUrl = useSignal<string>(slide?.imageUrl ?? "");
   const mobileUrl = useSignal<string>(slide?.imageMobile ?? "");
+  // srcset responsive: se generan varias variantes por ancho (desktop 1280/1920,
+  // mobile 480/768) y se sirven con srcset/sizes en el hero, para no mandar una
+  // imagen enorme a un viewport chico.
+  const desktopSrcset = useSignal<string>(slide?.imageSrcset ?? "");
+  const mobileSrcset = useSignal<string>(slide?.imageMobileSrcset ?? "");
   const uploading = useSignal(0);
   const uploadError = useSignal<string | null>(null);
 
@@ -63,8 +68,9 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
   // action.value.success viejo (el store de la acción persiste entre aperturas).
   const submitted = useSignal(false);
 
-  // Optimiza (WebP + resize) y sube a Blob una imagen ya elegida; guarda la URL
-  // resultante en el campo correspondiente y limpia el <input type=file>.
+  // Optimiza a WebP en varias anchos (variantes responsive), sube cada una a
+  // Blob y arma el srcset. La URL de fallback (imageUrl/imageMobile) apunta a la
+  // variante más grande. Limpia el <input type=file> (el crudo no viaja).
   const processFile = $(async (file: File, which: "desktop" | "mobile") => {
     if (!file.type.startsWith("image/")) return;
     uploadError.value = null;
@@ -75,20 +81,30 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
 
     uploading.value++;
     try {
-      const max = which === "desktop" ? SLIDE_MAX_DESKTOP : SLIDE_MAX_MOBILE;
-      const webpDataUrl = await optimizeImageFileToWebp(file, max.maxW, max.maxH);
-      const res = await uploadImageDataUrl(webpDataUrl, `slide-${which}`);
-      if ("url" in res) {
-        if (which === "desktop") desktopUrl.value = res.url;
-        else mobileUrl.value = res.url;
+      const widths = which === "desktop" ? SLIDE_WIDTHS_DESKTOP : SLIDE_WIDTHS_MOBILE;
+      const variants = await optimizeImageFileToWebpVariants(file, widths);
+      // Subir todas las variantes en paralelo.
+      const uploaded = await Promise.all(
+        variants.map(async (v) => {
+          const res = await uploadImageDataUrl(v.dataUrl, `slide-${which}-${v.width}`);
+          if ("url" in res) return { url: res.url, width: v.width };
+          throw new Error(res.error);
+        })
+      );
+      const srcset = buildSrcset(uploaded);
+      const largest = uploaded[uploaded.length - 1].url; // fallback = mayor ancho
+      if (which === "desktop") {
+        desktopUrl.value = largest;
+        desktopSrcset.value = srcset;
       } else {
-        uploadError.value = res.error;
+        mobileUrl.value = largest;
+        mobileSrcset.value = srcset;
       }
     } catch (err: any) {
       uploadError.value = err?.message || "No se pudo procesar la imagen.";
     } finally {
       uploading.value--;
-      // El archivo crudo ya no debe viajar por el multipart: solo la URL en Blob.
+      // El archivo crudo ya no debe viajar por el multipart: solo las URLs en Blob.
       if (which === "desktop" && desktopRef.value) desktopRef.value.value = "";
       else if (which === "mobile" && mobileRef.value) mobileRef.value.value = "";
     }
@@ -245,6 +261,7 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                 </div>
                 <p class="text-[10px] text-slate-400 font-semibold">{HELP_DESKTOP}</p>
                 <input type="text" name="imageUrl" bind:value={desktopUrl} placeholder="Ó ingresá URL de Imagen Desktop Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
+                <input type="hidden" name="imageSrcset" bind:value={desktopSrcset} />
               </div>
 
               {/* Mobile (vertical 4:5, igual que el hero real) */}
@@ -281,6 +298,7 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                 </div>
                 <p class="text-[10px] text-slate-400 font-semibold text-center">{HELP_MOBILE}</p>
                 <input type="text" name="imageMobileUrl" bind:value={mobileUrl} placeholder="Ó ingresá URL de Imagen Mobile Externa" class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono" />
+                <input type="hidden" name="imageMobileSrcset" bind:value={mobileSrcset} />
               </div>
             </div>
           </div>

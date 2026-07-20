@@ -4,6 +4,8 @@ interface Slide {
   id?: string;
   imageUrl: string;
   imageMobile?: string;
+  imageSrcset?: string | null;
+  imageMobileSrcset?: string | null;
   title: string;
   subtitle?: string;
   preTitle?: string;
@@ -65,9 +67,19 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
                 desktop (más pesada) competía por el ancho de banda con el LCP y
                 lo retrasaba (~2s de "load delay"). */}
             <picture class="block w-full h-full">
-              <source media="(min-width: 768px)" srcset={slide.imageUrl} />
+              {/* El hero es full-width (sizes=100vw). Con srcset por ancho el
+                  navegador baja la variante justa: mobile 480/768, desktop
+                  1280/1920. Si un slide no tiene srcset (URL externa/seed), cae
+                  a la URL única. */}
+              <source
+                media="(min-width: 768px)"
+                srcset={slide.imageSrcset || slide.imageUrl}
+                sizes="100vw"
+              />
               <img
                 src={slide.imageMobile || slide.imageUrl}
+                srcset={slide.imageMobileSrcset || undefined}
+                sizes={slide.imageMobileSrcset ? "100vw" : undefined}
                 alt={slide.title}
                 fetchPriority={idx === 0 ? "high" : "low"}
                 loading={idx === 0 ? "eager" : "lazy"}

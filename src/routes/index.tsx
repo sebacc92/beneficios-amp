@@ -402,11 +402,18 @@ export const head: DocumentHead = ({ resolveValue }) => {
   if (first) {
     const desktop = first.imageUrl as string | undefined;
     const mobile = (first.imageMobile || first.imageUrl) as string | undefined;
+    const desktopSrcset = first.imageSrcset as string | undefined;
+    const mobileSrcset = first.imageMobileSrcset as string | undefined;
+    // El preload debe apuntar a la MISMA variante que elige el <img>/<source>:
+    // por eso lleva imagesrcset/imagesizes cuando el slide tiene srcset (así el
+    // navegador preload-ea exactamente el ancho que va a usar), y media para no
+    // bajar la variante del otro viewport.
     if (desktop) {
       links.push({
         rel: "preload",
         as: "image",
         href: desktop,
+        ...(desktopSrcset ? { imagesrcset: desktopSrcset, imagesizes: "100vw" } : {}),
         media: "(min-width: 768px)",
         fetchpriority: "high",
         key: "preload-hero-desktop",
@@ -417,6 +424,7 @@ export const head: DocumentHead = ({ resolveValue }) => {
         rel: "preload",
         as: "image",
         href: mobile,
+        ...(mobileSrcset ? { imagesrcset: mobileSrcset, imagesizes: "100vw" } : {}),
         media: "(max-width: 767px)",
         fetchpriority: "high",
         key: "preload-hero-mobile",

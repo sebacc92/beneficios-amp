@@ -229,8 +229,31 @@ export async function ensureDbSeeded(db: any) {
   }
 }
 
+/**
+ * Columnas de srcset responsive para los slides (image_srcset = desktop,
+ * image_mobile_srcset = mobile). Guardan el string srcset completo
+ * ("url-1280w 1280w, url-1920w 1920w"). Idempotente: SQLite no soporta
+ * ADD COLUMN IF NOT EXISTS, absorbemos el error si ya existen.
+ */
+export async function ensureHeroSlidesSchema(db: any) {
+  const g = globalThis as any;
+  if (g.__heroSlidesSchemaReady) return;
+  const { sql } = await import("drizzle-orm");
+  const addColumn = async (ddl: string) => {
+    try {
+      await db.run(sql.raw(ddl));
+    } catch {
+      // Ya existe: esperado.
+    }
+  };
+  await addColumn("ALTER TABLE hero_slides ADD COLUMN image_srcset TEXT");
+  await addColumn("ALTER TABLE hero_slides ADD COLUMN image_mobile_srcset TEXT");
+  g.__heroSlidesSchemaReady = true;
+}
+
 export async function ensureHeroSlidesSeeded(db: any) {
   try {
+    await ensureHeroSlidesSchema(db);
     const existing = await db.select().from(heroSlides);
     if (existing.length > 0) {
       return;

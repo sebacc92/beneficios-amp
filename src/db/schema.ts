@@ -146,6 +146,10 @@ export const heroSlides = sqliteTable("hero_slides", {
   preTitle: text("pre_title"),
   imageMobile: text("image_mobile"),
   isActive: integer("is_active").default(1).notNull(),
+  // srcset responsive: string completo "url-480w 480w, url-768w 768w".
+  // image_srcset = variantes desktop; image_mobile_srcset = variantes mobile.
+  imageSrcset: text("image_srcset"),
+  imageMobileSrcset: text("image_mobile_srcset"),
 });
 
 // --- Merchant Club Applications ---
