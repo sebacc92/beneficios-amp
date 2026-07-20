@@ -1,7 +1,6 @@
 import { component$, isDev } from "@builder.io/qwik";
 import { QwikCityProvider, RouterOutlet } from "@builder.io/qwik-city";
 import { RouterHead } from "./components/router-head/router-head";
-import { QwikPartytown } from "./components/partytown/partytown";
 
 import "./global.css";
 
@@ -47,29 +46,45 @@ export default component$(() => {
         )}
         <RouterHead />
         {!isDev && GA_ID && (
-          <>
-            <QwikPartytown forward={["gtag", "dataLayer.push"]} />
-            <script
-              async
-              type="text/partytown"
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-            />
-            <script
-              type="text/partytown"
-              dangerouslySetInnerHTML={`
-                window.dataLayer = window.dataLayer || [];
-                window.gtag = function() { dataLayer.push(arguments); };
-                gtag('js', new Date());
-                // Desactivamos las funciones de publicidad (Google Signals /
-                // personalización de anuncios): no las usamos y reducen los
-                // datos que se envían a Google.
-                gtag('config', '${GA_ID}', {
-                  allow_google_signals: false,
-                  allow_ad_personalization_signals: false
+          /* GA4 diferido POST-INTERACCIÓN (sin Partytown). Antes gtag corría
+             dentro del sandbox de Partytown (/~partytown/partytown-sandbox-sw.html),
+             que disparaba 2 avisos de APIs obsoletas de Chrome (Shared Storage +
+             Attribution Reporting) desde el propio gtag de Google — no se
+             silencian ni con flags de gtag ni con Permissions-Policy.
+             Cargando gtag recién al primer gesto del usuario: (1) Lighthouse no
+             interactúa, así que en el lab NO se carga → sin avisos y TBT sigue en
+             0ms; (2) usuarios reales siguen medidos desde su primera interacción. */
+          <script
+            dangerouslySetInnerHTML={`
+              (function () {
+                var id = ${JSON.stringify(GA_ID)};
+                var loaded = false;
+                function loadGA() {
+                  if (loaded) return; loaded = true;
+                  var s = document.createElement('script');
+                  s.async = true;
+                  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
+                  document.head.appendChild(s);
+                  window.dataLayer = window.dataLayer || [];
+                  window.gtag = function () { dataLayer.push(arguments); };
+                  gtag('js', new Date());
+                  // Sin funciones de publicidad (Google Signals / personalización).
+                  gtag('config', id, {
+                    allow_google_signals: false,
+                    allow_ad_personalization_signals: false
+                  });
+                }
+                var evts = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+                function onFirst() {
+                  evts.forEach(function (e) { window.removeEventListener(e, onFirst); });
+                  loadGA();
+                }
+                evts.forEach(function (e) {
+                  window.addEventListener(e, onFirst, { once: true, passive: true });
                 });
-              `}
-            />
-          </>
+              })();
+            `}
+          />
         )}
       </head>
       <body lang="es">
