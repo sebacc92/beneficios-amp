@@ -10,7 +10,7 @@ export const SiteFooter = component$(() => {
           <div class="col-span-1 md:col-span-2 space-y-4">
             <div class="flex items-center space-x-3.5">
               <img
-                src="/g1259.png"
+                src="/g1259.webp"
                 alt="Club de Beneficios AMP"
                 width={392}
                 height={38}

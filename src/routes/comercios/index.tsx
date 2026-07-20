@@ -48,7 +48,7 @@ export default component$(() => {
       <div class="max-w-md w-full mx-auto space-y-8">
         <div class="text-center">
           <Link href="/" class="inline-block">
-            <img src="/Logo.png" alt="AMP+" width={200} height={77} class="h-16 w-auto mx-auto object-contain" />
+            <img src="/Logo.webp" alt="AMP+" width={200} height={77} class="h-16 w-auto mx-auto object-contain" />
           </Link>
           <h2 class="mt-6 text-3xl font-black text-brand-green-dark tracking-tight leading-tight">
             Portal de Comercios

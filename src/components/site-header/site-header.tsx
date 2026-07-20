@@ -108,7 +108,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
             <div class="flex items-center flex-shrink-0">
               <Link href="/" class="flex items-center group">
                 <img
-                  src="/Logo.png"
+                  src="/Logo.webp"
                   alt="Logo AMP"
                   width={255}
                   height={98}
