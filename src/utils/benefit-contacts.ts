@@ -9,12 +9,14 @@ export interface BenefitContacts {
   telefono?: string; // teléfono fijo (separado de WhatsApp)
   instagram?: string;
   facebook?: string;
-  twitter?: string; // X (Twitter)
+  email?: string; // correo de contacto del beneficio
   website?: string; // sitio web
 }
 
-// Etiquetas de los bloques de contacto (para poder quitarlos del cuerpo).
-const LABELS = "DIRECCIÓN|DOMICILIO|WHATSAPP|TELÉFONO|INSTAGRAM|FACEBOOK|TWITTER|SITIO WEB";
+// Etiquetas de los bloques de contacto (para poder quitarlos del cuerpo). Se
+// mantiene TWITTER para seguir limpiando bloques heredados de beneficios viejos
+// (el campo se reemplazó por EMAIL, pero los datos previos no se re-muestran).
+const LABELS = "DIRECCIÓN|DOMICILIO|WHATSAPP|TELÉFONO|INSTAGRAM|FACEBOOK|TWITTER|E-MAIL|EMAIL|SITIO WEB";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -48,7 +50,7 @@ export function splitContacts(html: string): { body: string } & BenefitContacts 
     // Redes: primero el bloque de texto propio; si no, un href heredado.
     instagram: textAfterLabel(s, "INSTAGRAM") || hrefContaining(s, "instagram.com"),
     facebook: textAfterLabel(s, "FACEBOOK") || hrefContaining(s, "facebook.com"),
-    twitter: textAfterLabel(s, "TWITTER") || hrefContaining(s, "twitter.com") || hrefContaining(s, "x.com"),
+    email: textAfterLabel(s, "(?:E-MAIL|EMAIL)") || (s.match(/mailto:([^"'\s>]+)/i)?.[1] ?? ""),
     website: textAfterLabel(s, "SITIO WEB"),
   };
 }
@@ -70,7 +72,7 @@ export function mergeContacts(body: string, contacts: BenefitContacts): string {
   block("TELÉFONO", contacts.telefono);
   block("INSTAGRAM", contacts.instagram);
   block("FACEBOOK", contacts.facebook);
-  block("TWITTER", contacts.twitter);
+  block("EMAIL", contacts.email);
   block("SITIO WEB", contacts.website);
   return parts.join("");
 }

@@ -274,7 +274,7 @@ export const useCreateBenefitAction = routeAction$(
           telefono: data.telefono,
           instagram: data.instagram,
           facebook: data.facebook,
-          twitter: data.twitter,
+          email: data.email,
           website: data.website,
         }),
         imagen: uploadedImageUrl,
@@ -311,7 +311,7 @@ export const useCreateBenefitAction = routeAction$(
     telefono: z.string().optional(),
     instagram: z.string().optional(),
     facebook: z.string().optional(),
-    twitter: z.string().optional(),
+    email: z.string().optional(),
     website: z.string().optional(),
     direccion: z.string().optional(),
     imagen: z.string().optional(),
@@ -685,8 +685,8 @@ export default component$(() => {
               <input type="text" name="facebook" placeholder="facebook.com/milocal" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
             </div>
             <div class="space-y-1">
-              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">X (Twitter)</label>
-              <input type="text" name="twitter" placeholder="@milocal o x.com/milocal" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Email</label>
+              <input type="email" name="email" placeholder="contacto@milocal.com" class="w-full bg-white text-slate-800 text-sm px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:outline-none transition-all" />
             </div>
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Sitio web</label>
