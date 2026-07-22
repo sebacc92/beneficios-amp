@@ -122,9 +122,15 @@ export const SiteFooter = component$(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.98-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 <div class="flex flex-col space-y-1">
-                  <span><strong>Tel:</strong> (0221) 429-8400</span>
-                  <span><strong>Secretaría Administrativa:</strong><br />(0221) 429-8417</span>
-                  <span><strong>El Cardón:</strong> (0221) 496-2537</span>
+                  <span><strong>Comisión de Beneficios</strong></span>
+                  <span>
+                    <strong>Tel.:</strong>{" "}
+                    <a href="tel:+542214442451" class="hover:text-brand-green transition-colors">221-444-2451</a>
+                  </span>
+                  <span>
+                    <strong>Mail:</strong>{" "}
+                    <a href="mailto:beneficios@amepla.org.ar" class="hover:text-brand-green transition-colors">beneficios@amepla.org.ar</a>
+                  </span>
                 </div>
               </li>
             </ul>
