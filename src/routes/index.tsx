@@ -70,7 +70,11 @@ export const useBenefitsData = routeLoader$(async (event) => {
       const all = await searchBenefits({ limit: 1000, requestEvent: event });
       const items = all.data;
       
+      // cafecitosTotal: cantidad real de coincidencias ANTES de recortar para
+      // el teaser del home. Sirve para saber si "Ver Todos" tiene sentido (hay
+      // más beneficios de esta campaña que los que se muestran acá).
       let cafecitos: Benefit[] = [];
+      let cafecitosTotal = 0;
       if (settings?.campaignBenefitIds) {
         const selectedSlugsOrIds = settings.campaignBenefitIds.split(",").map(s => s.trim()).filter(Boolean);
         if (selectedSlugsOrIds.length > 0) {
@@ -79,19 +83,22 @@ export const useBenefitsData = routeLoader$(async (event) => {
             matchedBenefitsMap.set(String(b.id), b);
             matchedBenefitsMap.set(b.url, b);
           }
-          cafecitos = selectedSlugsOrIds
+          const matched = selectedSlugsOrIds
             .map(slugOrId => matchedBenefitsMap.get(slugOrId))
-            .filter((b): b is Benefit => !!b)
-            .slice(0, 8);
+            .filter((b): b is Benefit => !!b);
+          cafecitosTotal = matched.length;
+          cafecitos = matched.slice(0, 8);
         }
       }
 
       if (cafecitos.length === 0) {
         const queryTerms = (settings?.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro").split(",").map(term => term.trim().toLowerCase()).filter(Boolean);
-        cafecitos = items.filter(b => {
+        const matched = items.filter(b => {
           const tl = b.titulo.toLowerCase(); const dl = b.descripcion.toLowerCase(); const rl = b.resumen.toLowerCase();
           return queryTerms.some(term => tl.includes(term) || dl.includes(term) || rl.includes(term) || b.categorias.some(c => c.descripcion.toLowerCase().includes(term)));
-        }).slice(0, 4);
+        });
+        cafecitosTotal = matched.length;
+        cafecitos = matched.slice(0, 4);
       }
       const parseDate = (dateStr?: string) => {
         if (!dateStr) return 0;
@@ -104,7 +111,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
         .filter(b => !b.isFeatured)
         .sort((a, b) => parseDate(b.created_at) - parseDate(a.created_at))
         .slice(0, 6);
-      curatedRows = { gold, nuevos, cafecitos };
+      curatedRows = { gold, nuevos, cafecitos, cafecitosTotal };
     } catch (e) { console.error("Failed to compile curated rows:", e); }
   }
 
@@ -165,6 +172,24 @@ export default component$(() => {
     if (container) {
       container.scrollBy({ left: direction === "left" ? -340 : 340, behavior: "smooth" });
     }
+  });
+
+  // Las flechas de la fila de campaña solo tienen sentido si la fila
+  // realmente desborda (hay algo para scrollear). Cuántos items entran
+  // depende del ancho real de pantalla, no de la cantidad de beneficios,
+  // así que se mide con ResizeObserver en vez de un umbral fijo.
+  const campaignHasOverflow = useSignal(false);
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ cleanup }) => {
+    const container = document.getElementById("campaign-container");
+    if (!container) return;
+    const check = () => {
+      campaignHasOverflow.value = container.scrollWidth > container.clientWidth + 4;
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(container);
+    cleanup(() => ro.disconnect());
   });
 
   return (
@@ -247,15 +272,17 @@ export default component$(() => {
                   </div>
 
                   <div class="flex items-center gap-3 flex-shrink-0">
-                    <Link
-                      href="/beneficios?campana=true"
-                      class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-                    >
-                      <span>Ver todos</span>
-                      <span class="transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
-                    </Link>
+                    {curatedRows.cafecitosTotal > curatedRows.cafecitos.length && (
+                      <Link
+                        href="/beneficios?campana=true"
+                        class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                      >
+                        <span>Ver todos</span>
+                        <span class="transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
+                      </Link>
+                    )}
 
-                    {curatedRows.cafecitos.length > 2 && (
+                    {campaignHasOverflow.value && (
                       <div class="hidden sm:flex items-center space-x-2">
                         <button
                           type="button"
