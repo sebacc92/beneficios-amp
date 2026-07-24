@@ -45,6 +45,23 @@ async function resolveRaffleImage(
   return (urlField as string) || fallback;
 }
 
+type RafflePrize = { prize: string; winner: string };
+
+// --- helper: valida/normaliza el JSON de premios (uno con ganador opcional) ---
+function parseRafflePrizes(raw: unknown): RafflePrize[] {
+  try {
+    const parsed = JSON.parse((raw as string) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((p: any) =>
+        typeof p === "string" ? { prize: p, winner: "" } : { prize: String(p?.prize || ""), winner: String(p?.winner || "") }
+      )
+      .filter((p) => p.prize.trim().length > 0);
+  } catch {
+    return [];
+  }
+}
+
 // --- ACTIONS ---
 
 export const useCreateRaffleAction = routeAction$(
@@ -61,11 +78,7 @@ export const useCreateRaffleAction = routeAction$(
       if (!uploadedDesktopUrl) return requestEvent.fail(400, { message: "Debe proporcionar una imagen para el sorteo." });
       const uploadedMobileUrl = await resolveRaffleImage(data.imageMobileFile, data.imageMobileUrl, "", "raffle-mob", token);
 
-      let prizesArr: string[] = [];
-      try {
-        const parsed = JSON.parse(data.prizes || "[]");
-        if (Array.isArray(parsed)) prizesArr = parsed.filter((p) => typeof p === "string" && p.trim());
-      } catch { /* queda vacío */ }
+      const prizesArr = parseRafflePrizes(data.prizes);
       if (prizesArr.length === 0) return requestEvent.fail(400, { message: "Cargá al menos un premio." });
 
       await db.insert(rafflesTable).values({
@@ -77,7 +90,6 @@ export const useCreateRaffleAction = routeAction$(
         imageMobile: uploadedMobileUrl || uploadedDesktopUrl,
         drawDate: data.drawDate,
         terms: data.terms || null,
-        winnerName: data.winnerName || null,
         isActive: data.isActive === "on" ? 1 : 0,
         orderIndex: Number(data.orderIndex || 0),
         createdAt: new Date().toISOString(),
@@ -95,7 +107,6 @@ export const useCreateRaffleAction = routeAction$(
     prizes: z.string().optional(),
     drawDate: z.string().min(1, "La fecha del sorteo es obligatoria."),
     terms: z.string().optional(),
-    winnerName: z.string().optional(),
     imageUrl: z.string().optional(),
     imageMobileUrl: z.string().optional(),
     orderIndex: z.string().optional(),
@@ -120,11 +131,7 @@ export const useUpdateRaffleAction = routeAction$(
       const uploadedDesktopUrl = await resolveRaffleImage(data.imageDesktopFile, data.imageUrl, existing[0].imageUrl, "raffle-desk", token);
       const uploadedMobileUrl = await resolveRaffleImage(data.imageMobileFile, data.imageMobileUrl, existing[0].imageMobile || "", "raffle-mob", token);
 
-      let prizesArr: string[] = [];
-      try {
-        const parsed = JSON.parse(data.prizes || "[]");
-        if (Array.isArray(parsed)) prizesArr = parsed.filter((p) => typeof p === "string" && p.trim());
-      } catch { /* queda vacío */ }
+      const prizesArr = parseRafflePrizes(data.prizes);
       if (prizesArr.length === 0) return requestEvent.fail(400, { message: "Cargá al menos un premio." });
 
       await db.update(rafflesTable).set({
@@ -135,7 +142,6 @@ export const useUpdateRaffleAction = routeAction$(
         imageMobile: uploadedMobileUrl || uploadedDesktopUrl,
         drawDate: data.drawDate,
         terms: data.terms || null,
-        winnerName: data.winnerName || null,
         isActive: data.isActive === "on" ? 1 : 0,
         orderIndex: Number(data.orderIndex || 0),
       }).where(eq(rafflesTable.id, id));
@@ -153,7 +159,6 @@ export const useUpdateRaffleAction = routeAction$(
     prizes: z.string().optional(),
     drawDate: z.string().min(1, "La fecha del sorteo es obligatoria."),
     terms: z.string().optional(),
-    winnerName: z.string().optional(),
     imageUrl: z.string().optional(),
     imageMobileUrl: z.string().optional(),
     orderIndex: z.string().optional(),
@@ -248,13 +253,10 @@ export default component$(() => {
     return dateStr;
   };
 
-  const prizeCount = (prizesJson: string) => {
-    try {
-      const parsed = JSON.parse(prizesJson || "[]");
-      return Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      return 0;
-    }
+  const prizesSummary = (prizesJson: string) => {
+    const list = parseRafflePrizes(prizesJson);
+    const withWinner = list.filter((p) => p.winner.trim().length > 0).length;
+    return { total: list.length, withWinner };
   };
 
   return (
@@ -396,12 +398,14 @@ export default component$(() => {
                       <div class="flex items-center gap-1">
                         <LuTrophy class="w-3 h-3 text-brand-gold" />
                         <span class="uppercase tracking-widest text-slate-400">Premios:</span>{" "}
-                        <span class="text-slate-700 font-semibold">{prizeCount(raffle.prizes)}</span>
+                        <span class="text-slate-700 font-semibold">{prizesSummary(raffle.prizes).total}</span>
                       </div>
-                      {raffle.winnerName && (
+                      {prizesSummary(raffle.prizes).withWinner > 0 && (
                         <div class="truncate">
-                          <span class="uppercase tracking-widest text-slate-400">Ganador/a:</span>{" "}
-                          <span class="text-emerald-700 font-semibold">{raffle.winnerName}</span>
+                          <span class="uppercase tracking-widest text-slate-400">Con ganador/a:</span>{" "}
+                          <span class="text-emerald-700 font-semibold">
+                            {prizesSummary(raffle.prizes).withWinner}/{prizesSummary(raffle.prizes).total}
+                          </span>
                         </div>
                       )}
                     </div>

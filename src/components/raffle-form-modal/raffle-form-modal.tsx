@@ -34,25 +34,31 @@ export const RaffleFormModal = component$<RaffleFormModalProps>(({ mode, raffle,
   const description = useSignal<string>(raffle?.description ?? "");
   const drawDate = useSignal<string>(raffle?.drawDate ?? "");
   const terms = useSignal<string>(raffle?.terms ?? "");
-  const winnerName = useSignal<string>(raffle?.winnerName ?? "");
   const isActive = useSignal<boolean>(isEdit ? raffle?.isActive === 1 : true);
 
-  // Premios: lista dinámica, arranca con 1 vacío (create) o los ya cargados (edit).
-  const initialPrizes: string[] = (() => {
-    if (!isEdit) return [""];
+  // Premios: lista dinámica, un ganador por premio. Arranca con 1 vacío
+  // (create) o los ya cargados (edit).
+  type Prize = { prize: string; winner: string };
+  const initialPrizes: Prize[] = (() => {
+    if (!isEdit) return [{ prize: "", winner: "" }];
     try {
       const parsed = JSON.parse(raffle?.prizes || "[]");
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [""];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((p: any) =>
+          typeof p === "string" ? { prize: p, winner: "" } : { prize: p?.prize || "", winner: p?.winner || "" }
+        );
+      }
+      return [{ prize: "", winner: "" }];
     } catch {
-      return [""];
+      return [{ prize: "", winner: "" }];
     }
   })();
-  const prizes = useStore<{ list: string[] }>({ list: initialPrizes });
+  const prizes = useStore<{ list: Prize[] }>({ list: initialPrizes });
   const prizesJson = useSignal<string>(JSON.stringify(initialPrizes));
 
   useTask$(({ track }) => {
     track(() => prizes.list);
-    prizesJson.value = JSON.stringify(prizes.list.filter((p) => p.trim().length > 0));
+    prizesJson.value = JSON.stringify(prizes.list.filter((p) => p.prize.trim().length > 0));
   });
 
   // Imágenes
@@ -165,26 +171,39 @@ export const RaffleFormModal = component$<RaffleFormModalProps>(({ mode, raffle,
 
               {/* Premios: lista dinámica, siempre al menos 1 */}
               <div class="space-y-2">
-                <label class={labelCls}>Premios</label>
+                <label class={labelCls}>Premios y Ganadores</label>
                 <div class="space-y-2">
-                  {prizes.list.map((prize, idx) => (
-                    <div key={idx} class="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={prize}
-                        onInput$={(_, el) => {
-                          const next = [...prizes.list];
-                          next[idx] = el.value;
-                          prizes.list = next;
-                        }}
-                        placeholder={`Premio ${idx + 1}`}
-                        class={`${inputCls} font-medium`}
-                      />
+                  {prizes.list.map((item, idx) => (
+                    <div key={idx} class="flex items-start gap-2 bg-slate-50 border border-slate-100 rounded-2xl p-3">
+                      <div class="flex-1 space-y-1.5">
+                        <input
+                          type="text"
+                          value={item.prize}
+                          onInput$={(_, el) => {
+                            const next = [...prizes.list];
+                            next[idx] = { ...next[idx], prize: el.value };
+                            prizes.list = next;
+                          }}
+                          placeholder={`Premio ${idx + 1}`}
+                          class={`${inputCls} font-medium`}
+                        />
+                        <input
+                          type="text"
+                          value={item.winner}
+                          onInput$={(_, el) => {
+                            const next = [...prizes.list];
+                            next[idx] = { ...next[idx], winner: el.value };
+                            prizes.list = next;
+                          }}
+                          placeholder="Ganador/a (se completa al finalizar)"
+                          class={`${inputCls} text-xs`}
+                        />
+                      </div>
                       {prizes.list.length > 1 && (
                         <button
                           type="button"
                           onClick$={() => { prizes.list = prizes.list.filter((_, i) => i !== idx); }}
-                          class="p-2.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all cursor-pointer flex-shrink-0"
+                          class="p-2.5 mt-0.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all cursor-pointer flex-shrink-0"
                           title="Quitar premio"
                         >
                           <LuTrash2 class="w-4 h-4" />
@@ -195,7 +214,7 @@ export const RaffleFormModal = component$<RaffleFormModalProps>(({ mode, raffle,
                 </div>
                 <button
                   type="button"
-                  onClick$={() => { prizes.list = [...prizes.list, ""]; }}
+                  onClick$={() => { prizes.list = [...prizes.list, { prize: "", winner: "" }]; }}
                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
                 >
                   <LuPlus class="w-3.5 h-3.5" />
@@ -203,15 +222,9 @@ export const RaffleFormModal = component$<RaffleFormModalProps>(({ mode, raffle,
                 </button>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <label class={labelCls}>Fecha del Sorteo</label>
-                  <input type="date" name="drawDate" required bind:value={drawDate} class={`${inputCls} font-semibold`} />
-                </div>
-                <div class="space-y-1">
-                  <label class={labelCls}>Ganador/a (opcional)</label>
-                  <input type="text" name="winnerName" bind:value={winnerName} placeholder="Se completa al finalizar" class={`${inputCls} font-medium`} />
-                </div>
+              <div class="space-y-1">
+                <label class={labelCls}>Fecha del Sorteo</label>
+                <input type="date" name="drawDate" required bind:value={drawDate} class={`${inputCls} font-semibold`} />
               </div>
 
               <div class="space-y-1">

@@ -6,16 +6,24 @@ import { raffles as rafflesTable } from "~/db/schema";
 import { ensureRafflesTable } from "~/server/cache";
 import { sanitizeRichText } from "~/utils/sanitize-html";
 
+type RafflePrize = { prize: string; winner: string };
+
 export const useRafflesLoader = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
     await ensureRafflesTable(db);
     const rows = await db.select().from(rafflesTable).orderBy(asc(rafflesTable.orderIndex));
     return rows.map((r) => {
-      let prizesList: string[] = [];
+      let prizesList: RafflePrize[] = [];
       try {
         const parsed = JSON.parse(r.prizes || "[]");
-        if (Array.isArray(parsed)) prizesList = parsed.filter((p) => typeof p === "string" && p.trim());
+        if (Array.isArray(parsed)) {
+          prizesList = parsed
+            .map((p: any) =>
+              typeof p === "string" ? { prize: p, winner: "" } : { prize: String(p?.prize || ""), winner: String(p?.winner || "") }
+            )
+            .filter((p) => p.prize.trim());
+        }
       } catch { /* queda vacío */ }
       return { ...r, prizesList };
     });
@@ -120,11 +128,18 @@ export default component$(() => {
                           <span class="block text-[9px] uppercase tracking-widest text-slate-400 font-black">
                             {raffle.prizesList.length > 1 ? "Premios" : "Premio"}
                           </span>
-                          <ul class="space-y-1">
+                          <ul class="space-y-1.5">
                             {raffle.prizesList.map((prize, i) => (
-                              <li key={i} class="flex items-start gap-1.5 text-brand-green-light">
+                              <li key={i} class="flex items-start gap-1.5">
                                 <span class="mt-px">🎁</span>
-                                <span>{prize}</span>
+                                <span class="text-brand-green-light">
+                                  {prize.prize}
+                                  {prize.winner && (
+                                    <span class="block text-emerald-700 font-black normal-case">
+                                      Ganador/a: {prize.winner}
+                                    </span>
+                                  )}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -190,11 +205,17 @@ export default component$(() => {
                       </h4>
                     </div>
 
-                    {/* Winner Display Badge */}
-                    {raffle.winnerName && (
-                      <div class="bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl flex items-center space-x-2 text-[10px] sm:text-xs">
-                        <span class="text-emerald-500 font-bold uppercase tracking-wider">Ganador/a:</span>
-                        <span class="font-extrabold text-brand-green-dark">{raffle.winnerName}</span>
+                    {/* Winners Display: uno por premio */}
+                    {raffle.prizesList.some((p) => p.winner) && (
+                      <div class="bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl space-y-1 text-[10px] sm:text-xs">
+                        {raffle.prizesList.filter((p) => p.winner).map((p, i) => (
+                          <div key={i} class="flex items-start gap-1.5">
+                            <span class="text-emerald-500 font-bold uppercase tracking-wider flex-shrink-0">
+                              {raffle.prizesList.length > 1 ? `${p.prize}:` : "Ganador/a:"}
+                            </span>
+                            <span class="font-extrabold text-brand-green-dark">{p.winner}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

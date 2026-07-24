@@ -523,12 +523,18 @@ export async function ensureRafflesTable(db: any) {
       image_mobile TEXT,
       draw_date TEXT NOT NULL,
       terms TEXT,
-      winner_name TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       order_index INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     )
   `);
+  // El ganador pasó a ser por premio (dentro del JSON de `prizes`). Se
+  // elimina la columna vieja `winner_name` si quedó de una versión anterior.
+  try {
+    await db.run(sql.raw("ALTER TABLE raffles DROP COLUMN winner_name"));
+  } catch {
+    // La columna no existe (instalación nueva) o ya se eliminó: esperado.
+  }
 }
 
 function hashCode(str: string): number {
