@@ -5,6 +5,7 @@ import { getDB } from "~/db";
 import { raffles as rafflesTable } from "~/db/schema";
 import { ensureRafflesTable } from "~/server/cache";
 import { sanitizeRichText } from "~/utils/sanitize-html";
+import { RaffleCountdown } from "~/components/raffle-countdown/raffle-countdown";
 
 type RafflePrize = { prize: string; winner: string };
 
@@ -104,6 +105,14 @@ export default component$(() => {
                         Sortea: {formatDate(raffle.drawDate)}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Countdown Bar */}
+                  <div class="flex items-center justify-between gap-3 bg-brand-green-dark px-4 sm:px-6 py-3">
+                    <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white/70 flex-shrink-0">
+                      Sortea en
+                    </span>
+                    <RaffleCountdown drawDate={raffle.drawDate} />
                   </div>
 
                   {/* Content */}
