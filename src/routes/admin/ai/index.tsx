@@ -2,6 +2,7 @@ import { component$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { LuTrash2, LuImage } from "@qwikest/icons/lucide";
 import { getSessions, deleteSession, getSettings, saveSettings } from "~/server/chatbotDb";
+import { uploadImageDataUrl } from "~/utils/upload-image";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -53,24 +54,9 @@ export const useUpdateAiSettingsAction = routeAction$(
     if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
 
     try {
-      let uploadedImageUrl = data.aiAvatarUrl || null;
-
-      if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
-        const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `ai-avatar-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-
-        uploadedImageUrl = `/uploads/${fileName}`;
-      }
+      // La imagen ya se subió a Vercel Blob desde el cliente (uploadImageDataUrl)
+      // al seleccionarla; aquí solo llega la URL resultante en aiAvatarUrl.
+      const uploadedImageUrl = data.aiAvatarUrl || null;
 
       const settings = await getSettings(requestEvent);
       const updatedSettings = {
@@ -102,7 +88,6 @@ export const useUpdateAiSettingsAction = routeAction$(
     aiCallToAction: z.string().optional(),
     whatsappNumber: z.string().optional(),
     aiAvatarUrl: z.string().optional(),
-    image: z.any().optional(),
   })
 );
 
@@ -118,13 +103,50 @@ export default component$(() => {
   const s = settings.value;
   const avatarUrl = useSignal(s.aiAvatarUrl || "");
   const previewUrl = useSignal<string | null>(null);
+  const avatarUploading = useSignal(false);
+  const avatarError = useSignal<string | null>(null);
 
   const handleFileChange = $((event: Event) => {
     const element = event.target as HTMLInputElement;
     if (!element.files || element.files.length === 0) return;
     const file = element.files[0];
     previewUrl.value = URL.createObjectURL(file);
-    avatarUrl.value = "";
+    avatarError.value = null;
+
+    // Comprime en el navegador y sube a Vercel Blob al seleccionar; el form
+    // solo envía la URL resultante (aiAvatarUrl). Evita escribir al filesystem
+    // en el servidor, que no funciona en Vercel.
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        // Recorte cuadrado centrado (el avatar se ve en un círculo).
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/webp", 0.85);
+        avatarUploading.value = true;
+        try {
+          const res = await uploadImageDataUrl(dataUrl, "ai-avatar");
+          if ("url" in res) {
+            avatarUrl.value = res.url;
+          } else {
+            avatarError.value = res.error;
+          }
+        } finally {
+          avatarUploading.value = false;
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   });
 
   return (
@@ -318,16 +340,19 @@ export default component$(() => {
                         </div>
                         <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-extrabold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
                           <LuImage class="w-4 h-4" />
-                          Subir Archivo
+                          {avatarUploading.value ? "Subiendo…" : "Subir Archivo"}
                           <input
                             type="file"
-                            name="image"
                             accept="image/*"
                             onChange$={handleFileChange}
+                            disabled={avatarUploading.value}
                             class="hidden"
                           />
                         </label>
                       </div>
+                      {avatarError.value && (
+                        <p class="text-[10px] text-red-500 font-bold mt-2">{avatarError.value}</p>
+                      )}
                       <p class="text-[10px] text-slate-400 font-medium mt-2">
                         Imagen <b>cuadrada 256×256px</b> (se ve en un círculo) · PNG o JPG · hasta ~500 KB.
                       </p>
