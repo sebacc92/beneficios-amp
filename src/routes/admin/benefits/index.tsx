@@ -3,7 +3,7 @@ import { routeLoader$, routeAction$, Form, Link, useLocation, z, zod$, type Docu
 import { LuPlus, LuTicket, LuTrash2, LuPencil, LuChevronLeft, LuChevronRight, LuSearch, LuKey, LuBell } from "@qwikest/icons/lucide";
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
-import { customBenefits as customBenefitsTable, merchants as merchantsTable } from "~/db/schema";
+import { customBenefits as customBenefitsTable, merchants as merchantsTable, coupons } from "~/db/schema";
 import { getFilters, ensureDbSeeded, getBenefitOrdenMap, persistBenefitOrder, ensureTrackingSchema, deriveBenefitNumId } from "~/server/cache";
 import { hashPassword } from "~/utils/crypto";
 import { ensureMerchantsTable } from "~/server/merchant-auth";
@@ -250,6 +250,7 @@ export const useDeleteBenefitAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
+      await db.delete(coupons).where(eq(coupons.benefitId, data.id));
       await db.delete(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
       return { success: true };
     } catch (err: any) {

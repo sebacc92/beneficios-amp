@@ -1,6 +1,7 @@
 import { component$, useSignal, useComputed$ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
-import { desc } from "drizzle-orm";
+import { routeLoader$, routeAction$, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
+import { LuTrash2 } from "@qwikest/icons/lucide";
+import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { coupons } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
@@ -24,8 +25,52 @@ export const useAdminCouponsLoader = routeLoader$(async (event) => {
   }
 });
 
+export const useDeleteCouponAction = routeAction$(
+  async (data, requestEvent) => {
+    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") {
+      return requestEvent.fail(403, { message: "No autorizado." });
+    }
+
+    try {
+      const db = getDB(requestEvent);
+      await db.delete(coupons).where(eq(coupons.id, data.id));
+      return { success: true };
+    } catch (err: any) {
+      console.error("Failed to delete coupon:", err);
+      return requestEvent.fail(500, { message: "Error al eliminar el cupón." });
+    }
+  },
+  zod$({
+    id: z.string(),
+  })
+);
+
+export const useDeleteCouponsByBenefitAction = routeAction$(
+  async (data, requestEvent) => {
+    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") {
+      return requestEvent.fail(403, { message: "No autorizado." });
+    }
+
+    try {
+      const db = getDB(requestEvent);
+      await db.delete(coupons).where(eq(coupons.benefitId, data.benefitId));
+      return { success: true };
+    } catch (err: any) {
+      console.error("Failed to delete coupons by benefit:", err);
+      return requestEvent.fail(500, { message: "Error al eliminar cupones." });
+    }
+  },
+  zod$({
+    benefitId: z.string(),
+  })
+);
+
 export default component$(() => {
   const allCoupons = useAdminCouponsLoader();
+  const deleteCouponAction = useDeleteCouponAction();
+  const deleteCouponsByBenefitAction = useDeleteCouponsByBenefitAction();
   const searchQuery = useSignal("");
   const statusFilter = useSignal("all"); // "all", "active", "used"
 
@@ -38,10 +83,10 @@ export default component$(() => {
     const rate = total > 0 ? Math.round((redeemed / total) * 100) : 0;
 
     // Count top benefits
-    const benefitCounts: Record<string, { title: string; count: number }> = {};
+    const benefitCounts: Record<string, { benefitId: string; title: string; count: number }> = {};
     list.forEach((c) => {
       if (!benefitCounts[c.benefitId]) {
-        benefitCounts[c.benefitId] = { title: c.benefitTitle, count: 0 };
+        benefitCounts[c.benefitId] = { benefitId: c.benefitId, title: c.benefitTitle, count: 0 };
       }
       benefitCounts[c.benefitId].count++;
     });
@@ -130,12 +175,26 @@ export default component$(() => {
 
         <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-2">
           <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Top Beneficios</span>
-          <div class="space-y-1">
+          <div class="space-y-1.5">
             {stats.value.topBenefits.length > 0 ? (
               stats.value.topBenefits.map((b, idx) => (
-                <div key={idx} class="flex justify-between text-xs font-semibold">
+                <div key={idx} class="flex items-center justify-between text-xs font-semibold group">
                   <span class="text-slate-600 line-clamp-1 flex-grow pr-2">{b.title}</span>
-                  <span class="text-brand-green font-bold shrink-0">{b.count} usos</span>
+                  <div class="flex items-center space-x-2 shrink-0">
+                    <span class="text-brand-green font-bold">{b.count} usos</span>
+                    <button
+                      type="button"
+                      onClick$={async () => {
+                        if (confirm(`¿Eliminar todos los cupones de "${b.title}"?`)) {
+                          await deleteCouponsByBenefitAction.submit({ benefitId: b.benefitId });
+                        }
+                      }}
+                      title="Eliminar cupones de este beneficio"
+                      class="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded"
+                    >
+                      <LuTrash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -186,6 +245,7 @@ export default component$(() => {
               <th class="px-6 py-4">Generado</th>
               <th class="px-6 py-4">Canjeado</th>
               <th class="px-6 py-4 text-center">Estado</th>
+              <th class="px-6 py-4 text-center">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 font-medium">
@@ -200,7 +260,7 @@ export default component$(() => {
                     <div class="text-[10px] text-slate-450 mt-0.5 line-clamp-1">{coupon.benefitResumen}</div>
                   </td>
                   <td class="px-6 py-4 text-slate-700 font-bold">{coupon.userName}</td>
-                  <td class="px-6 py-4 text-slate-500 font-mono">{coupon.userMatricula || "N/A"}</td>
+                  <td class="px-6 py-4 text-slate-550 font-mono">{coupon.userMatricula || "N/A"}</td>
                   <td class="px-6 py-4 text-slate-550">
                     {new Date(coupon.createdAt).toLocaleDateString("es-AR")} {new Date(coupon.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                   </td>
@@ -222,11 +282,25 @@ export default component$(() => {
                       {coupon.status === "used" ? "Canjeado" : "Activo"}
                     </span>
                   </td>
+                  <td class="px-6 py-4 text-center">
+                    <button
+                      type="button"
+                      onClick$={async () => {
+                        if (confirm(`¿Eliminar este cupón (${coupon.code})?`)) {
+                          await deleteCouponAction.submit({ id: coupon.id });
+                        }
+                      }}
+                      title="Eliminar cupón"
+                      class="text-slate-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                    >
+                      <LuTrash2 class="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} class="px-6 py-10 text-center text-slate-400 font-bold uppercase tracking-widest bg-slate-50/50">
+                <td colSpan={8} class="px-6 py-10 text-center text-slate-400 font-bold uppercase tracking-widest bg-slate-50/50">
                   No se encontraron cupones con los filtros seleccionados
                 </td>
               </tr>
