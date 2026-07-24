@@ -3,7 +3,7 @@ import { component$, useSignal, $ } from "@builder.io/qwik";
 interface ImageFramePreviewProps {
   /** URL de la imagen a previsualizar (objectURL local o URL remota). */
   src: string;
-  /** Relación de aspecto real del hero (ancho/alto). Desktop ~2.48, mobile 0.8 (4:5). */
+  /** Relación de aspecto real del hero (ancho/alto). Desktop ~3.66, mobile 0.8 (4:5). */
   targetRatio: number;
   /** Textos del hero para simular el resultado final (opcionales, en vivo). */
   preTitle?: string;

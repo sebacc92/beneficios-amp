@@ -103,7 +103,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
         }}
       >
         <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between h-28">
+          <div class="flex items-center justify-between h-20 lg:h-24">
             {/* Brand Logo */}
             <div class="flex items-center flex-shrink-0">
               <Link href="/" class="flex items-center group">
@@ -112,7 +112,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                   alt="Logo AMP"
                   width={255}
                   height={98}
-                  class="h-[98px] w-auto object-contain transition-all duration-300 group-hover:scale-105"
+                  class="h-16 lg:h-[72px] w-auto object-contain transition-all duration-300 group-hover:scale-105"
                 />
               </Link>
             </div>

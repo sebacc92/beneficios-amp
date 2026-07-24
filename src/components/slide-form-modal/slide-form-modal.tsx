@@ -5,12 +5,12 @@ import { ImageFramePreview } from "~/components/image-frame-preview/image-frame-
 import { uploadImageDataUrl } from "~/utils/upload-image";
 import { optimizeImageFileToWebpVariants, buildSrcset, SLIDE_WIDTHS_DESKTOP, SLIDE_WIDTHS_MOBILE } from "~/utils/optimize-image";
 
-// Relaciones de aspecto REALES del hero (ver hero-slider.tsx): desktop 1600×646
-// (~2.48:1) y mobile 4:5. Se usan también para la previsualización con recorte.
-const RATIO_DESKTOP = 1600 / 646;
+// Relaciones de aspecto REALES del hero (ver hero-slider.tsx): desktop 2560×700
+// (~3.66:1) y mobile 4:5. Se usan también para la previsualización con recorte.
+const RATIO_DESKTOP = 2560 / 700;
 const RATIO_MOBILE = 4 / 5;
-const HELP_DESKTOP = "Recomendado 2560×1035px (panorámico ~2.48:1) · JPG, PNG o WebP · hasta ~2 MB";
-const HELP_MOBILE = "Recomendado 1080×1350px (vertical 4:5) · JPG, PNG o WebP · hasta ~2 MB";
+const HELP_DESKTOP = "Recomendado 2560×700px (panorámico ~3.66:1) · Preferí subir en WebP · hasta ~2 MB";
+const HELP_MOBILE = "Recomendado 1080×1350px (vertical 4:5) · Preferí subir en WebP · hasta ~2 MB";
 
 interface SlideFormModalProps {
   /** "create" abre el form vacío; "edit" precarga los valores del slide. */
@@ -227,16 +227,16 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                 </h4>
               </div>
 
-              {/* Desktop (panorámico ~2.48:1, igual que el hero real) */}
+              {/* Desktop (panorámico ~3.66:1, igual que el hero real) */}
               <div class="space-y-2">
-                <span class={labelCls}>Imagen Horizontal Desktop (panorámico ~2.48:1)</span>
+                <span class={labelCls}>Imagen Horizontal Desktop (panorámico ~3.66:1)</span>
                 <div
                   preventdefault:dragover={true}
                   onDragOver$={() => (dragDesktop.value = true)}
                   onDragLeave$={() => (dragDesktop.value = false)}
                   onDrop$={$((ev) => onDrop(ev, "desktop"))}
                   class={[
-                    "relative group aspect-[1600/646] w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
+                    "relative group aspect-[2560/700] w-full rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     dragDesktop.value ? "border-brand-green bg-emerald-50/50 scale-[1.01]" : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
                   ]}
                   onClick$={() => desktopRef.value?.click()}
@@ -254,7 +254,7 @@ export const SlideFormModal = component$<SlideFormModalProps>(({ mode, slide, ne
                     <div class="flex flex-col items-center gap-2 text-slate-450 z-10">
                       <LuMonitor class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
                       <div class="text-xs font-bold text-slate-650">Arrastrá la imagen desktop aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto panorámico ~2.48:1 (marco real de la vista)</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto panorámico ~3.66:1 (marco real de la vista)</div>
                       <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">Buscar Archivo</span>
                     </div>
                   )}
