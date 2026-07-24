@@ -207,7 +207,7 @@ export default component$(() => {
         {/* 4. Terms Popup Modal Dialog Overlay */}
         {selectedTerms.value && (
           <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div class="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-6 animate-pulse-slow">
+            <div class="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-6 animate-scale-in">
               <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 class="text-lg font-display font-extrabold text-brand-green-dark uppercase tracking-wide">
                   Bases y Condiciones
