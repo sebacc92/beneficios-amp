@@ -136,6 +136,15 @@ export default component$(() => {
       ),
     },
     {
+      path: "/admin/sorteos",
+      label: "Sorteos",
+      icon: (
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 10-2-2c0 1.5 2 4 2 4zm0 0V6a2 2 0 112 2c0 1.5-2 4-2 4zm-9 5h18M5 8h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9a2 2 0 012-2z" />
+        </svg>
+      ),
+    },
+    {
       path: "/admin/slides",
       label: "Carrusel Hero",
       icon: (

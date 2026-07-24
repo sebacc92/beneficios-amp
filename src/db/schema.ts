@@ -220,6 +220,22 @@ export const galleryImages = sqliteTable("gallery_images", {
   createdAt: text("created_at").notNull(),
 });
 
+// --- Sorteos (Raffles) ---
+export const raffles = sqliteTable("raffles", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(), // HTML sanitizado (RichTextEditor)
+  prizes: text("prizes").notNull(), // JSON array de strings: ["Premio 1", "Premio 2", ...]
+  imageUrl: text("image_url").notNull(), // Desktop
+  imageMobile: text("image_mobile"), // Mobile (opcional, cae a imageUrl si no está)
+  drawDate: text("draw_date").notNull(), // Fecha del sorteo (YYYY-MM-DD)
+  terms: text("terms"), // Bases y condiciones (texto plano)
+  winnerName: text("winner_name"), // Se completa manualmente al finalizar
+  isActive: integer("is_active").default(1).notNull(), // 1 = vigente, 0 = finalizado
+  orderIndex: integer("order_index").default(0).notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 // --- Coupon System ---
 export const coupons = sqliteTable("coupons", {
   id: text("id").primaryKey(),
