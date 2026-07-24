@@ -498,59 +498,47 @@ export default component$(() => {
                 </button>
               </div>
 
-              {/* Mock grid to show structure */}
+              {/* Mock: misma card blanca (BenefitCard) que se usa en todo el sitio,
+                  en fila horizontal debajo del título, tal como se ve en la home real. */}
               <div class="border-t border-slate-800/80 pt-4 mt-3">
                 <span class="text-[9px] text-slate-500 font-extrabold tracking-widest uppercase block mb-3">Beneficios Relacionados (Vista Previa)</span>
-                
+
                 {previewBenefits.value.length > 0 ? (
-                  <div class="grid grid-cols-2 gap-3">
+                  <div class="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
                     {previewBenefits.value.map((benefit) => {
                       const discountText = benefit.resumen.replace("Descuento del", "").trim();
                       const isLongDiscount = discountText.length > 12;
 
                       return (
-                        <div key={benefit.id} class="group flex flex-col justify-between bg-slate-950/40 border border-white/5 rounded-2xl p-3 space-y-2.5 relative">
-                          <div class="space-y-2">
-                            {/* Image Container */}
-                            <div class="relative h-16 rounded-xl bg-slate-950/80 border border-white/5 flex items-center justify-center p-1.5">
-                              {benefit.imagen ? (
-                                <img
-                                  src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
-                                  alt={benefit.titulo}
-                                  class="w-full h-full object-contain"
-                                  width={100}
-                                  height={56}
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <span class="text-[8px] font-bold text-slate-650 uppercase">AMP+</span>
-                              )}
-                              
-                              {/* Overlay discount tag */}
-                              <div class="absolute bottom-1 right-1">
-                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[8px] font-black bg-brand-gold text-slate-950 border border-white/10">
-                                  {isLongDiscount ? "Promo" : discountText}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Long discount tag rendered below image */}
-                            {isLongDiscount && (
-                              <div class="flex items-center space-x-1 bg-brand-gold/10 border border-brand-gold/20 rounded-lg px-1.5 py-0.5 w-fit">
-                                <span class="text-brand-gold text-[8px] font-black uppercase tracking-wider line-clamp-1 leading-none">
-                                  {discountText}
-                                </span>
-                              </div>
+                        <div key={benefit.id} class="w-[120px] flex-shrink-0 bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                          {/* Image Container (cuadrado, fondo blanco, como BenefitCard real) */}
+                          <div class="relative aspect-square bg-white flex items-center justify-center p-2.5">
+                            {benefit.imagen ? (
+                              <img
+                                src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`}
+                                alt={benefit.titulo}
+                                class="max-w-full max-h-full object-contain"
+                                width={100}
+                                height={100}
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span class="text-[8px] font-bold text-slate-400 uppercase">AMP+</span>
                             )}
-
-                            <div class="text-left">
-                              <span class="text-[8px] font-extrabold text-brand-gold uppercase tracking-wider block truncate">
-                                {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                              </span>
-                              <span class="text-[10px] font-bold text-slate-200 line-clamp-1 block truncate mt-0.5">
-                                {benefit.titulo}
+                            <div class="absolute bottom-1 right-1">
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[8px] font-black bg-brand-gold text-slate-950 border border-white/10">
+                                {isLongDiscount ? "Promo" : discountText}
                               </span>
                             </div>
+                          </div>
+
+                          <div class="px-2.5 py-2 text-left border-t border-slate-100">
+                            <span class="text-[7px] font-extrabold text-slate-500 uppercase tracking-wider block truncate">
+                              {benefit.ubicacion[0]?.descripcion || "La Plata"}
+                            </span>
+                            <span class="text-[9px] font-bold text-slate-800 line-clamp-1 block truncate mt-0.5">
+                              {benefit.titulo}
+                            </span>
                           </div>
                         </div>
                       );

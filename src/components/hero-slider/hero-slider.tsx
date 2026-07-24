@@ -88,20 +88,20 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
                 height={600}
               />
             </picture>
-            <div class="absolute bottom-12 left-6 md:left-14 lg:left-20 z-20 max-w-2xl text-white text-left animate-fade-in-up">
-              <span class="inline-flex items-center px-5 py-2 rounded-full text-[12px] font-black bg-brand-gold text-brand-green-dark mb-4 shadow-lg tracking-widest uppercase border border-white/10">
+            <div class="absolute bottom-6 md:bottom-8 left-5 md:left-10 lg:left-14 z-20 max-w-2xl text-white text-left animate-fade-in-up">
+              <span class="inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black bg-brand-gold text-brand-green-dark mb-2.5 shadow-lg tracking-widest uppercase border border-white/10">
                 {slide.preTitle || "Exclusivo AMP+"}
               </span>
-              <h2 class="text-5xl md:text-6xl font-display font-black tracking-tight drop-shadow-md text-white mb-3 leading-none">
+              <h2 class="text-2xl sm:text-3xl md:text-4xl font-display font-black tracking-tight drop-shadow-md text-white mb-1.5 leading-none">
                 {slide.title}
               </h2>
-              <p class="text-slate-100 text-base md:text-lg drop-shadow font-medium max-w-xl leading-relaxed">
+              <p class="text-slate-100 text-xs md:text-sm drop-shadow font-medium max-w-xl leading-relaxed">
                 {slide.subtitle || "Presentá tu credencial digital y disfrutá de los mejores descuentos."}
               </p>
               {slide.buttonText && (
                 <a
                   href={slide.buttonLink || "/"}
-                  class="inline-flex items-center justify-center mt-5 px-8 py-3.5 rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-sm font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  class="inline-flex items-center justify-center mt-3 px-6 py-2.5 rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-green-dark text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                 >
                   {slide.buttonText}
                 </a>

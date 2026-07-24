@@ -1,4 +1,4 @@
-import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$, $ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, type DocumentLink, server$ } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded, ensureGalleryTable, ensureMerchantRequestsTable } from "~/server/cache";
 import { useLayoutUser } from "./layout";
@@ -7,7 +7,6 @@ import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/benefit-card/benefit-card";
 import { HeroSlider } from "~/components/hero-slider/hero-slider";
 import { CuratedRow } from "~/components/curated-row/curated-row";
-import { benefitDiscounts, formatDiscountBadge, formatDiscountChip } from "~/utils/discount";
 import { EditorialCards } from "~/components/editorial-cards/editorial-cards";
 import { SponsorMarquee } from "~/components/sponsor-marquee/sponsor-marquee";
 import { PopupModal } from "~/components/popup-modal/popup-modal";
@@ -161,6 +160,13 @@ export default component$(() => {
   const { searchResult, filters, curatedRows, slides, settings } = data.value;
   const { data: benefits } = searchResult;
 
+  const scrollCampaignRow = $((direction: "left" | "right") => {
+    const container = document.getElementById("campaign-container");
+    if (container) {
+      container.scrollBy({ left: direction === "left" ? -340 : 340, behavior: "smooth" });
+    }
+  });
+
   return (
     <div class="relative min-h-screen bg-slate-50">
       {/* h1 de la página (visualmente oculto): el diseño arranca con el carrusel
@@ -204,144 +210,92 @@ export default component$(() => {
             variant="new"
           />
 
-          {/* Campaign Spotlight */}
-          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (() => {
-            const cafecitosCount = curatedRows.cafecitos.length;
-            let gridColsClass = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"; // default fallback
-            if (cafecitosCount === 1) {
-              gridColsClass = "grid-cols-1 max-w-sm mx-auto";
-            } else if (cafecitosCount === 2) {
-              gridColsClass = "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto";
-            } else if (cafecitosCount === 3) {
-              // 2 columnas en resoluciones medias (evita títulos truncados), 3 solo en pantallas grandes
-              gridColsClass = "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
-            } else {
-              gridColsClass = "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
-            }
+          {/* Campaign Spotlight: mismo componente BenefitCard que el resto del
+              sitio (bloque "Ver todos los beneficios" al pie de esta misma
+              página), para que las cards se vean grandes y consistentes en
+              vez de la versión chica/propia que había antes. Título y CTA
+              arriba, fila de beneficios abajo (scroll horizontal, como en
+              CuratedRow) para soportar hasta 8 beneficios seleccionados. */}
+          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
+            <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left animate-fade-in-up">
+              <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800/80 rounded-4xl sm:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-2xl relative overflow-hidden">
+                <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
+                <div class="absolute -left-16 -bottom-16 w-60 h-60 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
 
-            return (
-              <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left animate-fade-in-up">
-                <div class="bg-gradient-to-br from-[#0B1527] to-[#020617] border border-slate-800/80 rounded-4xl sm:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-2xl flex flex-col xl:flex-row xl:items-stretch gap-8 xl:gap-12 relative overflow-hidden">
-                  <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
-                  <div class="absolute -left-16 -bottom-16 w-60 h-60 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
-                  
-                  {/* Left Column: Spotlight Info */}
-                  <div class="w-full xl:w-[320px] xl:shrink-0 flex flex-col justify-between space-y-6 relative z-10 text-white">
-                    <div class="space-y-5">
-                      {/* Tag pill */}
-                      <div class="inline-flex items-center space-x-2 bg-brand-gold/10 border border-brand-gold/20 rounded-full px-3.5 py-1.5 w-fit">
-                        <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
-                        <span class="text-[10px] font-black tracking-widest text-brand-gold uppercase">
-                          {settings?.campaignTag || "Selección Especial"}
-                        </span>
-                      </div>
-
-                      {/* Floating Emoji card + Title */}
-                      <div class="space-y-4">
-                        <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-lg shadow-black/25 animate-float">
-                          <span>{settings?.campaignEmoji || "🎁"}</span>
-                        </div>
-                        <h2 class="text-3xl sm:text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight text-balance">
-                          {settings?.campaignTitle || "Especial de Temporada"}
-                        </h2>
-                      </div>
-
-                      <p class="text-sm text-slate-400 font-medium leading-relaxed max-w-md">
-                        {settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}
-                      </p>
+                {/* Header: tag, emoji + título, subtítulo y CTA arriba */}
+                <div class="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
+                  <div class="space-y-4 max-w-2xl text-white">
+                    <div class="inline-flex items-center space-x-2 bg-brand-gold/10 border border-brand-gold/20 rounded-full px-3.5 py-1.5 w-fit">
+                      <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
+                      <span class="text-[10px] font-black tracking-widest text-brand-gold uppercase">
+                        {settings?.campaignTag || "Selección Especial"}
+                      </span>
                     </div>
 
-                    <div class="pt-2">
-                      <Link
-                        href="/beneficios?campana=true"
-                        class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-                      >
-                        <span>Ver todos</span>
-                        <span class="transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
-                      </Link>
+                    <div class="flex items-center gap-4">
+                      <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-lg shadow-black/25 animate-float">
+                        <span>{settings?.campaignEmoji || "🎁"}</span>
+                      </div>
+                      <h2 class="text-3xl sm:text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight text-balance">
+                        {settings?.campaignTitle || "Especial de Temporada"}
+                      </h2>
                     </div>
+
+                    <p class="text-sm text-slate-400 font-medium leading-relaxed max-w-md">
+                      {settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}
+                    </p>
                   </div>
 
-                  {/* Right Column: Dynamic grid of benefits */}
-                  <div class="w-full xl:flex-1 relative z-10 flex items-center">
-                    <div class={`grid gap-5 sm:gap-6 w-full ${gridColsClass}`}>
-                      {curatedRows.cafecitos.map((benefit: Benefit) => {
-                        const discounts = benefitDiscounts(benefit);
-                        const discountText = formatDiscountBadge(discounts) || "Beneficio";
-                        const discountFull = formatDiscountChip(discounts) || discountText;
-                        const isLongDiscount = discountText.length > 12;
+                  <div class="flex items-center gap-3 flex-shrink-0">
+                    <Link
+                      href="/beneficios?campana=true"
+                      class="group inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light hover:from-white hover:to-white text-slate-950 font-black uppercase tracking-wider text-xs transition-all duration-350 shadow-lg hover:shadow-brand-gold/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                    >
+                      <span>Ver todos</span>
+                      <span class="transform group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
+                    </Link>
 
-                        return (
-                          <Link
-                            key={`coffee-${benefit.id}`}
-                            href={`/beneficio/${benefit.url}`}
-                            class="group flex flex-col justify-between h-full bg-slate-950/40 hover:bg-slate-900/70 border border-white/5 hover:border-brand-gold/30 rounded-3xl p-4 transition-all duration-350 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(212,163,23,0.12)] relative"
-                          >
-                            <div class="flex h-full flex-col">
-                              {/* Card Image Container */}
-                              <div class="relative aspect-video rounded-2xl overflow-hidden bg-white flex items-center justify-center p-3">
-                                {benefit.imagen ? (
-                                  <img
-                                    src={
-                                      benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/')
-                                        ? benefit.imagen
-                                        : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`
-                                    }
-                                    alt={benefit.titulo}
-                                    class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-500"
-                                    width={200}
-                                    height={112}
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>
-                                )}
-
-                                {/* Marco consistente sobre fondo blanco para integrar los logos con la tarjeta */}
-                                <div class="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
-
-                                {/* Overlay discount badge (only if short) */}
-                                <div class="absolute bottom-2 right-2 z-10">
-                                  <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">
-                                    {isLongDiscount ? "Promo" : discountText}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Bloque de texto/badges: altura reservada y alineado abajo para que los títulos coincidan */}
-                              <div class="mt-3.5 flex flex-1 flex-col justify-end gap-2 min-h-[6.5rem]">
-                                {/* Long discount tag: cada elemento en su línea, permite 2 líneas sin pisar la ubicación */}
-                                {isLongDiscount && (
-                                  <div class="flex items-start gap-1.5 self-start bg-brand-gold/10 border border-brand-gold/20 rounded-xl px-2.5 py-1.5">
-                                    <span class="text-brand-gold text-[10px] leading-tight mt-px">✨</span>
-                                    <span class="text-brand-gold text-[10px] font-extrabold uppercase tracking-wide line-clamp-2 leading-tight">
-                                      {discountFull}
-                                    </span>
-                                  </div>
-                                )}
-
-                                <div class="text-left space-y-1">
-                                  {/* La ubicación es una etiqueta, no un encabezado: iba como <h4>
-                                      antes del <h3> del título (bajo el <h2> de la sección), lo que
-                                      producía un salto h2→h4. Se baja a <p> para respetar la jerarquía. */}
-                                  <p class="text-[10px] font-extrabold text-brand-gold uppercase tracking-wider line-clamp-1">
-                                    {benefit.ubicacion[0]?.descripcion || "La Plata"}
-                                  </p>
-                                  <h3 class="text-sm font-display font-bold text-slate-200 group-hover:text-white line-clamp-2 leading-snug min-h-[2.5rem]">
-                                    {benefit.titulo}
-                                  </h3>
-                                </div>
-                              </div>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
+                    {curatedRows.cafecitos.length > 2 && (
+                      <div class="hidden sm:flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick$={() => scrollCampaignRow("left")}
+                          class="w-9 h-9 rounded-full border border-white/15 bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all active:scale-90 cursor-pointer"
+                          aria-label="Anterior"
+                        >
+                          <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick$={() => scrollCampaignRow("right")}
+                          class="w-9 h-9 rounded-full border border-white/15 bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all active:scale-90 cursor-pointer"
+                          aria-label="Siguiente"
+                        >
+                          <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </section>
-            );
-          })()}
+
+                {/* Fila de beneficios: misma BenefitCard que el resto del sitio */}
+                <div
+                  id="campaign-container"
+                  class="relative z-10 flex items-stretch space-x-5 sm:space-x-6 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory"
+                >
+                  {curatedRows.cafecitos.map((benefit: Benefit) => (
+                    <div key={`coffee-${benefit.id}`} class="w-[260px] sm:w-[300px] flex-shrink-0 snap-start select-none">
+                      <BenefitCard benefit={benefit} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Editorial Cards + Modals */}
           <EditorialCards user={user} />
