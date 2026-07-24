@@ -128,7 +128,7 @@ export default component$(() => {
   });
 
   return (
-    <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
+    <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800">
       {/* Header Section */}
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
