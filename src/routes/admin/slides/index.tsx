@@ -54,59 +54,23 @@ export const useCreateSlideAction = routeAction$(
       // Handle Desktop Image
       if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
         const file = data.imageDesktop as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-desk-${Date.now()}.${extension}`;
-        
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedDesktopUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
 
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedDesktopUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedDesktopUrl = blob.url;
       }
 
       // Handle Mobile Image
       if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
         const file = data.imageMobile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-mob-${Date.now()}.${extension}`;
-        
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedMobileUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
 
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedMobileUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedMobileUrl = blob.url;
       }
 
       if (!uploadedDesktopUrl) {
@@ -171,59 +135,23 @@ export const useUpdateSlideAction = routeAction$(
       // Handle Desktop Image
       if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
         const file = data.imageDesktop as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-desk-${Date.now()}.${extension}`;
 
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedDesktopUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedDesktopUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedDesktopUrl = blob.url;
       }
 
       // Handle Mobile Image
       if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
         const file = data.imageMobile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `slide-mob-${Date.now()}.${extension}`;
 
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedMobileUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedMobileUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedMobileUrl = blob.url;
       }
 
       await db.update(heroSlidesTable).set({

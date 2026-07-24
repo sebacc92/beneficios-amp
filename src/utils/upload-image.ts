@@ -29,21 +29,13 @@ export const uploadImageDataUrl = server$(async function (
 
     const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
     const token = process.env.BLOB_READ_WRITE_TOKEN || this.env.get("BLOB_READ_WRITE_TOKEN");
+    if (!token) return { error: "Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN)." };
 
-    if (token) {
-      // Import dinámico: @vercel/blob es server-only (arrastra crypto de Node). Si
-      // se importa estático, entra al bundle del cliente y rompe otros chunks.
-      const { put } = await import("@vercel/blob");
-      const blob = await put(fileName, bytes, { access: "public", token });
-      return { url: blob.url };
-    }
-
-    // Fallback local (dev sin Blob configurado).
-    const fsModule = await import("fs/promises");
-    const uploadsDir = `${process.cwd()}/public/uploads`;
-    await fsModule.mkdir(uploadsDir, { recursive: true });
-    await fsModule.writeFile(`${uploadsDir}/${fileName}`, bytes);
-    return { url: `/uploads/${fileName}` };
+    // Import dinámico: @vercel/blob es server-only (arrastra crypto de Node). Si
+    // se importa estático, entra al bundle del cliente y rompe otros chunks.
+    const { put } = await import("@vercel/blob");
+    const blob = await put(fileName, bytes, { access: "public", token });
+    return { url: blob.url };
   } catch (err: any) {
     console.error("[uploadImageDataUrl] falló la subida:", err?.message || err);
     return { error: "No se pudo subir la imagen. Probá de nuevo." };
@@ -73,19 +65,11 @@ export const uploadFileDataUrl = server$(async function (
     const safeName = (filename || "archivo").replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileName = `${prefix}-${Date.now()}-${safeName}`;
     const token = process.env.BLOB_READ_WRITE_TOKEN || this.env.get("BLOB_READ_WRITE_TOKEN");
+    if (!token) return { error: "Almacenamiento de archivos no configurado (BLOB_READ_WRITE_TOKEN)." };
 
-    if (token) {
-      const { put } = await import("@vercel/blob");
-      const blob = await put(fileName, bytes, { access: "public", token });
-      return { url: blob.url };
-    }
-
-    // Fallback local (dev sin Blob configurado).
-    const fsModule = await import("fs/promises");
-    const uploadsDir = `${process.cwd()}/public/uploads`;
-    await fsModule.mkdir(uploadsDir, { recursive: true });
-    await fsModule.writeFile(`${uploadsDir}/${fileName}`, bytes);
-    return { url: `/uploads/${fileName}` };
+    const { put } = await import("@vercel/blob");
+    const blob = await put(fileName, bytes, { access: "public", token });
+    return { url: blob.url };
   } catch (err: any) {
     console.error("[uploadFileDataUrl] falló la subida:", err?.message || err);
     return { error: "No se pudo subir el archivo. Probá de nuevo." };

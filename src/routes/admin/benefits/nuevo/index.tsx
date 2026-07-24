@@ -79,12 +79,7 @@ export const useCreateBenefitAction = routeAction$(
         }
 
         if (!imageUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
+          throw new Error("No se pudo subir la imagen. Revisá la configuración de almacenamiento e intentá de nuevo.");
         }
       } else if (data.imageFile && typeof data.imageFile === "object" && (data.imageFile as Blob).size > 0) {
         const file = data.imageFile as File;
@@ -106,14 +101,7 @@ export const useCreateBenefitAction = routeAction$(
         }
 
         if (!imageUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
+          throw new Error("No se pudo subir la imagen. Revisá la configuración de almacenamiento e intentá de nuevo.");
         }
       } else if (
         data.principalUrl &&
@@ -153,12 +141,7 @@ export const useCreateBenefitAction = routeAction$(
         }
 
         if (!imageMobileUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageMobileUrl = `/uploads/${fileName}`;
+          throw new Error("No se pudo subir la imagen mobile. Revisá la configuración de almacenamiento e intentá de nuevo.");
         }
       } else if (data.imageMobileFile && typeof data.imageMobileFile === "object" && (data.imageMobileFile as Blob).size > 0) {
         const file = data.imageMobileFile as File;
@@ -180,14 +163,7 @@ export const useCreateBenefitAction = routeAction$(
         }
 
         if (!imageMobileUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageMobileUrl = `/uploads/${fileName}`;
+          throw new Error("No se pudo subir la imagen mobile. Revisá la configuración de almacenamiento e intentá de nuevo.");
         }
       } else if (
         data.mobileUrl &&
@@ -239,11 +215,7 @@ export const useCreateBenefitAction = routeAction$(
                   }
                 }
                 if (!galleryUploaded) {
-                  const uploadsDir = `${process.cwd()}/public/uploads`;
-                  const fsModule = await import("fs/promises");
-                  await fsModule.mkdir(uploadsDir, { recursive: true });
-                  await fsModule.writeFile(`${uploadsDir}/${fileName}`, bytes);
-                  urls.push(`/uploads/${fileName}`);
+                  throw new Error("No se pudo subir una imagen de la galería. Revisá la configuración de almacenamiento e intentá de nuevo.");
                 }
               } else if (item.startsWith("http") || item.startsWith("/")) {
                 urls.push(item);

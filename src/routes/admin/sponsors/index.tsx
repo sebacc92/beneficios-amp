@@ -36,7 +36,6 @@ export const useCreateSponsorAction = routeAction$(
       const uuid = "sp-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
       let uploadedImageUrl = "";
-      let isBlob = false;
       const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
@@ -50,50 +49,18 @@ export const useCreateSponsorAction = routeAction$(
         
         const fileName = `sponsor-${Date.now()}.webp`;
 
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
+        uploadedImageUrl = blob.url;
 
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         const extension = file.name.split(".").pop() || "png";
         const fileName = `sponsor-${Date.now()}.${extension}`;
 
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedImageUrl = blob.url;
       }
 
       if (!uploadedImageUrl) {
@@ -138,7 +105,6 @@ export const useUpdateSponsorAction = routeAction$(
     try {
       const db = getDB(requestEvent);
       let uploadedImageUrl = data.imageUrl;
-      let isBlob = false;
       const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
 
       if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
@@ -152,50 +118,18 @@ export const useUpdateSponsorAction = routeAction$(
 
         const fileName = `sponsor-${Date.now()}.webp`;
 
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
+        uploadedImageUrl = blob.url;
       } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
 
         const extension = file.name.split(".").pop() || "png";
         const fileName = `sponsor-${Date.now()}.${extension}`;
 
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedImageUrl = blob.url;
       }
 
       await db

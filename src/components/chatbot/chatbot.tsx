@@ -153,7 +153,9 @@ export const Chatbot = component$(() => {
           bottomPos,
           state.isOpen
             ? "border-slate-700 bg-slate-900 text-white p-3"
-            : "border-brand-gold bg-brand-green text-white p-3.5",
+            : state.avatarUrl
+              ? "border-brand-gold bg-brand-green text-white p-0"
+              : "border-brand-gold bg-brand-green text-white p-3.5",
         ]}
         aria-label="Abrir asistente virtual"
       >
@@ -174,6 +176,14 @@ export const Chatbot = component$(() => {
               d="M6 18L18 6M6 6l12 12"
             />
           </svg>
+        ) : state.avatarUrl ? (
+          <img
+            src={state.avatarUrl}
+            alt="Asistente virtual"
+            width={64}
+            height={64}
+            class="h-full w-full object-cover"
+          />
         ) : (
           <svg
             xmlns="http://www.w3.org/2000/svg"

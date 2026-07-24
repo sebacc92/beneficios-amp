@@ -26,19 +26,15 @@ export const useUpdatePopupAction = routeAction$(
 
       if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
         const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
         const extension = file.name.split(".").pop() || "png";
         const fileName = `popup-promo-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
 
-        uploadedImageUrl = `/uploads/${fileName}`;
+        const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
+        if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
+
+        const { put } = await import("@vercel/blob");
+        const blob = await put(fileName, file, { access: "public", token });
+        uploadedImageUrl = blob.url;
       }
 
       const settings = await getSettings(requestEvent);

@@ -35,28 +35,13 @@ export const useAdminGalleryLoader = routeLoader$(async (event) => {
   }
 });
 
-// --- Helper de subida (mismo patrón Blob + fallback fs que admin/slides) ---
+// --- Helper de subida a Vercel Blob ---
 async function uploadGalleryFile(file: File, token: string | undefined): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  if (!token) throw new Error("Almacenamiento de imágenes no configurado (BLOB_READ_WRITE_TOKEN).");
   const extension = file.name.split(".").pop() || "png";
   const fileName = `gallery-${Date.now()}.${extension}`;
-
-  if (token) {
-    try {
-      const blob = await put(fileName, file, { access: "public", token });
-      return blob.url;
-    } catch (e) {
-      console.error("Vercel Blob failed, fallback to fs", e);
-    }
-  }
-
-  const uploadsDir = `${process.cwd()}/public/uploads`;
-  const fsModule = await import("fs/promises");
-  await fsModule.mkdir(uploadsDir, { recursive: true });
-  const filePath = `${uploadsDir}/${fileName}`;
-  await fsModule.writeFile(filePath, buffer);
-  return `/uploads/${fileName}`;
+  const blob = await put(fileName, file, { access: "public", token });
+  return blob.url;
 }
 
 // --- ACTIONS ---
