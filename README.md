@@ -1,109 +1,60 @@
-# Qwik City App ⚡️
+# Beneficios LPRC
 
-- [Qwik Docs](https://qwik.dev/)
-- [Discord](https://qwik.dev/chat)
-- [Qwik GitHub](https://github.com/QwikDev/qwik)
-- [@QwikDev](https://twitter.com/QwikDev)
-- [Vite](https://vitejs.dev/)
+Portal de beneficios de La Plata Rugby Club, construido con Qwik City y Tailwind CSS.
 
----
+## Cloudflare Workers
 
-## Project Structure
+- Cuenta: **INDESIGN** (`bcbac71e966ee9b5a273922d06ac70f5`).
+- Worker: `beneficios-lprc`.
+- URL: https://beneficios-lprc.indesign-bcb.workers.dev
+- Archivos: R2 `beneficios-lprc-media`, binding `MEDIA`, servidos por `/media/`.
+- Base de datos: **Turso/libSQL existente**. El despliegue no crea ni reemplaza la base.
 
-This project is using Qwik with [QwikCity](https://qwik.dev/qwikcity/overview/). QwikCity is just an extra set of tools on top of Qwik to make it easier to build a full site, including directory-based routing, layouts, and more.
+Se utiliza el adaptador Cloudflare de Qwik con Static Assets de Workers, según la [guía de Qwik](https://qwik.dev/docs/deployments/cloudflare-workers/).
 
-Inside your project, you'll see the following directory structure:
+## Desarrollo y validación
 
-```
-├── public/
-│   └── ...
-└── src/
-    ├── components/
-    │   └── ...
-    └── routes/
-        └── ...
-```
-
-- `src/routes`: Provides the directory-based routing, which can include a hierarchy of `layout.tsx` layout files, and an `index.tsx` file as the page. Additionally, `index.ts` files are endpoints. Please see the [routing docs](https://qwik.dev/qwikcity/routing/overview/) for more info.
-
-- `src/components`: Recommended directory for components.
-
-- `public`: Any static assets, like images, can be placed in the public directory. Please see the [Vite public directory](https://vitejs.dev/guide/assets.html#the-public-directory) for more info.
-
-## Add Integrations and deployment
-
-Use the `pnpm qwik add` command to add additional integrations. Some examples of integrations includes: Cloudflare, Netlify or Express Server, and the [Static Site Generator (SSG)](https://qwik.dev/qwikcity/guides/static-site-generation/).
-
-```shell
-pnpm qwik add # or `pnpm qwik add`
-```
-
-## Development
-
-Development mode uses [Vite's development server](https://vitejs.dev/). The `dev` command will server-side render (SSR) the output during development.
-
-```shell
-npm start # or `pnpm start`
-```
-
-> Note: during dev mode, Vite may request a significant number of `.js` files. This does not represent a Qwik production build.
-
-## Preview
-
-The preview command will create a production build of the client modules, a production build of `src/entry.preview.tsx`, and run a local server. The preview server is only for convenience to preview a production build locally and should not be used as a production server.
-
-```shell
-pnpm preview # or `pnpm preview`
-```
-
-## Production
-
-The production build will generate client and server modules by running both client and server build commands. The build command will use Typescript to run a type check on the source code.
-
-```shell
-pnpm build # or `pnpm build`
-```
-
-## Vercel Edge
-
-This starter site is configured to deploy to [Vercel Edge Functions](https://vercel.com/docs/concepts/functions/edge-functions), which means it will be rendered at an edge location near to your users.
-
-## Installation
-
-The adaptor will add a new `vite.config.ts` within the `adapters/` directory, and a new entry file will be created, such as:
-
-```
-└── adapters/
-    └── vercel-edge/
-        └── vite.config.ts
-└── src/
-    └── entry.vercel-edge.tsx
-```
-
-Additionally, within the `package.json`, the `build.server` script will be updated with the Vercel Edge build.
-
-## Production build
-
-To build the application for production, use the `build` command, this command will automatically run `pnpm build.server` and `pnpm build.client`:
-
-```shell
+```sh
+corepack enable pnpm
+pnpm install --frozen-lockfile
+pnpm dev
 pnpm build
+pnpm test:ux
+pnpm deploy:dry-run
+pnpm serve
 ```
 
-[Read the full guide here](https://github.com/QwikDev/qwik/blob/main/starters/adapters/vercel-edge/README.md)
+`pnpm dev` usa Vite y `.env.local`. Para probar cargas de archivos y el runtime de Cloudflare, usar `pnpm build` seguido de `pnpm serve`, con secretos locales en `.dev.vars` (ignorado por Git).
 
-## Dev deploy
+Secretos requeridos: `PRIVATE_TURSO_DATABASE_URL`, `PRIVATE_TURSO_AUTH_TOKEN` y `OPENAI_API_KEY` para el chatbot. `COUPON_VALIDATOR_PIN` habilita la validación de cupones por comercios; sin él solo pueden validar los administradores autenticados. No copiar tokens de Vercel ni credenciales de otros proyectos.
 
-To deploy the application for development:
+Las notificaciones usan `PUBLIC_VAPID_KEY` (clave pública P-256 sin comprimir en base64url) y `PRIVATE_VAPID_KEY` (JWK privado codificado en base64url). Conservar el par existente en `.dev.vars`, con permisos `600`, y cargarlo junto con el código mediante `--secrets-file`. Nunca regenerarlo en cada despliegue: las suscripciones del navegador dependen de esa clave pública. Si faltan las claves, la interfaz informa que las notificaciones no están disponibles.
 
-```shell
+La activación requiere una acción y permiso del usuario; la suscripción queda asociada a su cuenta y dispositivo en `push_subscriptions`. La prueba envía un Web Push sin datos personales y el service worker muestra un aviso genérico. No hay envíos automáticos ni tareas programadas. El service worker no guarda páginas privadas ni intercepta navegación.
+
+`pnpm test:ux` verifica geolocalización, DNI, generación e historial de cupones, VAPID y permisos con SQLite en memoria y servicios de envío simulados. No usa la base de producción.
+
+En `/admin/benefits`, **Agregar** junto a Categoría, Ubicación u Oferta / Descuento permite guardar nuevas opciones al crear o editar un beneficio. La opción queda seleccionada sin perder lo escrito en el formulario y también está disponible en los filtros del catálogo y el mapa. Los nombres repetidos se reutilizan, ignorando mayúsculas y espacios adicionales. Ejecutar `pnpm migrate` antes de publicar esta función para crear la tabla `benefit_filter_options`.
+
+El guardado valida que cada opción exista y corresponda al campo seleccionado. El panel incluye navegación móvil; el catálogo ofrece carruseles con controles accesibles, paginación con rango de resultados y acciones contextuales cuando no hay coincidencias. Los enlaces para saltar al contenido facilitan la navegación con teclado y las animaciones respetan la preferencia de movimiento reducido.
+
+## Despliegue
+
+Verificar que el perfil `indesign` corresponde a la cuenta indicada. El `account_id` está fijado en `wrangler.jsonc`.
+
+```sh
+pnpm exec wrangler auth activate indesign
+pnpm exec wrangler whoami
 pnpm deploy
 ```
 
-Notice that you might need a [Vercel account](https://docs.Vercel.com/get-started/) in order to complete this step!
+En el primer despliegue se pueden subir los secretos junto al código usando un archivo protegido que contenga solo las claves de este proyecto:
 
-## Production deploy
+```sh
+pnpm build
+pnpm exec wrangler deploy --profile indesign --env-file /dev/null --secrets-file .dev.vars
+```
 
-The project is ready to be deployed to Vercel. However, you will need to create a git repository and push the code to it.
+Los despliegues posteriores conservan los secretos existentes. Los archivos históricos de `public/uploads` siguen publicados como Static Assets; las cargas nuevas se guardan en R2.
 
-You can [deploy your site to Vercel](https://vercel.com/docs/concepts/deployments/overview) either via a Git provider integration or through the Vercel CLI.
+`pnpm cf-typegen` regenera los tipos de los bindings. `pnpm migrate` aplica la migración incremental de sesiones, suscripciones e índices a la base indicada en `.env.local`; revisar el destino antes de ejecutarla. El seed es una operación manual separada.

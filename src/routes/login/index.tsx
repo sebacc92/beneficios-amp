@@ -1,36 +1,60 @@
 import { component$, useSignal, $ } from "@builder.io/qwik";
-import {
-  type DocumentHead,
-  server$,
-} from "@builder.io/qwik-city";
+import { type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users } from "~/db/schema";
+import { createSession } from "~/server/auth";
+import { rateLimitByIp } from "~/server/rate-limit";
 import { LuLock } from "@qwikest/icons/lucide";
+import { isValidDni, normalizeDni } from "~/utils/dni";
 
 // Server-side login validation using server$
-export const loginUserServer = server$(async function(dni: string) {
-  const db = getDB(this);
-  const cleanDni = dni.trim();
+export const loginUserServer = server$(async function (dni: string) {
+  // Members authenticate with DNI alone, so throttling is the only thing standing
+  // between an attacker and enumerating the member base.
+  const limit = rateLimitByIp(this, "member-login", 10, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return {
+      success: false,
+      error: `Demasiados intentos. Probá de nuevo en ${Math.ceil(limit.retryAfter / 60)} minuto(s).`,
+    };
+  }
 
-  // Find user by DNI (stored in matricula field)
+  const cleanDni = normalizeDni(dni);
+  if (!isValidDni(cleanDni)) {
+    return {
+      success: false,
+      error:
+        "Ingresá un DNI de 5 a 9 números. Podés incluir puntos o espacios.",
+    };
+  }
+  const db = getDB(this);
+
+  // Find user by DNI (stored in numeroSocio field)
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.matricula, cleanDni))
+    .where(eq(users.numeroSocio, cleanDni))
     .limit(1);
 
   if (!user) {
-    return { success: false, error: "El DNI ingresado no se encuentra registrado." };
+    return {
+      success: false,
+      error: "El DNI ingresado no se encuentra registrado.",
+    };
   }
 
-  // Set cookie session (expires in 30 days)
-  this.cookie.set("session_token", user.id, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
+  // Admins must go through /admin/login with their password; a DNI alone is not
+  // enough to obtain an administrator session.
+  if (user.role === "admin") {
+    return {
+      success: false,
+      error:
+        "Las cuentas de administración ingresan desde /admin/login con su contraseña.",
+    };
+  }
+
+  await createSession(this, user.id);
 
   return { success: true };
 });
@@ -41,10 +65,12 @@ export default component$(() => {
   const isSubmitting = useSignal(false);
 
   const handleSubmit = $(async () => {
+    if (isSubmitting.value) return;
     errorMsg.value = "";
-    const dniVal = dni.value.trim();
-    if (dniVal.length < 5) {
-      errorMsg.value = "El DNI debe tener al menos 5 caracteres.";
+    const dniVal = normalizeDni(dni.value);
+    if (!isValidDni(dniVal)) {
+      errorMsg.value =
+        "Ingresá un DNI de 5 a 9 números. Podés incluir puntos o espacios.";
       return;
     }
 
@@ -67,7 +93,6 @@ export default component$(() => {
   return (
     <div class="bg-slate-50 min-h-[85vh] py-16 px-4 flex flex-col justify-center items-center font-sans">
       <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
-
         {/* Title branding */}
         <div class="text-center space-y-2">
           <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 mx-auto">
@@ -77,68 +102,90 @@ export default component$(() => {
             Iniciar Sesión
           </h1>
           <p class="text-xs sm:text-sm text-slate-400 font-medium">
-            Ingresá tu DNI para acceder al portal de beneficios y credencial digital.
+            Ingresá tu DNI para acceder al portal de beneficios y credencial
+            digital.
           </p>
         </div>
 
-        {/* Global Error message */}
-        {errorMsg.value && (
-          <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800 animate-fade-in shadow-sm">
-            ✗ {errorMsg.value}
-          </div>
-        )}
-
         {/* Form */}
-        <div class="space-y-5">
+        <form class="space-y-5" preventdefault:submit onSubmit$={handleSubmit}>
           <div class="space-y-1">
-            <label for="dni" class="text-xs font-bold text-slate-500 tracking-wider uppercase block">
-              DNI / Identificación
+            <label
+              for="dni"
+              class="text-xs font-bold text-slate-500 tracking-wider uppercase block"
+            >
+              DNI
             </label>
             <input
               type="text"
+              inputMode="numeric"
+              autocomplete="username"
+              autoCapitalize="off"
+              spellcheck={false}
               id="dni"
               bind:value={dni}
               required
-              placeholder="Ingresá tu número de DNI"
-              onKeyDown$={async (ev) => {
-                if (ev.key === "Enter") {
-                  await handleSubmit();
-                }
-              }}
+              maxLength={20}
+              placeholder="Ej.: 12.345.678"
+              aria-invalid={!!errorMsg.value}
+              aria-describedby={
+                errorMsg.value ? "dni-help dni-error" : "dni-help"
+              }
               class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all font-mono font-bold text-center"
             />
+            <p id="dni-help" class="text-xs text-slate-500 pt-1">
+              Con o sin puntos y espacios.
+            </p>
+            {errorMsg.value && (
+              <p
+                id="dni-error"
+                role="alert"
+                class="text-xs font-semibold text-red-700 pt-1"
+              >
+                {errorMsg.value}
+              </p>
+            )}
           </div>
 
           {/* Submit button */}
           <button
-            type="button"
-            onClick$={handleSubmit}
+            type="submit"
             disabled={isSubmitting.value}
             class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
           >
             {isSubmitting.value ? "Verificando..." : "Ingresar"}
           </button>
-        </div>
+        </form>
 
         {/* Foot link */}
         <div class="pt-6 border-t border-slate-100 text-center">
           <p class="text-xs sm:text-sm text-slate-400 font-semibold leading-relaxed">
             ¿No estás registrado? <br />
-            <span class="text-slate-500 font-bold block mt-1">El alta se gestiona a través de la administración de la AMP.</span>
+            <span class="text-slate-500 font-bold block mt-1">
+              El alta se gestiona a través de la administración de la LPRC.
+            </span>
+            <a
+              href="https://lprc.com.ar"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-block mt-3 font-bold text-brand-green underline underline-offset-4"
+            >
+              Contactar al club ↗
+            </a>
           </p>
         </div>
-
       </div>
     </div>
   );
 });
 
 export const head: DocumentHead = {
-  title: "Iniciar Sesión - Club de Beneficios AMP",
+  title: "Iniciar Sesión - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Ingresá con tu DNI al Club de Beneficios de la Agremiación Médica Platense para descargar tus cupones y credencial digital.",
+      content:
+        "Ingresá con tu DNI al Club de Beneficios de la La Plata Rugby Club para descargar tus cupones y credencial digital.",
     },
   ],
 };

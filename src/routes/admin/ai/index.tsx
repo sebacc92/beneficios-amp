@@ -2,6 +2,7 @@ import { component$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, Link, type DocumentHead } from "@builder.io/qwik-city";
 import { LuTrash2, LuImage } from "@qwikest/icons/lucide";
 import { getSessions, deleteSession, getSettings, saveSettings } from "~/server/chatbotDb";
+import { putImage } from "~/server/media";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -55,22 +56,7 @@ export const useUpdateAiSettingsAction = routeAction$(
     try {
       let uploadedImageUrl = data.aiAvatarUrl || null;
 
-      if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
-        const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `ai-avatar-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-
-        uploadedImageUrl = `/uploads/${fileName}`;
-      }
+      uploadedImageUrl = await putImage(requestEvent, "ai-avatar", undefined, data.image) ?? uploadedImageUrl;
 
       const settings = await getSettings(requestEvent);
       const updatedSettings = {
@@ -81,7 +67,7 @@ export const useUpdateAiSettingsAction = routeAction$(
         aiKnowledge: data.aiKnowledge || "",
         aiInitialGreeting: data.aiInitialGreeting || "",
         aiCallToAction: data.aiCallToAction || "",
-        whatsappNumber: data.whatsappNumber || "542214391300",
+        whatsappNumber: data.whatsappNumber || "5492214895777",
         aiAvatarUrl: uploadedImageUrl,
         updatedAt: new Date().toISOString(),
       };
@@ -139,7 +125,7 @@ export default component$(() => {
             </span>
           </div>
           <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-            Asistente Inteligente AMP+
+            Asistente Inteligente LPRC
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
             Gestioná el asistente virtual flotante, auditá sus chats o modificá sus reglas de conducta y conocimientos.
@@ -179,7 +165,7 @@ export default component$(() => {
           <div class="space-y-6 animate-in fade-in duration-300 text-left">
             <div>
               <h3 class="text-lg font-bold text-slate-800">Historial de Conversaciones Auditadas</h3>
-              <p class="text-xs text-slate-400">Revisá las consultas de los profesionales agremiados con la IA.</p>
+              <p class="text-xs text-slate-400">Revisá las consultas de los profesionales socios con la IA.</p>
             </div>
 
             <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -271,7 +257,7 @@ export default component$(() => {
                 <div class="flex items-center justify-between border-b border-slate-100 bg-brand-green px-8 py-5 text-white">
                   <div>
                     <h2 class="flex items-center gap-2 text-lg font-display font-extrabold text-brand-gold">
-                      🤖 AMP+ Asistente Virtual
+                      🤖 LPRC Asistente Virtual
                     </h2>
                     <p class="text-[10px] font-bold tracking-wider text-slate-200 uppercase mt-0.5">
                       Definición de personalidad, avatar y reglas de la IA.
@@ -325,7 +311,7 @@ export default component$(() => {
                       <input
                         type="text"
                         name="whatsappNumber"
-                        value={s.whatsappNumber || "542214391300"}
+                        value={s.whatsappNumber || "5492214895777"}
                         class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                       />
                     </div>
@@ -403,7 +389,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Asistente IA",
+  title: "LPRC Club - Asistente IA",
   meta: [
     {
       name: "description",

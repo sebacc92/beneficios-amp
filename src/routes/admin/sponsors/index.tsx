@@ -1,5 +1,5 @@
 import { component$, useSignal, $, useTask$ } from "@builder.io/qwik";
-import { put } from "@vercel/blob";
+import { putImage } from "~/server/media";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight } from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
@@ -36,65 +36,7 @@ export const useCreateSponsorAction = routeAction$(
       const uuid = "sp-" + Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
       let uploadedImageUrl = "";
-      let isBlob = false;
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
-        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const fileName = `sponsor-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-
-      } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
-        const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `sponsor-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-      }
+      uploadedImageUrl = await putImage(requestEvent, "sponsor", data.optimizedImage, data.image) ?? uploadedImageUrl;
 
       if (!uploadedImageUrl) {
         return requestEvent.fail(400, { message: "Debe proporcionar una imagen válida." });
@@ -138,65 +80,7 @@ export const useUpdateSponsorAction = routeAction$(
     try {
       const db = getDB(requestEvent);
       let uploadedImageUrl = data.imageUrl;
-      let isBlob = false;
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
-        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const fileName = `sponsor-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-      } else if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
-        const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `sponsor-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedImageUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-      }
+      uploadedImageUrl = await putImage(requestEvent, "sponsor", data.optimizedImage, data.image) ?? uploadedImageUrl;
 
       await db
         .update(sponsorsTable)
@@ -639,7 +523,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Sponsors",
+  title: "LPRC Club - Sponsors",
   meta: [
     {
       name: "description",

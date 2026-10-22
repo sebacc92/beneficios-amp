@@ -2,6 +2,55 @@ import { type RequestHandler } from "@builder.io/qwik-city";
 import OpenAI from "openai";
 import { getSettings, addMessageToSession } from "~/server/chatbotDb";
 import { getBenefits } from "~/server/cache";
+import { rateLimitByIp } from "~/server/rate-limit";
+
+// This endpoint spends money on every call, so the payload is bounded on all axes.
+const MAX_MESSAGES = 12;
+const MAX_MESSAGE_CHARS = 1500;
+const MAX_TOTAL_CHARS = 8000;
+// Per IP, per instance. See src/server/rate-limit.ts for the caveats.
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 5 * 60 * 1000;
+
+interface IncomingMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Rejects anything that is not a small, well-formed chat transcript. */
+function parseMessages(raw: unknown): { ok: true; messages: IncomingMessage[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { ok: false, error: "Faltan mensajes en la petición." };
+  }
+  if (raw.length > MAX_MESSAGES) {
+    return { ok: false, error: "La conversación es demasiado larga. Actualizá la página para reiniciarla." };
+  }
+
+  const messages: IncomingMessage[] = [];
+  let totalChars = 0;
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object") {
+      return { ok: false, error: "Formato de mensaje inválido." };
+    }
+    const { role, content } = item as { role?: unknown; content?: unknown };
+    if (typeof content !== "string" || content.trim().length === 0) {
+      return { ok: false, error: "Formato de mensaje inválido." };
+    }
+    if (content.length > MAX_MESSAGE_CHARS) {
+      return { ok: false, error: "El mensaje es demasiado largo." };
+    }
+    totalChars += content.length;
+    if (totalChars > MAX_TOTAL_CHARS) {
+      return { ok: false, error: "La conversación es demasiado larga. Actualizá la página para reiniciarla." };
+    }
+    // Only user/assistant turns are accepted: a client-supplied "system" message
+    // would let anyone rewrite the assistant's instructions.
+    messages.push({ role: role === "assistant" ? "assistant" : "user", content });
+  }
+
+  return { ok: true, messages };
+}
 
 export const onGet: RequestHandler = async (requestEvent) => {
   try {
@@ -22,7 +71,15 @@ export const onPost: RequestHandler = async (requestEvent) => {
   try {
     const { request, json } = requestEvent;
 
-    // 1. Get Chatbot Settings
+    // 1. Throttle before doing any work: this endpoint bills to our OpenAI key.
+    const limit = rateLimitByIp(requestEvent, "chat", RATE_LIMIT, RATE_WINDOW_MS);
+    if (!limit.allowed) {
+      requestEvent.headers.set("Retry-After", String(limit.retryAfter));
+      json(429, { error: "Estás enviando mensajes muy rápido. Esperá un momento e intentá de nuevo." });
+      return;
+    }
+
+    // 2. Get Chatbot Settings
     const settings = await getSettings(requestEvent);
     if (!settings.aiEnabled) {
       json(403, {
@@ -31,16 +88,25 @@ export const onPost: RequestHandler = async (requestEvent) => {
       return;
     }
 
-    // 2. Parse Request Body
-    const body = await request.json();
-    if (!body || !body.messages) {
-      json(400, { error: "Faltan mensajes en la petición." });
+    // 3. Parse and validate the request body
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      json(400, { error: "Petición inválida." });
       return;
     }
 
-    const { messages, sessionId } = body;
+    const parsed = parseMessages((body as { messages?: unknown }).messages);
+    if (!parsed.ok) {
+      json(400, { error: parsed.error });
+      return;
+    }
+    const messages = parsed.messages;
 
-    // 3. Save User Message to History
+    const rawSessionId = (body as { sessionId?: unknown }).sessionId;
+    const sessionId =
+      typeof rawSessionId === "string" && rawSessionId.length <= 64 ? rawSessionId : null;
+
+    // 4. Save User Message to History
     if (sessionId) {
       const lastUserMessage = messages[messages.length - 1];
       if (lastUserMessage && lastUserMessage.role === "user") {
@@ -52,7 +118,7 @@ export const onPost: RequestHandler = async (requestEvent) => {
       }
     }
 
-    // 4. Fetch Real-time Benefits from Cache for Context
+    // 5. Fetch Real-time Benefits from Cache for Context
     let formattedBenefitsList = "No hay beneficios disponibles actualmente.";
     try {
       const allBenefits = await getBenefits();
@@ -69,12 +135,12 @@ export const onPost: RequestHandler = async (requestEvent) => {
       console.error("Error loading benefits cache for AI context:", cacheErr);
     }
 
-    // 5. Build system prompt using custom settings + benefits context
-    const systemPrompt = `Eres el Asistente de Inteligencia Artificial oficial de la Agremiación Médica Platense (AMP).
-Tu propósito es ayudar a los médicos agremiados a encontrar beneficios, descuentos y comercios adheridos de manera amigable y eficiente.
+    // 6. Build system prompt using custom settings + benefits context
+    const systemPrompt = `Eres el Asistente de Inteligencia Artificial oficial de la La Plata Rugby Club (LPRC).
+Tu propósito es ayudar a los socios a encontrar beneficios, descuentos y comercios adheridos de manera amigable y eficiente.
 
-INFORMACIÓN GENERAL DE LA AMP (CONOCIMIENTO OBLIGATORIO):
-${settings.aiKnowledge || "- Identidad: Somos la Agremiación Médica Platense (AMP). Ofrecemos un club de beneficios exclusivo para nuestros médicos asociados."}
+INFORMACIÓN GENERAL DE LA LPRC (CONOCIMIENTO OBLIGATORIO):
+${settings.aiKnowledge || "- Identidad: Somos la La Plata Rugby Club (LPRC). Ofrecemos un club de beneficios exclusivo para nuestros socios."}
 
 REGLAS DE COMPORTAMIENTO Y TONO:
 - Tono: ${settings.aiTone || "Amigable, profesional, servicial y corporativo"}.
@@ -89,9 +155,9 @@ REGLA DE ENLACES:
 Cuando recomiendes un beneficio de la lista, incluye SIEMPRE su enlace en el formato markdown exacto, por ejemplo: [Ver beneficio de NombreComercio](/beneficio/url-comercio). Esto le permite al usuario hacer clic e ir directo a la ficha del comercio.
 
 CIERRE Y LLAMADO A LA ACCIÓN (CTA):
-${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre tu credencial médica digital AMP+, podés contactarnos por WhatsApp:"} ${settings.whatsappNumber || "542214391300"}`;
+${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre tu credencial digital LPRC, podés contactarnos por WhatsApp:"} ${settings.whatsappNumber || "5492214895777"}`;
 
-    // 6. Init OpenAI API
+    // 7. Init OpenAI API
     const openaiApiKey = requestEvent.env.get("OPENAI_API_KEY") || process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       console.error("Missing OPENAI_API_KEY env variable.");
@@ -101,17 +167,11 @@ ${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre
 
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
-    // 7. Execute AI Query
+    // 8. Execute AI Query
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((msg: any) => ({
-            role: msg.role === "assistant" ? "assistant" : "user",
-            content: msg.content,
-          })),
-        ],
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
         max_tokens: 450,
         temperature: 0.4,
       });
@@ -120,7 +180,7 @@ ${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre
         response.choices[0]?.message?.content ||
         "Lo lamento, en este momento tuve un inconveniente para procesar tu consulta. ¿Podrías intentar de nuevo?";
 
-      // 8. Save Assistant Reply to History
+      // 9. Save Assistant Reply to History
       if (sessionId) {
         try {
           await addMessageToSession(requestEvent, sessionId, "assistant", replyText);

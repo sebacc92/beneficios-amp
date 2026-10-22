@@ -2,6 +2,7 @@ import { component$, useSignal, $ } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuImage } from "@qwikest/icons/lucide";
 import { getSettings, saveSettings } from "~/server/chatbotDb";
+import { putImage } from "~/server/media";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -24,22 +25,7 @@ export const useUpdatePopupAction = routeAction$(
     try {
       let uploadedImageUrl = data.popupImageUrl || null;
 
-      if (data.image && typeof data.image === "object" && (data.image as Blob).size > 0) {
-        const file = data.image as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const uploadsDir = `${process.cwd()}/public/uploads`;
-        const fsModule = await import("fs/promises");
-        await fsModule.mkdir(uploadsDir, { recursive: true });
-
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `popup-promo-${Date.now()}.${extension}`;
-        const filePath = `${uploadsDir}/${fileName}`;
-        await fsModule.writeFile(filePath, buffer);
-
-        uploadedImageUrl = `/uploads/${fileName}`;
-      }
+      uploadedImageUrl = await putImage(requestEvent, "popup-promo", undefined, data.image) ?? uploadedImageUrl;
 
       const settings = await getSettings(requestEvent);
       const updatedSettings = {
@@ -79,7 +65,7 @@ export default component$(() => {
 
   // Popup Signals
   const popupTitleSig = useSignal(s.popupTitle || "¡Gran Beneficio Especial!");
-  const popupDescSig = useSignal(s.popupDescription || "Disfrutá de un descuento exclusivo en nuestra red médica adherida.");
+  const popupDescSig = useSignal(s.popupDescription || "Disfrutá de un descuento exclusivo en nuestra red de comercios adheridos.");
   const popupButtonTextSig = useSignal(s.popupButtonText || "Ver Detalles");
   const popupButtonLinkSig = useSignal(s.popupButtonLink || "/");
   const popupImageUrlSig = useSignal(s.popupImageUrl || "");
@@ -356,7 +342,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Popup Inicial",
+  title: "LPRC Popup Inicial",
   meta: [
     {
       name: "description",

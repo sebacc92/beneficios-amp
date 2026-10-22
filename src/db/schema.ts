@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // --- Settings & AI ---
 export const siteSettings = sqliteTable("site_settings", {
@@ -50,15 +50,50 @@ export const users = sqliteTable("users", {
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  matricula: text("matricula"),
-  role: text("role", { enum: ["admin", "member", "premium"] }).default("member").notNull(),
+  numeroSocio: text("numero_socio").unique(),
+  role: text("role", { enum: ["admin", "member", "premium"] })
+    .default("member")
+    .notNull(),
   avatarUrl: text("avatar_url"),
   premiumExpiresAt: text("premium_expires_at"), // ISO Date string
   createdAt: text("created_at").notNull(),
 });
 
-// --- Custom Benefits (CRUD) ---
-export const customBenefits = sqliteTable("custom_benefits", {
+// --- Auth Sessions ---
+// `id` stores the SHA-256 of the cookie token, never the token itself, so a leaked
+// database dump cannot be replayed as a valid session.
+export const sessions = sqliteTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id)
+    .notNull(),
+  createdAt: text("created_at").notNull(), // ISO Date string
+  expiresAt: text("expires_at").notNull(), // ISO Date string
+});
+
+// One browser subscription belongs to the member who explicitly enabled it.
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  endpoint: text("endpoint").unique().notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+// Options added by administrators, alongside the original API's filter values.
+export const benefitFilterOptions = sqliteTable("benefit_filter_options", {
+  id: integer("id").primaryKey(),
+  type: text("type", { enum: ["categorias", "ubicaciones", "ofertas"] }).notNull(),
+  descripcion: text("descripcion").notNull(),
+  normalizedName: text("normalized_name").notNull(),
+}, (table) => [
+  uniqueIndex("idx_benefit_filter_options_type_name").on(table.type, table.normalizedName),
+]);
+
+// --- Benefits (CRUD) ---
+export const benefits = sqliteTable("benefits", {
   id: text("id").primaryKey(),
   titulo: text("titulo").notNull(),
   resumen: text("resumen").notNull(),
@@ -66,8 +101,12 @@ export const customBenefits = sqliteTable("custom_benefits", {
   imagen: text("imagen"),
   imagenMobile: text("imagen_mobile"),
   slug: text("slug").unique().notNull(),
-  isFeatured: integer("is_featured", { mode: "boolean" }).default(false).notNull(),
-  isPremiumOnly: integer("is_premium_only", { mode: "boolean" }).default(false).notNull(),
+  isFeatured: integer("is_featured", { mode: "boolean" })
+    .default(false)
+    .notNull(),
+  isPremiumOnly: integer("is_premium_only", { mode: "boolean" })
+    .default(false)
+    .notNull(),
   categoryId: integer("category_id").notNull(),
   locationId: integer("location_id").notNull(),
   offerId: integer("offer_id").notNull(),
@@ -86,7 +125,9 @@ export const news = sqliteTable("news", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   image: text("image"),
-  isPublished: integer("is_published", { mode: "boolean" }).default(true).notNull(),
+  isPublished: integer("is_published", { mode: "boolean" })
+    .default(true)
+    .notNull(),
   createdAt: text("created_at").notNull(),
 });
 
@@ -155,15 +196,17 @@ export const merchantRequests = sqliteTable("merchant_requests", {
 export const coupons = sqliteTable("coupons", {
   id: text("id").primaryKey(),
   code: text("code").unique().notNull(), // Unique 6-digit code e.g. "839105"
-  benefitId: text("benefit_id").notNull(),
+  benefitId: text("benefit_id")
+    .references(() => benefits.id)
+    .notNull(),
   benefitTitle: text("benefit_title").notNull(),
   benefitResumen: text("benefit_resumen").notNull(),
   userId: text("user_id").notNull(),
   userName: text("user_name").notNull(),
-  userMatricula: text("user_matricula"),
-  status: text("status", { enum: ["active", "used", "expired"] }).default("active").notNull(),
+  numeroSocio: text("numero_socio"),
+  status: text("status", { enum: ["active", "used", "expired"] })
+    .default("active")
+    .notNull(),
   createdAt: text("created_at").notNull(), // ISO Date String
   usedAt: text("used_at"), // ISO Date String
 });
-
-

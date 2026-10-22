@@ -1,6 +1,6 @@
 import { component$, $ } from "@builder.io/qwik";
 import type { Benefit } from "~/server/cache";
-import { BenefitCard } from "~/components/benefit-card/benefit-card";
+import { BenefitCard } from "~/components/ui/BenefitCard";
 
 interface CuratedRowProps {
   title: string;
@@ -14,7 +14,6 @@ interface CuratedRowProps {
 export const CuratedRow = component$<CuratedRowProps>(({
   title,
   subtitle,
-  accentColor,
   containerId,
   benefits,
   variant,
@@ -31,29 +30,18 @@ export const CuratedRow = component$<CuratedRowProps>(({
 
   if (!benefits || benefits.length === 0) return null;
 
-  const dotColorClass =
-    accentColor === "gold"
-      ? "bg-brand-gold"
-      : accentColor === "emerald"
-        ? "bg-emerald-500"
-        : "bg-brand-green";
-
-  const labelColorClass =
-    accentColor === "gold"
-      ? "text-brand-gold"
-      : accentColor === "emerald"
-        ? "text-emerald-650"
-        : "text-brand-green";
+  const dotColorClass = "bg-accent";
+  const labelColorClass = "text-accent";
 
   return (
     <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left animate-fade-in-up">
-      <div class="flex items-end justify-between border-b border-slate-200/60 pb-3 mb-6">
+      <div class="flex items-end justify-between border-b border-secondary pb-3 mb-6">
         <div class="space-y-1">
           <div class="flex items-center space-x-2">
             <span class={`w-1.5 h-1.5 rounded-full ${dotColorClass} animate-pulse`}></span>
             <span class={`text-[11px] font-black tracking-widest ${labelColorClass} uppercase`}>{subtitle}</span>
           </div>
-          <h2 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h2 class="text-2xl font-display font-extrabold text-white tracking-tight leading-none">
             {title}
           </h2>
         </div>
@@ -62,7 +50,7 @@ export const CuratedRow = component$<CuratedRowProps>(({
           <button
             type="button"
             onClick$={() => scrollContainer("left")}
-            class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+            class="w-8 h-8 rounded-full border border-secondary bg-[#0B1526] hover:bg-[#1E2B45] text-slate-350 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
             aria-label="Anterior"
           >
             <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
@@ -72,7 +60,7 @@ export const CuratedRow = component$<CuratedRowProps>(({
           <button
             type="button"
             onClick$={() => scrollContainer("right")}
-            class="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
+            class="w-8 h-8 rounded-full border border-secondary bg-[#0B1526] hover:bg-[#1E2B45] text-slate-350 flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer"
             aria-label="Siguiente"
           >
             <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">

@@ -5,7 +5,7 @@ import { getDB } from "~/db";
 import { events as eventsTable } from "~/db/schema";
 import { LuCalendar, LuMapPin } from "@qwikest/icons/lucide";
 
-export interface MedicalEvent {
+export interface ClubEvent {
   id: string;
   title: string;
   description: string;
@@ -27,21 +27,21 @@ export const useEventsLoader = routeLoader$(async (event) => {
       return [
         {
           id: "event-1",
-          title: "XXXVI Jornadas de Capacitación y Actualización Pediátrica",
-          description: "Gran encuentro anual de especialistas en pediatría de la provincia de Buenos Aires. En este congreso contaremos con la participación de destacados expositores nacionales e internacionales que abordarán los desafíos actuales en salud infantil, medicina integrativa y neumonología pediátrica.",
-          date: "2026-06-15T09:00:00Z",
-          location: "Salón Auditorio AMP, Calle 6 Nro 1118, La Plata",
-          image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
+          title: "Torneo Apertura 2026 — Primera División",
+          description: "Arranca el Torneo Apertura de la URBA. LPRC recibe a Universitario de La Plata en la cancha principal de Gonnet. Concentración a las 13:00, kick-off a las 15:30. Tercer tiempo confirmado con los sponsors oficiales.",
+          date: "2026-06-15T15:30:00Z",
+          location: "Sede LPRC, Camino Parque Centenario 490, Gonnet",
+          image: "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800&auto=format&fit=crop&q=80",
         },
         {
           id: "event-2",
-          title: "Taller Práctico de Soporte Vital Cardiovascular Avanzado (ACLS)",
-          description: "Curso teórico-práctico de certificación internacional destinado exclusivamente a médicos matriculados agremiados. Cupos estrictamente limitados para asegurar una capacitación intensiva y de excelencia con simuladores de última tecnología médica.",
-          date: "2026-06-22T08:30:00Z",
-          location: "Centro de Simulación Médica AMP, Calle 5 Nro 820, La Plata",
-          image: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&auto=format&fit=crop&q=80",
+          title: "Clínica de Rugby Infantil — Categorías M8 a M12",
+          description: "Jornada de capacitación y práctica para las categorías infantiles del club. Actividades lúdicas, técnicas de contacto seguro y charla de nutrición deportiva para padres y jugadores. Cupos limitados.",
+          date: "2026-06-22T09:00:00Z",
+          location: "Sede LPRC, Camino Parque Centenario 498, Gonnet",
+          image: "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800&auto=format&fit=crop&q=80",
         },
-      ] as MedicalEvent[];
+      ] as ClubEvent[];
     }
 
     return dbEvents.map((e) => ({
@@ -51,7 +51,7 @@ export const useEventsLoader = routeLoader$(async (event) => {
       date: e.date,
       location: e.location,
       image: e.image,
-    })) as MedicalEvent[];
+    })) as ClubEvent[];
   } catch (err) {
     console.error("Failed to load events:", err);
     return [];
@@ -71,10 +71,10 @@ export default component$(() => {
             <span>Agenda Oficial</span>
           </div>
           <h1 class="text-4xl sm:text-5xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-            Eventos & Conferencias
+            Eventos & Actividades
           </h1>
           <p class="text-slate-500 max-w-xl mx-auto text-sm sm:text-base font-medium">
-            Programá tu agenda y participá de las actividades científicas, charlas y seminarios organizados por la Agremiación Médica Platense.
+            Programá tu agenda y participá de los torneos, clínicas y actividades organizadas por La Plata Rugby Club.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export default component$(() => {
               <LuCalendar class="w-12 h-12 text-slate-400 mx-auto" />
               <div>
                 <h3 class="text-lg font-bold text-slate-800">No hay eventos agendados</h3>
-                <p class="text-slate-500 text-sm mt-1">Próximamente publicaremos el calendario científico completo.</p>
+                <p class="text-slate-500 text-sm mt-1">Próximamente publicaremos el calendario deportivo completo.</p>
               </div>
             </div>
           ) : (
@@ -138,7 +138,7 @@ export default component$(() => {
                     </div>
 
                     <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-semibold">
-                      <span class="text-slate-400">Certificación Académica AMP</span>
+                      <span class="text-slate-400">La Plata Rugby Club</span>
                       <Link
                         href="/"
                         class="text-brand-green hover:text-brand-green-light flex items-center gap-1 transition-colors"
@@ -159,11 +159,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Eventos & Conferencias - Club de Beneficios AMP",
+  title: "Eventos & Actividades - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Calendario y agenda de actividades científicas, charlas y jornadas médicas de la Agremiación Médica Platense.",
+      content: "Calendario y agenda de torneos, clínicas, y actividades deportivas de La Plata Rugby Club.",
     },
   ],
 };

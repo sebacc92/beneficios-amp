@@ -12,6 +12,13 @@ interface Message {
   content: string;
 }
 
+interface ChatbotSettingsResponse {
+  aiEnabled: boolean;
+  aiAvatarUrl: string | null;
+  aiInitialGreeting: string;
+  whatsappNumber: string;
+}
+
 export const Chatbot = component$(() => {
   const state = useStore({
     enabled: true,
@@ -21,12 +28,12 @@ export const Chatbot = component$(() => {
       {
         role: "assistant",
         content:
-          "¡Hola! Soy el asistente virtual de la Agremiación Médica Platense. ¿En qué te puedo ayudar hoy?",
+          "¡Hola! Soy el asistente virtual de la La Plata Rugby Club. ¿En qué te puedo ayudar hoy?",
       },
     ] as Message[],
     sessionId: "",
     avatarUrl: "" as string | null,
-    whatsappNumber: "542214391300",
+    whatsappNumber: "5492214895777",
   });
 
   const inputValue = useSignal("");
@@ -48,13 +55,13 @@ export const Chatbot = component$(() => {
     try {
       const res = await fetch("/api/chat");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as ChatbotSettingsResponse;
         state.enabled = data.aiEnabled;
         state.avatarUrl = data.aiAvatarUrl;
         state.whatsappNumber = data.whatsappNumber;
         if (data.aiInitialGreeting) {
           state.messages = [
-            { role: "assistant", content: data.aiInitialGreeting }
+            { role: "assistant", content: data.aiInitialGreeting },
           ];
         }
       }
@@ -107,7 +114,7 @@ export const Chatbot = component$(() => {
 
       if (!response.ok) throw new Error("Error en la conexión");
 
-      const data = await response.json();
+      const data = (await response.json()) as { reply?: Message };
 
       if (data.reply) {
         state.messages.push(data.reply);
@@ -132,10 +139,12 @@ export const Chatbot = component$(() => {
 
   if (!state.enabled) return null;
 
-  const bottomPos = hasScrolled.value ? "bottom-24 sm:bottom-28" : "bottom-6 sm:bottom-8";
+  const bottomPos = hasScrolled.value
+    ? "bottom-24 sm:bottom-28"
+    : "bottom-6 sm:bottom-8";
 
   return (
-    <>
+    <div class="print:hidden">
       {!state.isOpen && (
         <span
           class={[
@@ -196,7 +205,9 @@ export const Chatbot = component$(() => {
         <div
           class={[
             "animate-in slide-in-from-bottom-5 fade-in fixed right-4 z-[100] flex h-[34rem] max-h-[85vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96",
-            hasScrolled.value ? "bottom-44 sm:bottom-48" : "bottom-24 sm:bottom-28",
+            hasScrolled.value
+              ? "bottom-44 sm:bottom-48"
+              : "bottom-24 sm:bottom-28",
           ]}
         >
           {/* Header */}
@@ -205,8 +216,8 @@ export const Chatbot = component$(() => {
               <div class="relative">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
                   <img
-                    src={state.avatarUrl || "/logo-beneficios_amp2.webp"}
-                    alt="Asistente AMP"
+                    src={state.avatarUrl || "/logo-lprc.svg"}
+                    alt="Asistente LPRC"
                     class="h-full w-full object-contain"
                     width={38}
                     height={38}
@@ -216,7 +227,7 @@ export const Chatbot = component$(() => {
               </div>
               <div>
                 <h3 class="text-sm font-display font-extrabold tracking-wide text-brand-gold-light uppercase">
-                  Asistente AMP+
+                  Asistente LPRC
                 </h3>
                 <p class="text-[9px] font-bold tracking-widest text-slate-300 uppercase">
                   En línea
@@ -313,6 +324,6 @@ export const Chatbot = component$(() => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 });

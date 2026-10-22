@@ -3,10 +3,9 @@ import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuUsers, LuSparkles, LuTicket, LuMessageSquare, LuDownload } from "@qwikest/icons/lucide";
 import { desc } from "drizzle-orm";
 import { getDB } from "~/db";
-import { users as usersTable, customBenefits as customBenefitsTable } from "~/db/schema";
+import { users as usersTable, benefits as benefitsTable } from "~/db/schema";
 import { getSessions } from "~/server/chatbotDb";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
-import { ensureDbSeeded } from "~/server/cache";
 
 // --- SECURITY & LOADERS ---
 
@@ -36,7 +35,7 @@ export const useAdminUsersLoader = routeLoader$(async (event) => {
       id: u.id,
       name: u.name,
       email: u.email,
-      matricula: u.matricula,
+      numeroSocio: u.numeroSocio,
       role: u.role,
       createdAt: u.createdAt,
     }));
@@ -53,8 +52,7 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
   }
   try {
     const db = getDB(event);
-    await ensureDbSeeded(db);
-    return await db.select().from(customBenefitsTable).orderBy(desc(customBenefitsTable.createdAt));
+    return await db.select().from(benefitsTable).orderBy(desc(benefitsTable.createdAt));
   } catch (err) {
     console.error("Failed to load custom benefits:", err);
     return [];
@@ -64,7 +62,7 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
 export default component$(() => {
   const sessionsLoader = useChatSessions();
   const adminUsers = useAdminUsersLoader();
-  const customBenefits = useAdminCustomBenefitsLoader();
+  const benefits = useAdminCustomBenefitsLoader();
 
   // Client-side CSV download utility
   const downloadCSV = $((dataList: any[], filename: string) => {
@@ -106,11 +104,11 @@ export default component$(() => {
 
         <div class="flex items-center gap-2">
           <button
-            onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `reporte-agremiados-${Date.now()}.csv`)}
+            onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `reporte-socios-${Date.now()}.csv`)}
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
           >
             <LuDownload class="w-4 h-4" />
-            <span>Exportar Agremiados</span>
+            <span>Exportar Activos</span>
           </button>
         </div>
       </div>
@@ -120,7 +118,7 @@ export default component$(() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-xs font-bold text-slate-400 uppercase block">Total Agremiados</span>
+              <span class="text-xs font-bold text-slate-400 uppercase block">Total Activos</span>
               <span class="text-3xl font-display font-black text-slate-800">
                 {adminUsers.value.filter((u) => u.role !== "admin").length}
               </span>
@@ -132,7 +130,7 @@ export default component$(() => {
             <div>
               <span class="text-xs font-bold text-slate-400 uppercase block">Beneficios Destacados</span>
               <span class="text-3xl font-display font-black text-brand-gold">
-                {customBenefits.value.filter((b) => b.isFeatured).length}
+                {benefits.value.filter((b) => b.isFeatured).length}
               </span>
             </div>
             <LuSparkles class="w-8 h-8 text-brand-gold" />
@@ -141,7 +139,7 @@ export default component$(() => {
           <div class="bg-white p-6 rounded-3xl border border-slate-250 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-xs font-bold text-slate-400 uppercase block">Beneficios</span>
-              <span class="text-3xl font-display font-black text-slate-800">{customBenefits.value.length}</span>
+              <span class="text-3xl font-display font-black text-slate-800">{benefits.value.length}</span>
             </div>
             <LuTicket class="w-8 h-8 text-purple-500" />
           </div>
@@ -218,12 +216,12 @@ export default component$(() => {
 
             <div class="flex flex-col gap-3 pt-2">
               <button
-                onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `agremiados_report_${Date.now()}.csv`)}
+                onClick$={() => downloadCSV(adminUsers.value.filter((u) => u.role !== "admin"), `socios_report_${Date.now()}.csv`)}
                 class="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer text-slate-700"
               >
                 <div class="flex items-center gap-2">
                   <LuUsers class="w-4 h-4 text-brand-green" />
-                  <span>Reporte de Agremiados</span>
+                  <span>Reporte de Activos</span>
                 </div>
                 <div class="flex items-center gap-1.5 text-slate-400">
                   <LuDownload class="w-3.5 h-3.5" />
@@ -232,7 +230,7 @@ export default component$(() => {
               </button>
 
               <button
-                onClick$={() => downloadCSV(customBenefits.value, `custom_benefits_report_${Date.now()}.csv`)}
+                onClick$={() => downloadCSV(benefits.value, `benefits_report_${Date.now()}.csv`)}
                 class="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer text-slate-700"
               >
                 <div class="flex items-center gap-2">
@@ -267,7 +265,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Estadísticas",
+  title: "LPRC Club - Estadísticas",
   meta: [
     {
       name: "description",

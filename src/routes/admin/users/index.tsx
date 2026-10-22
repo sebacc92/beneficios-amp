@@ -20,7 +20,7 @@ export const useAdminUsersLoader = routeLoader$(async (event) => {
       id: u.id,
       name: u.name,
       email: u.email,
-      matricula: u.matricula,
+      numeroSocio: u.numeroSocio,
       role: u.role,
       createdAt: u.createdAt,
     }));
@@ -80,11 +80,11 @@ export const useRegisterUserAction = routeAction$(
         });
       }
 
-      // Check if DNI (matricula) already exists
+      // Check if DNI (numeroSocio) already exists
       const [existingDni] = await db
         .select()
         .from(usersTable)
-        .where(eq(usersTable.matricula, data.matricula.trim()))
+        .where(eq(usersTable.numeroSocio, data.numeroSocio.trim()))
         .limit(1);
 
       if (existingDni) {
@@ -104,7 +104,7 @@ export const useRegisterUserAction = routeAction$(
         email,
         passwordHash,
         name: data.name.trim(),
-        matricula: data.matricula ? data.matricula.trim() : null,
+        numeroSocio: data.numeroSocio ? data.numeroSocio.trim() : null,
         role: "member", // Set default member role
         createdAt: new Date().toISOString(),
       });
@@ -113,14 +113,14 @@ export const useRegisterUserAction = routeAction$(
     } catch (e: any) {
       console.error("Admin register user error:", e);
       return requestEvent.fail(500, {
-        message: e.message || "Error al registrar el agremiado.",
+        message: e.message || "Error al registrar el socio.",
       });
     }
   },
   zod$({
     name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     email: z.string().email("Ingresá un correo electrónico válido."),
-    matricula: z.string().min(2, "Por favor ingresá el DNI / matrícula provincial."),
+    numeroSocio: z.string().min(2, "Por favor ingresá el DNI / número de socio."),
   })
 );
 
@@ -142,10 +142,10 @@ export default component$(() => {
             </span>
           </div>
           <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
-            Médicos Agremiados
+            Socios del Club
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
-            Administrá los médicos agremiados habilitados en el sistema y registrá nuevas cuentas.
+            Administrá los socios habilitados en el sistema y registrá nuevas cuentas.
           </p>
         </div>
 
@@ -157,7 +157,7 @@ export default component$(() => {
             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
-            <span>{isCreateUserOpen.value ? "Cerrar Panel" : "Registrar Agremiado"}</span>
+            <span>{isCreateUserOpen.value ? "Cerrar Panel" : "Registrar Activo"}</span>
           </button>
         </div>
       </div>
@@ -166,12 +166,12 @@ export default component$(() => {
         {/* Form Actions Feedbacks */}
         {registerUserAction.value?.failed && (
           <div class="rounded-2xl border border-red-150 bg-red-50 px-4 py-3.5 text-xs font-bold text-red-800 shadow-sm">
-            Error al registrar médico agremiado: {registerUserAction.value.message || "Por favor, verifica los campos."}
+            Error al registrar socio: {registerUserAction.value.message || "Por favor, verifica los campos."}
           </div>
         )}
         {registerUserAction.value?.success && (
           <div class="rounded-2xl border border-emerald-150 bg-emerald-50 px-4 py-3.5 text-xs font-bold text-emerald-800 shadow-sm">
-            ¡Médico Agremiado registrado exitosamente y dado de alta en el sistema!
+            ¡Socio del Club registrado exitosamente y dado de alta en el sistema!
           </div>
         )}
 
@@ -181,7 +181,7 @@ export default component$(() => {
             isCreateUserOpen.value = false;
           }} class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
             <div class="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Registrar Nuevo Médico Agremiado</h4>
+              <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Registrar Nuevo Socio del Club</h4>
               <button
                 type="button"
                 onClick$={() => (isCreateUserOpen.value = false)}
@@ -209,16 +209,16 @@ export default component$(() => {
                   type="email"
                   name="email"
                   required
-                  placeholder="Ej: dspinelli@amepla.org.ar"
+                  placeholder="Ej: dspinelli@lprc.ar"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">DNI / Matrícula</label>
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">DNI / Nro. Socio</label>
                 <input
                   type="text"
-                  name="matricula"
+                  name="numeroSocio"
                   required
                   placeholder="Ej: 12345678"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
@@ -250,7 +250,7 @@ export default component$(() => {
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
             <thead>
               <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <th class="px-6 py-4">DNI / Matrícula</th>
+                <th class="px-6 py-4">DNI / Nro. Socio</th>
                 <th class="px-6 py-4">Nombre Completo</th>
                 <th class="px-6 py-4">Correo Electrónico</th>
                 <th class="px-6 py-4 text-center">Estado</th>
@@ -261,7 +261,7 @@ export default component$(() => {
                 .filter((u) => u.role !== "admin")
                 .map((userItem) => (
                   <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 font-mono text-slate-800 font-bold">{userItem.matricula || "S/D"}</td>
+                    <td class="px-6 py-4 font-mono text-slate-800 font-bold">{userItem.numeroSocio || "S/D"}</td>
                     <td class="px-6 py-4 text-slate-700">{userItem.name}</td>
                     <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
                     <td class="px-6 py-4 text-center">
@@ -281,11 +281,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Médicos Agremiados",
+  title: "LPRC Club - Socios",
   meta: [
     {
       name: "description",
-      content: "Gestionar cuentas y membresías de médicos agremiados.",
+      content: "Gestionar cuentas y membresías de socios.",
     },
   ],
 };

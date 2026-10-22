@@ -93,7 +93,7 @@ export default component$(() => {
               <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none"></div>
               
               <div class="flex justify-between items-center relative z-10">
-                <span class="text-lg font-extrabold tracking-wider">AMP+</span>
+                <span class="text-lg font-extrabold tracking-wider">LPRC</span>
                 <span class="text-[10px] font-bold tracking-widest bg-white/20 px-2 py-0.5 rounded uppercase">MP Checkout</span>
               </div>
 
@@ -201,7 +201,7 @@ export default component$(() => {
             <div class="space-y-4 text-xs sm:text-sm font-semibold">
               <div class="flex justify-between">
                 <span class="text-slate-400">Suscripción</span>
-                <span class="text-slate-800">Plan Premium AMP+</span>
+                <span class="text-slate-800">Plan Premium LPRC</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-400">Periodo</span>
@@ -232,11 +232,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Mercado Pago Checkout - Club de Beneficios AMP",
+  title: "Mercado Pago Checkout - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Simulador oficial de Mercado Pago para la suscripción Premium del Club de Beneficios AMP.",
+      content: "Simulador oficial de Mercado Pago para la suscripción Premium del Club de Beneficios LPRC.",
     },
   ],
 };

@@ -75,7 +75,7 @@ export default component$(() => {
           c.code.toLowerCase().includes(query) ||
           c.benefitTitle.toLowerCase().includes(query) ||
           c.userName.toLowerCase().includes(query) ||
-          (c.userMatricula && c.userMatricula.toLowerCase().includes(query))
+          (c.numeroSocio && c.numeroSocio.toLowerCase().includes(query))
       );
     }
 
@@ -150,7 +150,7 @@ export default component$(() => {
         <div class="relative w-full sm:max-w-md">
           <input
             type="text"
-            placeholder="Buscar por código, médico, matrícula o beneficio..."
+            placeholder="Buscar por código, médico, nro. de socio o beneficio..."
             value={searchQuery.value}
             onInput$={(ev) => {
               searchQuery.value = (ev.target as HTMLInputElement).value;
@@ -181,8 +181,8 @@ export default component$(() => {
             <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               <th class="px-6 py-4">Código</th>
               <th class="px-6 py-4">Beneficio</th>
-              <th class="px-6 py-4">Agremiado</th>
-              <th class="px-6 py-4">Matrícula</th>
+              <th class="px-6 py-4">Activo</th>
+              <th class="px-6 py-4">Nro. Socio</th>
               <th class="px-6 py-4">Generado</th>
               <th class="px-6 py-4">Canjeado</th>
               <th class="px-6 py-4 text-center">Estado</th>
@@ -200,7 +200,7 @@ export default component$(() => {
                     <div class="text-[10px] text-slate-450 mt-0.5 line-clamp-1">{coupon.benefitResumen}</div>
                   </td>
                   <td class="px-6 py-4 text-slate-700 font-bold">{coupon.userName}</td>
-                  <td class="px-6 py-4 text-slate-500 font-mono">{coupon.userMatricula || "N/A"}</td>
+                  <td class="px-6 py-4 text-slate-500 font-mono">{coupon.numeroSocio || "N/A"}</td>
                   <td class="px-6 py-4 text-slate-550">
                     {new Date(coupon.createdAt).toLocaleDateString("es-AR")} {new Date(coupon.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                   </td>
@@ -239,7 +239,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Control de Cupones",
+  title: "LPRC Club - Control de Cupones",
   meta: [
     {
       name: "description",

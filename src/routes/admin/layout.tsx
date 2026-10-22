@@ -1,4 +1,4 @@
-import { component$, Slot } from "@builder.io/qwik";
+import { component$, Slot, useSignal, useTask$ } from "@builder.io/qwik";
 import { Link, useLocation, routeLoader$ } from "@builder.io/qwik-city";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -11,6 +11,13 @@ export default component$(() => {
   const location = useLocation();
   const userLoader = useAdminUser();
   const user = userLoader.value;
+  const mobileMenuOpen = useSignal(false);
+  const mobileMenuButton = useSignal<HTMLButtonElement>();
+
+  useTask$(({ track }) => {
+    track(() => location.url.pathname);
+    mobileMenuOpen.value = false;
+  });
 
   // Active tab helper based on path
   const currentPath = location.url.pathname;
@@ -25,7 +32,7 @@ export default component$(() => {
     if (cleanTarget === "/admin/ai" && cleanPath.includes("/admin/chats")) {
       return true;
     }
-    return cleanPath === cleanTarget;
+    return cleanPath === cleanTarget || cleanPath.startsWith(`${cleanTarget}/`);
   };
 
   const menuItems = [
@@ -76,7 +83,7 @@ export default component$(() => {
     },
     {
       path: "/admin/users",
-      label: "Agremiados",
+      label: "Activos",
       icon: (
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20c-2.213 0-4.302-.63-6.089-1.73v-.109A11.386 11.386 0 0110.089 18c2.213 0 4.302.63 6.089 1.73zM10.089 18v-.003c0-1.113.285-2.16.786-3.07M15 7.5a3 3 0 11-6 0 3 3 0 016 0zm6 2.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
@@ -122,14 +129,52 @@ export default component$(() => {
   ];
 
   return (
-    <div class="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
+    <div
+      class="flex h-dvh w-full flex-col overflow-hidden bg-slate-50 font-sans lg:flex-row"
+      document:onKeyDown$={(event) => {
+        if (event.key === "Escape" && mobileMenuOpen.value) {
+          mobileMenuOpen.value = false;
+          mobileMenuButton.value?.focus();
+        }
+      }}
+    >
+      <a
+        href="#admin-content"
+        preventdefault:click
+        onClick$={() => document.getElementById("admin-content")?.focus()}
+        class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-3 focus:font-bold focus:text-slate-900 focus:shadow-lg"
+      >
+        Saltar al contenido
+      </a>
+      <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-[#080E1C] px-4 py-3 text-white lg:hidden">
+        <span class="text-sm font-bold">Panel de administración</span>
+        <button
+          ref={mobileMenuButton}
+          type="button"
+          aria-controls="admin-navigation"
+          aria-expanded={mobileMenuOpen.value}
+          onClick$={() => (mobileMenuOpen.value = !mobileMenuOpen.value)}
+          class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-600 px-3 text-sm font-bold hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" d={mobileMenuOpen.value ? "M6 6l12 12M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
+          </svg>
+          {mobileMenuOpen.value ? "Cerrar menú" : "Menú"}
+        </button>
+      </header>
       {/* 1. Left Sidebar Navigation Panel */}
-      <aside class="w-72 bg-[#0b1329] text-slate-300 flex flex-col flex-shrink-0 h-full select-none border-r border-slate-900 shadow-xl">
+      <aside
+        id="admin-navigation"
+        class={[
+          "w-full max-h-[65dvh] min-h-0 flex-col flex-shrink-0 select-none border-r border-slate-900 bg-[#0b1329] text-slate-300 shadow-xl lg:flex lg:h-full lg:max-h-none lg:w-72",
+          mobileMenuOpen.value ? "flex" : "hidden",
+        ]}
+      >
         {/* Brand Header */}
-        <div class="px-6 py-7 border-b border-slate-800 flex items-center space-x-3.5 bg-[#080E1C]">
+        <div class="hidden px-6 py-7 border-b border-slate-800 items-center space-x-3.5 bg-[#080E1C] lg:flex">
           <img
-            src="/logo-beneficios_amp2.webp"
-            alt="AMP Logo"
+            src="/logo-lprc.svg"
+            alt="LPRC Logo"
             width={120}
             height={48}
             class="h-[44px] w-auto object-contain"
@@ -139,18 +184,20 @@ export default component$(() => {
 
 
         {/* Navigation Section Group */}
-        <div class="flex-grow py-6 overflow-y-auto px-4 space-y-7">
+        <div class="min-h-0 flex-grow py-4 overflow-y-auto px-4 space-y-7 lg:py-6">
           <div class="space-y-2">
             <span class="px-3 text-[10px] font-extrabold tracking-widest text-slate-500 uppercase block mb-3">
               Administración
             </span>
-            <nav class="space-y-1">
+            <nav aria-label="Administración" class="space-y-1">
               {menuItems.map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
+                  aria-current={isPathActive(item.path) ? "page" : undefined}
+                  onClick$={() => (mobileMenuOpen.value = false)}
                   class={[
-                    "flex items-center space-x-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all uppercase tracking-wider",
+                    "flex items-center space-x-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all uppercase tracking-wider focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                     isPathActive(item.path)
                       ? "bg-brand-green text-white shadow-md shadow-brand-green/20"
                       : "hover:bg-slate-800 hover:text-white text-slate-400",
@@ -187,6 +234,7 @@ export default component$(() => {
           {/* Return to Site Action */}
           <Link
             href="/"
+            onClick$={() => (mobileMenuOpen.value = false)}
             class="flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-xs font-extrabold text-slate-400 hover:text-white uppercase tracking-wider transition-all"
           >
             <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -198,7 +246,7 @@ export default component$(() => {
       </aside>
 
       {/* 2. Main Content View Area */}
-      <main class="flex-1 overflow-y-auto h-screen relative bg-slate-50 flex flex-col">
+      <main id="admin-content" tabIndex={-1} class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-slate-50">
         <Slot />
       </main>
     </div>

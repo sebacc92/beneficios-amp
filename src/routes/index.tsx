@@ -1,16 +1,18 @@
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { searchBenefits, getFilters, type Benefit, ensureHeroSlidesSeeded } from "~/server/cache";
+import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
 import { useLayoutUser } from "./layout";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
-import { BenefitCard } from "~/components/benefit-card/benefit-card";
+import { BenefitCard } from "~/components/ui/BenefitCard";
 import { HeroSlider } from "~/components/hero-slider/hero-slider";
 import { CuratedRow } from "~/components/curated-row/curated-row";
 import { EditorialCards } from "~/components/editorial-cards/editorial-cards";
-import { SponsorMarquee } from "~/components/sponsor-marquee/sponsor-marquee";
+import { SponsorMarquee } from "~/components/ui/SponsorMarquee";
+import { LPRCButton } from "~/components/ui/LPRCButton";
 import { PopupModal } from "~/components/popup-modal/popup-modal";
 import { getSettings } from "~/server/chatbotDb";
+import { rateLimitByIp } from "~/server/rate-limit";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
 import { asc, eq } from "drizzle-orm";
@@ -44,7 +46,7 @@ export const useBenefitsData = routeLoader$(async (event) => {
     isPremiumOnly: isGoldOnly
   });
 
-  const filters = await getFilters();
+  const filters = await getFilters(event);
 
   let settings = null;
   try { settings = await getSettings(event); } catch (err) { console.error("Failed to load settings in homepage loader:", err); }
@@ -68,13 +70,12 @@ export const useBenefitsData = routeLoader$(async (event) => {
   let slides: any[] = [];
   try {
     const db = getDB(event);
-    await ensureHeroSlidesSeeded(db);
     slides = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.isActive, 1)).orderBy(asc(heroSlidesTable.orderIndex));
   } catch (err) {
     console.error("Failed to load slides on homepage:", err);
     slides = [
-      { id: "s1", imageUrl: "https://beneficios.amepla.org.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg", title: "Beneficios de Temporada", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
-      { id: "s2", imageUrl: "https://beneficios.amepla.org.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg", title: "Salud & Cuidado", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
+      { id: "s1", imageUrl: "https://beneficios.lprc.ar/images/slider/23-PHOTO-2026-05-05-16-00-15.jpg", title: "Beneficios de Temporada", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
+      { id: "s2", imageUrl: "https://beneficios.lprc.ar/images/slider/24-23-930289de-f986-4060-b33c-2858b5b7ddef.jpg", title: "Salud & Cuidado", subtitle: "Presentá tu credencial digital y disfrutá de los mejores descuentos." },
     ];
   }
 
@@ -84,12 +85,14 @@ export const useBenefitsData = routeLoader$(async (event) => {
 export const submitMerchantRequest = server$(async function (data: {
   businessName: string; category: string; contactName: string; email: string; phone: string; proposal: string;
 }) {
+  // Table creation lives in scripts/migrate.mjs, not in the submit path.
+  const limit = rateLimitByIp(this, "merchant-request", 5, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return { success: false, message: "Ya enviaste varias solicitudes. Probá de nuevo más tarde." };
+  }
+
   try {
     const db = getDB(this);
-    try {
-      const { sql } = await import("drizzle-orm");
-      await db.run(sql`CREATE TABLE IF NOT EXISTS merchant_requests (id TEXT PRIMARY KEY, business_name TEXT NOT NULL, category TEXT NOT NULL, contact_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
-    } catch { console.info("merchant_requests table check completed."); }
     const id = Math.random().toString(36).substring(2, 9);
     await db.insert(merchantRequests).values({ id, businessName: data.businessName, category: data.category, contactName: data.contactName, email: data.email, phone: data.phone, proposal: data.proposal, status: "pending", createdAt: new Date().toISOString() });
     return { success: true, message: "¡Solicitud enviada con éxito!" };
@@ -117,7 +120,7 @@ export default component$(() => {
   const { data: benefits } = searchResult;
 
   return (
-    <div class="relative min-h-screen bg-slate-50">
+    <div class="relative min-h-screen bg-[#040811]">
       {/* Curated Showcase (homepage only) */}
       {curatedRows && (
         <>
@@ -163,7 +166,7 @@ export default component$(() => {
                 <div class="lg:col-span-1 space-y-5 relative z-10 text-white flex flex-col justify-center h-full">
                   <div class="inline-flex items-center space-x-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span><span class="text-[11px] font-black tracking-widest text-brand-gold uppercase">{settings?.campaignTag || "Selección Especial"}</span></div>
                   <h2 class="text-4xl md:text-5xl font-display font-black text-white tracking-tight leading-tight">{settings?.campaignEmoji || "🎁"} {settings?.campaignTitle || "Especial de Temporada"}</h2>
-                  <p class="text-sm text-slate-450 font-medium leading-relaxed">{settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}</p>
+                  <p class="text-sm text-slate-450 font-medium leading-relaxed">{settings?.campaignSubtitle || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital LPRC."}</p>
                   <div class="pt-2"><Link href={`/beneficios?buscar=${encodeURIComponent((settings?.campaignQuery || "café").split(",")[0])}`} class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white text-white hover:text-slate-900 border border-white/10 hover:border-transparent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"><span>Ver todos</span><span class="text-sm">&rarr;</span></Link></div>
                 </div>
                 <div class="lg:col-span-3">
@@ -171,7 +174,7 @@ export default component$(() => {
                     {curatedRows.cafecitos.map((benefit: Benefit) => (
                       <Link key={`coffee-${benefit.id}`} href={`/beneficio/${benefit.url}`} class="group block bg-slate-900/60 hover:bg-slate-900 border border-slate-800 rounded-3xl p-4 transition-all duration-300 hover:-translate-y-1 relative">
                         <div class="relative h-28 rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
-                          {benefit.imagen ? (<img src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.amepla.org.ar/files/${benefit.imagen}`} alt={benefit.titulo} class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" width={200} height={112} loading="lazy" />) : (<span class="text-brand-gold font-display font-extrabold text-base">AMP+</span>)}
+                          {benefit.imagen ? (<img src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.lprc.ar/files/${benefit.imagen}`} alt={benefit.titulo} class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" width={200} height={112} loading="lazy" />) : (<span class="text-brand-gold font-display font-extrabold text-base">LPRC</span>)}
                           <div class="absolute bottom-2 right-2 z-10"><span class="inline-flex items-center px-3 py-1 rounded-xl text-[11px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">{benefit.resumen.replace("Descuento del", "").trim()}</span></div>
                         </div>
                         <div class="mt-3.5 text-left"><h4 class="text-[11px] font-bold text-brand-gold uppercase tracking-wider truncate">{benefit.ubicacion[0]?.descripcion || "La Plata"}</h4><h3 class="text-sm font-display font-black text-slate-100 group-hover:text-white line-clamp-2 mt-1 leading-snug">{benefit.titulo}</h3></div>
@@ -193,9 +196,9 @@ export default component$(() => {
 
       {/* All Benefits Preview */}
       <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div class="border-b border-slate-200 pb-5 mb-8 text-left animate-fade-in-up">
-          <h2 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">Ver todos los beneficios</h2>
-          <p class="text-slate-500 text-sm mt-2 font-medium">Explorá nuestra cartilla de descuentos exclusivos</p>
+        <div class="border-b border-secondary pb-5 mb-8 text-left animate-fade-in-up">
+          <h2 class="text-3xl font-display font-extrabold text-white tracking-tight leading-none">Ver todos los beneficios</h2>
+          <p class="text-slate-400 text-sm mt-2 font-medium">Explorá nuestro catálogo de descuentos exclusivos</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
           {benefits.slice(0, 4).map((benefit: Benefit, idx: number) => {
@@ -207,11 +210,10 @@ export default component$(() => {
             );
           })}
         </div>
-        <div class="flex justify-center pt-10 mt-8 border-t border-slate-200/60">
-          <Link href="/beneficios" class="inline-flex items-center justify-center space-x-2.5 py-4 px-12 rounded-[2rem] bg-brand-green text-white hover:bg-brand-green-light font-black text-base shadow-lg shadow-brand-green/20 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer border border-transparent">
-            <span>Ver todos</span>
-            <svg class="w-5 h-5 stroke-current fill-none stroke-[2.5] transition-transform duration-300 group-hover:translate-x-1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-          </Link>
+        <div class="flex justify-center pt-10 mt-8 border-t border-secondary">
+          <LPRCButton href="/beneficios" variant="accent">
+            Ver todos
+          </LPRCButton>
         </div>
       </div>
 
@@ -230,10 +232,10 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Portal de Beneficios Oficial - Agremiación Médica Platense",
+  title: "Portal de Beneficios Oficial - La Plata Rugby Club",
   meta: [
-    { name: "description", content: "Exclusivo club de beneficios para agremiados y empleados de la AMP. Disfrutá de más de 250 comercios con descuentos especiales, promociones, y sorteos increíbles." },
-    { property: "og:title", content: "Portal de Beneficios Oficial - Agremiación Médica Platense" },
-    { property: "og:description", content: "Ahorrá y disfrutá con la cartilla de beneficios médicos de la AMP. Descuentos en turismo, gastronomía, indumentaria, belleza y mucho más." }
+    { name: "description", content: "Exclusivo club de beneficios para socios y empleados de la LPRC. Disfrutá de más de 250 comercios con descuentos especiales, promociones, y sorteos increíbles." },
+    { property: "og:title", content: "Portal de Beneficios Oficial - La Plata Rugby Club" },
+    { property: "og:description", content: "Ahorrá y disfrutá con el catálogo oficial de beneficios de La Plata Rugby Club. Descuentos en turismo, gastronomía, indumentaria, recreación y mucho más." }
   ]
 };

@@ -145,8 +145,8 @@ export default component$(() => {
             <div class="bg-brand-green-dark border-b border-brand-gold/15 p-4 flex items-center space-x-3.5 text-white">
               <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 border border-brand-gold">
                 <img
-                  src="/logo-beneficios_amp2.webp"
-                  alt="AMP Logo"
+                  src="/logo-lprc.svg"
+                  alt="LPRC Logo"
                   width={34}
                   height={34}
                   class="object-contain"
@@ -154,7 +154,7 @@ export default component$(() => {
               </div>
               <div>
                 <h3 class="text-xs font-display font-extrabold uppercase tracking-wide text-brand-gold">
-                  Auditoría Chatbot AMP+
+                  Auditoría Chatbot LPRC
                 </h3>
                 <p class="text-[9px] text-slate-300 font-bold uppercase tracking-wider">Historial de Conversación</p>
               </div>
@@ -172,7 +172,7 @@ export default component$(() => {
                 >
                   {/* Role Label */}
                   <span class="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
-                    {msg.role === "user" ? "Médico Agremiado (Usuario)" : "Asistente Virtual (IA)"}
+                    {msg.role === "user" ? "Socio del Club (Usuario)" : "Asistente Virtual (IA)"}
                   </span>
 
                   {/* Bubble content */}
@@ -213,7 +213,7 @@ export const head: DocumentHead = ({ resolveValue }) => {
   const data = resolveValue(useSessionDetails);
   return {
     title: data
-      ? `Detalle Conversación ${data.id} - Auditoría AMP`
-      : "Detalle de Conversación - Admin AMP",
+      ? `Detalle Conversación ${data.id} - Auditoría LPRC`
+      : "Detalle de Conversación - Admin LPRC",
   };
 };

@@ -47,4 +47,17 @@ lerna-debug.log*
 
 # Vercel
 .vercel
+.vercel-*
 .env*
+
+# Wrangler local state and secrets
+.wrangler/
+.dev.vars*
+
+# Local databases — never commit these, they may contain member data
+*.db
+*.sqlite
+*.sqlite3
+
+# Local scratch space (ad-hoc query/seed scripts)
+/tmp

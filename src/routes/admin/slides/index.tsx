@@ -1,5 +1,5 @@
 import { component$, useSignal, useStore, $, useTask$ } from "@builder.io/qwik";
-import { put } from "@vercel/blob";
+import { putImage } from "~/server/media";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { 
   LuPlus, 
@@ -18,7 +18,6 @@ import {
 import { asc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { heroSlides as heroSlidesTable } from "~/db/schema";
-import { ensureHeroSlidesSeeded } from "~/server/cache";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -30,7 +29,6 @@ export const useAdminSlidesLoader = routeLoader$(async (event) => {
   }
   try {
     const db = getDB(event);
-    await ensureHeroSlidesSeeded(db);
     return await db.select().from(heroSlidesTable).orderBy(asc(heroSlidesTable.orderIndex));
   } catch (err) {
     console.error("Failed to load hero slides:", err);
@@ -52,65 +50,8 @@ export const useCreateSlideAction = routeAction$(
       let uploadedDesktopUrl = data.imageUrl || "";
       let uploadedMobileUrl = data.imageMobileUrl || "";
 
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      // Handle Desktop Image
-      if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
-        const file = data.imageDesktop as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `slide-desk-${Date.now()}.${extension}`;
-        
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedDesktopUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedDesktopUrl = `/uploads/${fileName}`;
-        }
-      }
-
-      // Handle Mobile Image
-      if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
-        const file = data.imageMobile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `slide-mob-${Date.now()}.${extension}`;
-        
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedMobileUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedMobileUrl = `/uploads/${fileName}`;
-        }
-      }
+      uploadedDesktopUrl = await putImage(requestEvent, "slide-desk", undefined, data.imageDesktop) ?? uploadedDesktopUrl;
+      uploadedMobileUrl = await putImage(requestEvent, "slide-mob", undefined, data.imageMobile) ?? uploadedMobileUrl;
 
       if (!uploadedDesktopUrl) {
         return requestEvent.fail(400, { message: "Debe proporcionar una imagen desktop o subir un archivo." });
@@ -121,7 +62,7 @@ export const useCreateSlideAction = routeAction$(
         imageUrl: uploadedDesktopUrl,
         imageMobile: uploadedMobileUrl || uploadedDesktopUrl,
         title: data.title,
-        preTitle: data.preTitle || "Exclusivo AMP+",
+        preTitle: data.preTitle || "Exclusivo LPRC",
         subtitle: data.subtitle,
         buttonText: data.buttonText || "Explorar",
         buttonLink: data.buttonLink || "/",
@@ -165,71 +106,14 @@ export const useUpdateSlideAction = routeAction$(
       let uploadedDesktopUrl = data.imageUrl || existing[0].imageUrl;
       let uploadedMobileUrl = data.imageMobileUrl || existing[0].imageMobile || "";
 
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      // Handle Desktop Image
-      if (data.imageDesktop && typeof data.imageDesktop === "object" && (data.imageDesktop as Blob).size > 0) {
-        const file = data.imageDesktop as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `slide-desk-${Date.now()}.${extension}`;
-
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedDesktopUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedDesktopUrl = `/uploads/${fileName}`;
-        }
-      }
-
-      // Handle Mobile Image
-      if (data.imageMobile && typeof data.imageMobile === "object" && (data.imageMobile as Blob).size > 0) {
-        const file = data.imageMobile as File;
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `slide-mob-${Date.now()}.${extension}`;
-
-        let isBlob = false;
-        if (token) {
-          try {
-            const blob = await put(fileName, file, { access: "public", token });
-            uploadedMobileUrl = blob.url;
-            isBlob = true;
-          } catch (e) {
-            console.error("Vercel Blob failed, fallback to fs", e);
-          }
-        }
-
-        if (!isBlob) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedMobileUrl = `/uploads/${fileName}`;
-        }
-      }
+      uploadedDesktopUrl = await putImage(requestEvent, "slide-desk", undefined, data.imageDesktop) ?? uploadedDesktopUrl;
+      uploadedMobileUrl = await putImage(requestEvent, "slide-mob", undefined, data.imageMobile) ?? uploadedMobileUrl;
 
       await db.update(heroSlidesTable).set({
         imageUrl: uploadedDesktopUrl,
         imageMobile: uploadedMobileUrl || uploadedDesktopUrl,
         title: data.title,
-        preTitle: data.preTitle || "Exclusivo AMP+",
+        preTitle: data.preTitle || "Exclusivo LPRC",
         subtitle: data.subtitle,
         buttonText: data.buttonText || "Explorar",
         buttonLink: data.buttonLink || "/",
@@ -507,7 +391,7 @@ export default component$(() => {
                   type="text"
                   name="title"
                   required
-                  placeholder="Ej: Temporada de Invierno AMP+"
+                  placeholder="Ej: Temporada de Invierno LPRC"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
                 />
               </div>
@@ -808,7 +692,7 @@ export default component$(() => {
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent flex flex-col justify-end p-4 text-left">
                       <span class="text-[9px] font-black uppercase text-brand-gold tracking-widest mb-0.5 inline-flex items-center gap-1">
                         <LuSparkles class="w-2.5 h-2.5 text-brand-gold fill-brand-gold animate-pulse" />
-                        {slide.preTitle || "Exclusivo AMP+"}
+                        {slide.preTitle || "Exclusivo LPRC"}
                       </span>
                       <h3 class="text-sm font-black text-white leading-tight font-display">{slide.title}</h3>
                       <p class="text-[10px] text-slate-200 line-clamp-1 mt-0.5">{slide.subtitle}</p>
@@ -942,7 +826,7 @@ export default component$(() => {
                       type="text"
                       name="preTitle"
                       value={editingSlide.value.preTitle || ""}
-                      placeholder="Ej: Exclusivo AMP+"
+                      placeholder="Ej: Exclusivo LPRC"
                       class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
                     />
                   </div>
@@ -1172,7 +1056,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Carrusel Hero",
+  title: "LPRC Club - Carrusel Hero",
   meta: [
     {
       name: "description",

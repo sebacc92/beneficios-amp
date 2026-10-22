@@ -1,18 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;550;700&display=swap');
 @import "tailwindcss";
 
 
 @theme {
-  --color-brand-green-dark: #072f1d;
-  --color-brand-green: #0a442a;
-  --color-brand-green-light: #12633f;
-  --color-brand-green-accent: #1ebd75;
-  --color-brand-gold-dark: #b8860b;
-  --color-brand-gold: #d4a317;
-  --color-brand-gold-light: #f3c642;
+  --color-primary: #0B1526;
+  --color-secondary: #1E2B45;
+  --color-accent: #F5C800;
+  --color-accent-hover: #D6AE00;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #94A3B8;
+  --color-background: #040811;
+  --color-borde: #1E2B45;
+
+  --color-brand-green-dark: #0B1526;
+  --color-brand-green: #1E2B45;
+  --color-brand-green-light: #2c3e5f;
+  --color-brand-green-accent: #F5C800;
+  --color-brand-gold-dark: #D6AE00;
+  --color-brand-gold: #F5C800;
+  --color-brand-gold-light: #FFE033;
   
-  --font-display: "Outfit", sans-serif;
+  --font-display: "Oswald", sans-serif;
   --font-sans: "Inter", sans-serif;
+  --font-oswald: "Oswald", sans-serif;
+  --font-inter: "Inter", sans-serif;
   
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -27,8 +38,8 @@ html {
   font-size: 116%; /* Elegant global scaling of all rem-based typography */
   scroll-behavior: smooth;
   font-family: var(--font-sans);
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -40,50 +51,50 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--color-background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--color-secondary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-green-light);
+  background: var(--color-accent);
 }
 
 /* Custom glassmorphism utilities */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(11, 21, 38, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(30, 43, 69, 0.4);
 }
 
 .glass-panel-dark {
-  background: rgba(10, 68, 42, 0.05);
+  background: rgba(4, 8, 17, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(10, 68, 42, 0.1);
+  border: 1px solid rgba(30, 43, 69, 0.6);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(30, 43, 69, 0.4);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(30, 43, 69, 0.5);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(10, 68, 42, 0.08);
-  border-color: rgba(10, 68, 42, 0.15);
+  box-shadow: 0 12px 40px rgba(245, 200, 0, 0.15);
+  border-color: rgba(245, 200, 0, 0.3);
 }
 
 .text-gradient-brand {
-  background: linear-gradient(135deg, var(--color-brand-green) 0%, var(--color-brand-green-light) 50%, var(--color-brand-gold) 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 50%, #ffffff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -252,7 +263,7 @@ html {
 
   .print-voucher-container {
     display: block !important;
-    border: 2px dashed #0a442a !important;
+    border: 2px dashed var(--color-accent) !important;
     padding: 2rem !important;
     border-radius: 1rem !important;
     margin: 1.5rem auto !important;
@@ -289,32 +300,47 @@ html {
 
 /* Premium digital credential card styles */
 .credential-card {
-  background: linear-gradient(135deg, var(--color-brand-green-dark) 0%, var(--color-brand-green) 100%) !important;
-  border: 1px solid rgba(243, 198, 66, 0.3) !important; /* Subtle gold border */
-  box-shadow: 0 10px 30px rgba(7, 47, 29, 0.2) !important;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%) !important;
+  border: 1px solid rgba(245, 200, 0, 0.3) !important; /* Subtle yellow border */
+  box-shadow: 0 10px 30px rgba(4, 8, 17, 0.4) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   color: #ffffff !important;
 }
 
 .credential-card:hover {
   transform: translateY(-4px) !important;
-  box-shadow: 0 15px 40px rgba(7, 47, 29, 0.35) !important;
-  border-color: rgba(243, 198, 66, 0.5) !important;
+  box-shadow: 0 15px 40px rgba(245, 200, 0, 0.2) !important;
+  border-color: rgba(245, 200, 0, 0.6) !important;
 }
 
 .credential-card-locked {
-  background: linear-gradient(135deg, rgba(7, 47, 29, 0.85) 0%, rgba(10, 68, 42, 0.95) 100%) !important;
+  background: linear-gradient(135deg, rgba(11, 21, 38, 0.85) 0%, rgba(30, 43, 69, 0.95) 100%) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
   border: 1px dashed rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 10px 30px rgba(7, 47, 29, 0.15) !important;
+  box-shadow: 0 10px 30px rgba(4, 8, 17, 0.25) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .credential-card-locked:hover {
   transform: translateY(-4px) !important;
-  box-shadow: 0 15px 40px rgba(7, 47, 29, 0.25) !important;
+  box-shadow: 0 15px 40px rgba(4, 8, 17, 0.3) !important;
   border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

@@ -1,5 +1,5 @@
 import type { RequestEventBase } from "@builder.io/qwik-city";
-import { eq, desc, asc, sql } from "drizzle-orm";
+import { eq, desc, asc, inArray } from "drizzle-orm";
 import { getDB } from "~/db";
 import { siteSettings, chatSessions, chatMessages } from "~/db/schema";
 
@@ -45,16 +45,16 @@ export interface ChatSession {
 const DEFAULT_SETTINGS: ChatbotSettings = {
   id: 1,
   aiEnabled: true,
-  aiTone: "Amigable, profesional, servicial y enfocado en la comunidad médica.",
+  aiTone: "Amigable, profesional, servicial y enfocado en la comunidad rugbier.",
   aiInstructions:
-    "1. TRATO NEUTRO Y RESPETUOSO: Dirígete cordialmente como colega o prestador (médicos agremiados).\n2. CERO ALUCINACIONES: Si un usuario consulta por un beneficio que no está en la base de datos o por información confidencial de la AMP, invítalo amablemente a comunicarse con soporte o revisar las secciones oficiales de la web.",
+    "1. TRATO NEUTRO Y RESPETUOSO: Dirígete cordialmente como socio.\n2. CERO ALUCINACIONES: Si un usuario consulta por un beneficio que no está en la base de datos o por información confidencial de la LPRC, invítalo amablemente a comunicarse con soporte o revisar las secciones oficiales de la web.",
   aiKnowledge:
-    "- Identidad: Somos el Portal de Beneficios de la Agremiación Médica Platense (AMP). Our portal offers benefits exclusively to the members of the AMP.\n- Credencial Digital: Para usar los beneficios se debe presentar la credencial digital médica a través de la app oficial de la AMP.",
+    "- Identidad: Somos el Portal de Beneficios de la La Plata Rugby Club (LPRC). Our portal offers benefits exclusively to the members of the LPRC.\n- Credencial Digital: Para usar los beneficios se debe presentar la credencial digital a través de la app oficial de la LPRC.",
   aiInitialGreeting:
-    "¡Hola! Soy el asistente virtual del Club de Beneficios de la Agremiación Médica Platense. ¿En qué puedo ayudarte hoy?",
+    "¡Hola! Soy el asistente virtual del Club de Beneficios de la La Plata Rugby Club. ¿En qué puedo ayudarte hoy?",
   aiCallToAction:
-    "Para más consultas sobre tu credencial digital AMP+ o el estado de tu agremiación, recordá que podés escribirnos al WhatsApp oficial:",
-  whatsappNumber: "542214391300",
+    "Para más consultas sobre tu credencial digital LPRC o el estado de tu membresía del club, recordá que podés escribirnos al WhatsApp oficial:",
+  whatsappNumber: "5492214895777",
   aiAvatarUrl: null,
   popupActive: false,
   popupTitle: null,
@@ -64,35 +64,28 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   popupButtonLink: null,
   campaignActive: true,
   campaignTitle: "Cafecitos & Desayunos",
-  campaignSubtitle: "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.",
+  campaignSubtitle: "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital LPRC.",
   campaignEmoji: "☕",
   campaignTag: "SELECCIÓN GOURMET",
   campaignQuery: "cafe,café,desayuno,factura,gastronomia,gastro",
   updatedAt: null,
 };
 
+const SETTINGS_KEY = "__site_settings";
+
+/**
+ * Site settings, memoized per request.
+ *
+ * The schema migration (six ALTER TABLE statements for the campaign columns) used
+ * to run here on every single call — i.e. on every homepage render and on every
+ * chatbot bootstrap. It now lives in scripts/migrate.mjs; run `pnpm migrate` once
+ * per environment.
+ */
 export async function getSettings(requestEvent: RequestEventBase): Promise<ChatbotSettings> {
+  const memoized = requestEvent.sharedMap.get(SETTINGS_KEY) as ChatbotSettings | undefined;
+  if (memoized) return memoized;
+
   const db = getDB(requestEvent);
-  
-  // Try to alter table dynamically to ensure campaign columns exist in production Turso
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_active INTEGER DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_title TEXT DEFAULT 'Cafecitos & Desayunos'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_subtitle TEXT DEFAULT 'Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_emoji TEXT DEFAULT '☕'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_tag TEXT DEFAULT 'SELECCIÓN GOURMET'`);
-  } catch (e) {}
-  try {
-    await db.run(sql`ALTER TABLE site_settings ADD COLUMN campaign_query TEXT DEFAULT 'cafe,café,desayuno,factura,gastronomia,gastro'`);
-  } catch (e) {}
 
   try {
     const [settings] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
@@ -100,9 +93,10 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       // If no settings exist in DB yet, create the default record
       const settingsToSave = { ...DEFAULT_SETTINGS, id: 1, updatedAt: new Date().toISOString() };
       await db.insert(siteSettings).values(settingsToSave);
+      requestEvent.sharedMap.set(SETTINGS_KEY, settingsToSave);
       return settingsToSave;
     }
-    return {
+    const resolved: ChatbotSettings = {
       id: settings.id,
       aiEnabled: settings.aiEnabled,
       aiTone: settings.aiTone || "",
@@ -110,7 +104,7 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       aiKnowledge: settings.aiKnowledge || "",
       aiInitialGreeting: settings.aiInitialGreeting || "",
       aiCallToAction: settings.aiCallToAction || "",
-      whatsappNumber: settings.whatsappNumber || "542214391300",
+      whatsappNumber: settings.whatsappNumber || "5492214895777",
       aiAvatarUrl: settings.aiAvatarUrl,
       popupActive: settings.popupActive ?? false,
       popupTitle: settings.popupTitle,
@@ -120,12 +114,14 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       popupButtonLink: settings.popupButtonLink,
       campaignActive: settings.campaignActive ?? true,
       campaignTitle: settings.campaignTitle || "Cafecitos & Desayunos",
-      campaignSubtitle: settings.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.",
+      campaignSubtitle: settings.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital LPRC.",
       campaignEmoji: settings.campaignEmoji || "☕",
       campaignTag: settings.campaignTag || "SELECCIÓN GOURMET",
       campaignQuery: settings.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro",
       updatedAt: settings.updatedAt,
     };
+    requestEvent.sharedMap.set(SETTINGS_KEY, resolved);
+    return resolved;
   } catch (err) {
     console.error("Drizzle: Failed to load settings, using memory fallback:", err);
     return DEFAULT_SETTINGS;
@@ -165,35 +161,44 @@ export async function saveSettings(requestEvent: RequestEventBase, settings: Cha
   } else {
     await db.insert(siteSettings).values(settingsRow);
   }
+
+  // Drop the per-request memo so a read after this write sees the new values.
+  requestEvent.sharedMap.delete(SETTINGS_KEY);
 }
 
 export async function getSessions(requestEvent: RequestEventBase): Promise<ChatSession[]> {
   const db = getDB(requestEvent);
   try {
     const sessions = await db.select().from(chatSessions).orderBy(desc(chatSessions.lastActive));
-    const result: ChatSession[] = [];
+    if (sessions.length === 0) return [];
 
-    for (const s of sessions) {
-      const messages = await db
-        .select()
-        .from(chatMessages)
-        .where(eq(chatMessages.sessionId, s.id))
-        .orderBy(asc(chatMessages.createdAt));
+    // Two queries total instead of one per session (the old loop was an N+1 that
+    // made /admin/ai and /admin/stats scale linearly with conversation count).
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(inArray(chatMessages.sessionId, sessions.map((s) => s.id)))
+      .orderBy(asc(chatMessages.createdAt));
 
-      result.push({
-        id: s.id,
-        createdAt: s.createdAt,
-        lastActive: s.lastActive,
-        messages: messages.map((m) => ({
-          id: m.id,
-          role: m.role as any,
-          content: m.content,
-          createdAt: m.createdAt,
-        })),
-      });
+    const messagesBySession = new Map<string, ChatMessage[]>();
+    for (const m of messages) {
+      const bucket = messagesBySession.get(m.sessionId);
+      const message: ChatMessage = {
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      };
+      if (bucket) bucket.push(message);
+      else messagesBySession.set(m.sessionId, [message]);
     }
 
-    return result;
+    return sessions.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      lastActive: s.lastActive,
+      messages: messagesBySession.get(s.id) ?? [],
+    }));
   } catch (err) {
     console.error("Drizzle: Failed to load sessions:", err);
     return [];
@@ -218,7 +223,7 @@ export async function getSessionById(requestEvent: RequestEventBase, id: string)
       lastActive: session.lastActive,
       messages: messages.map((m) => ({
         id: m.id,
-        role: m.role as any,
+        role: m.role,
         content: m.content,
         createdAt: m.createdAt,
       })),
@@ -229,22 +234,20 @@ export async function getSessionById(requestEvent: RequestEventBase, id: string)
   }
 }
 
-export async function addSessionOrUpdateActive(requestEvent: RequestEventBase, id: string): Promise<ChatSession> {
+/**
+ * Creates the session row if missing, otherwise bumps `lastActive`.
+ *
+ * Single upsert: the previous version did a SELECT, then an INSERT/UPDATE, then
+ * re-read the whole session with all its messages just to throw the result away.
+ */
+export async function addSessionOrUpdateActive(requestEvent: RequestEventBase, id: string): Promise<void> {
   const db = getDB(requestEvent);
   const now = new Date().toISOString();
 
-  const [existing] = await db.select().from(chatSessions).where(eq(chatSessions.id, id)).limit(1);
-  if (!existing) {
-    await db.insert(chatSessions).values({
-      id,
-      createdAt: now,
-      lastActive: now,
-    });
-  } else {
-    await db.update(chatSessions).set({ lastActive: now }).where(eq(chatSessions.id, id));
-  }
-
-  return (await getSessionById(requestEvent, id))!;
+  await db
+    .insert(chatSessions)
+    .values({ id, createdAt: now, lastActive: now })
+    .onConflictDoUpdate({ target: chatSessions.id, set: { lastActive: now } });
 }
 
 export async function addMessageToSession(

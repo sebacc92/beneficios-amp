@@ -1,67 +1,30 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
-import { eq } from "drizzle-orm";
-import { getDB } from "~/db";
-import { users } from "~/db/schema";
+import { resolveSessionUser, type AuthenticatedUser } from "~/server/auth";
 
-export interface AuthenticatedUser {
-  id: string;
-  name: string;
-  email: string;
-  matricula: string | null;
-  role: "admin" | "member" | "premium";
-  avatarUrl: string | null;
-  premiumExpiresAt: string | null;
-  createdAt: string;
-}
+export type { AuthenticatedUser };
+
+const ADMIN_LOGIN_PATH = "/admin/login";
 
 export const onRequest: RequestHandler = async (event) => {
-  const sessionToken = event.cookie.get("session_token")?.value;
-
-  if (sessionToken) {
-    try {
-      const db = getDB(event);
-      const [userRecord] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, sessionToken))
-        .limit(1);
-
-      if (userRecord) {
-        const authenticatedUser: AuthenticatedUser = {
-          id: userRecord.id,
-          name: userRecord.name,
-          email: userRecord.email,
-          matricula: userRecord.matricula,
-          role: userRecord.role as any,
-          avatarUrl: userRecord.avatarUrl,
-          premiumExpiresAt: userRecord.premiumExpiresAt,
-          createdAt: userRecord.createdAt,
-        };
-        // Expose user in sharedMap so all loaders and actions can access it
-        event.sharedMap.set("user", authenticatedUser);
-      } else {
-        // Clear invalid cookie
-        event.cookie.delete("session_token", { path: "/" });
-      }
-    } catch (err) {
-      console.error("[Auth Middleware] Failed to resolve session:", err);
+  try {
+    const user = await resolveSessionUser(event);
+    if (user) {
+      // Expose user in sharedMap so all loaders and actions can access it
+      event.sharedMap.set("user", user);
     }
+  } catch (err) {
+    console.error("[Auth Middleware] Failed to resolve session:", err);
   }
 
-  // TEMPORAL: Bypassing auth checks for easy testing ONLY for admin routes.
-  const currentUser = event.sharedMap.get("user") as AuthenticatedUser | null;
-  if (event.url.pathname.startsWith("/admin") && (!currentUser || currentUser.role !== "admin")) {
-    const mockAdmin: AuthenticatedUser = {
-      id: "mock-admin-id",
-      name: "Administrador",
-      email: "admin@amepla.org.ar",
-      matricula: "12345",
-      role: "admin",
-      avatarUrl: null,
-      premiumExpiresAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    event.sharedMap.set("user", mockAdmin);
+  const currentUser = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  const pathname = event.url.pathname;
+
+  // Every /admin route requires a real admin session. The login page itself is the
+  // only exception, otherwise there would be no way in.
+  if (pathname.startsWith("/admin") && !pathname.startsWith(ADMIN_LOGIN_PATH)) {
+    if (!currentUser || currentUser.role !== "admin") {
+      throw event.redirect(302, ADMIN_LOGIN_PATH);
+    }
   }
 
   await event.next();

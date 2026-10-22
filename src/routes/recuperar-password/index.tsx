@@ -99,7 +99,7 @@ export default component$(() => {
                   id="email"
                   name="email"
                   required
-                  placeholder="ejemplo@amepla.org.ar"
+                  placeholder="ejemplo@lprc.ar"
                   bind:value={emailInput}
                   class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
                 />
@@ -133,11 +133,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Recuperar Contraseña - Club de Beneficios AMP",
+  title: "Recuperar Contraseña - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Recuperá la contraseña de tu cuenta médica del Club de Beneficios de la Agremiación Médica Platense.",
+      content: "Recuperá la contraseña de tu cuenta de socio del Club de Beneficios de la La Plata Rugby Club.",
     },
   ],
 };

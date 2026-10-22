@@ -59,7 +59,7 @@ export default component$(() => {
   // Campaign Signals
   const campaignActiveSig = useSignal(s.campaignActive);
   const campaignTitleSig = useSignal(s.campaignTitle || "Cafecitos & Desayunos");
-  const campaignSubtitleSig = useSignal(s.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital AMP+.");
+  const campaignSubtitleSig = useSignal(s.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital LPRC.");
   const campaignEmojiSig = useSignal(s.campaignEmoji || "☕");
   const campaignTagSig = useSignal(s.campaignTag || "SELECCIÓN GOURMET");
   const campaignQuerySig = useSignal(s.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro");
@@ -252,7 +252,7 @@ export default component$(() => {
 
               {/* Subtitle */}
               <p class="text-[11px] text-slate-400 font-medium leading-relaxed relative z-10 max-w-sm">
-                {campaignSubtitleSig.value || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital AMP+."}
+                {campaignSubtitleSig.value || "Disfrutá de beneficios exclusivos seleccionados especialmente para vos con tu credencial digital LPRC."}
               </p>
 
               {/* Button */}
@@ -269,7 +269,7 @@ export default component$(() => {
                 <div class="grid grid-cols-2 gap-3">
                   <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-2.5 space-y-2 opacity-80">
                     <div class="h-14 rounded-xl bg-slate-950 flex items-center justify-center relative">
-                      <span class="text-[8px] font-bold text-slate-600 uppercase">AMP+</span>
+                      <span class="text-[8px] font-bold text-slate-600 uppercase">LPRC</span>
                       <div class="absolute bottom-1 right-1 bg-brand-gold text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-lg">15%</div>
                     </div>
                     <span class="text-[8px] font-bold text-[#0a442a] uppercase block">La Plata</span>
@@ -278,7 +278,7 @@ export default component$(() => {
 
                   <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-2.5 space-y-2 opacity-80">
                     <div class="h-14 rounded-xl bg-slate-950 flex items-center justify-center relative">
-                      <span class="text-[8px] font-bold text-slate-600 uppercase">AMP+</span>
+                      <span class="text-[8px] font-bold text-slate-600 uppercase">LPRC</span>
                       <div class="absolute bottom-1 right-1 bg-brand-gold text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-lg">20%</div>
                     </div>
                     <span class="text-[8px] font-bold text-[#0a442a] uppercase block">Chubut</span>
@@ -304,7 +304,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Campaña Temática",
+  title: "LPRC Campaña Temática",
   meta: [
     {
       name: "description",

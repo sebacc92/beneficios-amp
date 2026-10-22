@@ -1,12 +1,28 @@
-import { component$, useSignal, useComputed$, useTask$, $ } from "@builder.io/qwik";
+import { component$, useSignal, useStore, useComputed$, useTask$, $, type QRL } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuPlus, LuTicket, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone } from "@qwikest/icons/lucide";
-import { desc, eq } from "drizzle-orm";
-import { put } from "@vercel/blob";
+import { eq } from "drizzle-orm";
+import { putImage, putMedia } from "~/server/media";
 import { getDB } from "~/db";
-import { customBenefits as customBenefitsTable } from "~/db/schema";
-import { getFilters, ensureDbSeeded } from "~/server/cache";
+import { benefits as benefitsTable } from "~/db/schema";
+import { getFilters, getCustomBenefitRows } from "~/server/cache";
+import { createBenefitFilter, validateBenefitFilterSelection, BenefitFilterValidationError, type BenefitFilterType } from "~/server/benefit-filters";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+
+const filterEditorLabels = {
+  categorias: { title: "Nueva categoría", placeholder: "Ej: Veterinarias" },
+  ubicaciones: { title: "Nueva ubicación", placeholder: "Ej: City Bell" },
+  ofertas: { title: "Nuevo descuento", placeholder: "Ej: 25% o 2x1" },
+};
+
+const FilterFieldLabel = component$<{ id: string; label: string; onAdd$: QRL<() => void> }>((props) => (
+  <div class="flex items-center justify-between gap-2">
+    <label for={props.id} class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{props.label}</label>
+    <button type="button" onClick$={props.onAdd$} aria-label={`Agregar ${props.label.toLowerCase()}`} class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-green hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-brand-green cursor-pointer">
+      <LuPlus class="h-3.5 w-3.5" /> Agregar
+    </button>
+  </div>
+));
 
 // --- SECURITY & LOADERS ---
 
@@ -16,9 +32,8 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
     throw event.redirect(302, "/login");
   }
   try {
-    const db = getDB(event);
-    await ensureDbSeeded(db);
-    return await db.select().from(customBenefitsTable).orderBy(desc(customBenefitsTable.createdAt));
+    const rows = await getCustomBenefitRows(event);
+    return [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch (err) {
     console.error("Failed to load custom benefits:", err);
     return [];
@@ -30,10 +45,32 @@ export const useAdminFiltersLoader = routeLoader$(async (event) => {
   if (!user || user.role !== "admin") {
     throw event.redirect(302, "/login");
   }
-  return await getFilters();
+  return await getFilters(event);
 });
 
 // --- ACTIONS ---
+
+export const useCreateBenefitFilterAction = routeAction$(
+  async (data, event) => {
+    const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+    if (!user || user.role !== "admin") return event.fail(403, { message: "No autorizado." });
+
+    try {
+      const option = await createBenefitFilter(event, data.type, data.descripcion);
+      return { success: true, option };
+    } catch (error) {
+      if (error instanceof BenefitFilterValidationError) {
+        return event.fail(400, { message: error.message });
+      }
+      console.error("Failed to create benefit filter:", error);
+      return event.fail(500, { message: "No se pudo guardar la opción. Intentá de nuevo." });
+    }
+  },
+  zod$({
+    type: z.enum(["categorias", "ubicaciones", "ofertas"]),
+    descripcion: z.string().trim().min(1, "Ingresá un nombre.").max(100, "Usá hasta 100 caracteres."),
+  })
+);
 
 export const useCreateBenefitAction = routeAction$(
   async (data, requestEvent) => {
@@ -41,181 +78,20 @@ export const useCreateBenefitAction = routeAction$(
     if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
 
     try {
+      await validateBenefitFilterSelection(requestEvent, data);
       const db = getDB(requestEvent);
       const uuid = "cb-" + Date.now().toString();
       const slug = uuid + "-" + data.titulo.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
 
       let uploadedPdfUrl = null;
-
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
-        
-        // Attempt Vercel Blob Upload
-        let uploaded = false;
-        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
-          try {
-            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
-              access: "public",
-              token: token
-            });
-            uploadedPdfUrl = blob.url;
-            uploaded = true;
-            console.log("[Vercel Blob] Uploaded PDF to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!uploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-
-          const extension = file.name.split(".").pop() || "pdf";
-          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedPdfUrl = `/uploads/${fileName}`;
-        }
+        const extension = file.name.split(".").pop() || "pdf";
+        uploadedPdfUrl = await putMedia(requestEvent, `benefit-pdf-${Date.now()}.${extension}`, file);
       }
 
-      let uploadedImageUrl = null;
-      let imageUploaded = false;
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
-        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const fileName = `benefit-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), {
-              access: "public",
-              token: token
-            });
-            uploadedImageUrl = blob.url;
-            imageUploaded = true;
-            console.log("[Vercel Blob] Uploaded optimized image to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-      } else if (data.imageFile && typeof data.imageFile === "object" && (data.imageFile as Blob).size > 0) {
-        const file = data.imageFile as File;
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `benefit-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, {
-              access: "public",
-              token: token
-            });
-            uploadedImageUrl = blob.url;
-            imageUploaded = true;
-            console.log("[Vercel Blob] Uploaded image file to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageUrl = `/uploads/${fileName}`;
-        }
-      }
-
-      let uploadedImageMobileUrl = null;
-      let imageMobileUploaded = false;
-
-      if (data.optimizedMobileImage && typeof data.optimizedMobileImage === "string" && data.optimizedMobileImage.startsWith("data:image")) {
-        const base64Data = data.optimizedMobileImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const fileName = `benefit-mobile-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), {
-              access: "public",
-              token: token
-            });
-            uploadedImageMobileUrl = blob.url;
-            imageMobileUploaded = true;
-            console.log("[Vercel Blob] Uploaded optimized mobile image to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Mobile upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageMobileUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          uploadedImageMobileUrl = `/uploads/${fileName}`;
-        }
-      } else if (data.imageMobileFile && typeof data.imageMobileFile === "object" && (data.imageMobileFile as Blob).size > 0) {
-        const file = data.imageMobileFile as File;
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `benefit-mobile-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, {
-              access: "public",
-              token: token
-            });
-            uploadedImageMobileUrl = blob.url;
-            imageMobileUploaded = true;
-            console.log("[Vercel Blob] Uploaded mobile image file to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Mobile upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageMobileUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          uploadedImageMobileUrl = `/uploads/${fileName}`;
-        }
-      }
+      const uploadedImageUrl = await putImage(requestEvent, "benefit", data.optimizedImage, data.imageFile);
+      const uploadedImageMobileUrl = await putImage(requestEvent, "benefit-mobile", data.optimizedMobileImage, data.imageMobileFile);
 
       let lat = data.latitud?.trim() || null;
       let lng = data.longitud?.trim() || null;
@@ -226,7 +102,7 @@ export const useCreateBenefitAction = routeAction$(
         lng = (-57.9536 + randomOffsetLng).toFixed(6);
       }
 
-      await db.insert(customBenefitsTable).values({
+      await db.insert(benefitsTable).values({
         id: uuid,
         titulo: data.titulo,
         resumen: data.resumen,
@@ -250,14 +126,15 @@ export const useCreateBenefitAction = routeAction$(
 
       return { success: true };
     } catch (err: any) {
+      if (err instanceof BenefitFilterValidationError) return requestEvent.fail(400, { message: err.message });
       console.error(err);
       return requestEvent.fail(500, { message: "Error al crear el beneficio." });
     }
   },
   zod$({
-    titulo: z.string().min(3),
-    resumen: z.string().min(5),
-    descripcion: z.string().min(5),
+    titulo: z.string().trim().min(3, "El título debe tener al menos 3 caracteres."),
+    resumen: z.string().trim().min(5, "El resumen debe tener al menos 5 caracteres."),
+    descripcion: z.string().trim().min(5, "La descripción debe tener al menos 5 caracteres."),
     imagen: z.string().optional(),
     imagenMobile: z.string().optional(),
     isFeatured: z.string().optional(),
@@ -285,194 +162,25 @@ export const useEditBenefitAction = routeAction$(
     if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
 
     try {
+      await validateBenefitFilterSelection(requestEvent, data);
       const db = getDB(requestEvent);
       
-      const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
+      const [existing] = await db.select().from(benefitsTable).where(eq(benefitsTable.id, data.id));
       if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
 
       let finalPdfUrl = existing.pdfUrl;
-
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
-        
-        // Attempt Vercel Blob Upload
-        let uploaded = false;
-        if (process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN")) {
-          try {
-            const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-            const blob = await put(`pdf-${Date.now()}-${file.name}`, file, {
-              access: "public",
-              token: token
-            });
-            finalPdfUrl = blob.url;
-            uploaded = true;
-            console.log("[Vercel Blob] Uploaded PDF during edit to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed during edit, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!uploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-
-          const extension = file.name.split(".").pop() || "pdf";
-          const fileName = `benefit-pdf-${Date.now()}.${extension}`;
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          finalPdfUrl = `/uploads/${fileName}`;
-        }
+        const extension = file.name.split(".").pop() || "pdf";
+        finalPdfUrl = await putMedia(requestEvent, `benefit-pdf-${Date.now()}.${extension}`, file);
       } else if (data.clearPdf === "true") {
         finalPdfUrl = null;
       }
 
-      let finalImageUrl = existing.imagen;
-
-      if (data.clearImage === "true") {
-        finalImageUrl = null;
-      }
-
-      let imageUploaded = false;
-      const token = process.env.BLOB_READ_WRITE_TOKEN || requestEvent.env.get("BLOB_READ_WRITE_TOKEN");
-
-      if (data.optimizedImage && typeof data.optimizedImage === "string" && data.optimizedImage.startsWith("data:image")) {
-        const base64Data = data.optimizedImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const fileName = `benefit-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), {
-              access: "public",
-              token: token
-            });
-            finalImageUrl = blob.url;
-            imageUploaded = true;
-            console.log("[Vercel Blob] Uploaded optimized image to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          finalImageUrl = `/uploads/${fileName}`;
-        }
-      } else if (data.imageFile && typeof data.imageFile === "object" && (data.imageFile as Blob).size > 0) {
-        const file = data.imageFile as File;
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `benefit-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, {
-              access: "public",
-              token: token
-            });
-            finalImageUrl = blob.url;
-            imageUploaded = true;
-            console.log("[Vercel Blob] Uploaded image file to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Upload failed, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          finalImageUrl = `/uploads/${fileName}`;
-        }
-      }
-
-      let finalImageMobileUrl = existing.imagenMobile;
-
-      if (data.clearMobileImage === "true") {
-        finalImageMobileUrl = null;
-      }
-
-      let imageMobileUploaded = false;
-
-      if (data.optimizedMobileImage && typeof data.optimizedMobileImage === "string" && data.optimizedMobileImage.startsWith("data:image")) {
-        const base64Data = data.optimizedMobileImage.replace(/^data:image\/\w+;base64,/, "");
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const fileName = `benefit-mobile-${Date.now()}.webp`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, Buffer.from(bytes), {
-              access: "public",
-              token: token
-            });
-            finalImageMobileUrl = blob.url;
-            imageMobileUploaded = true;
-            console.log("[Vercel Blob] Uploaded optimized mobile image during edit to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Mobile upload failed during edit, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageMobileUploaded) {
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, bytes);
-          finalImageMobileUrl = `/uploads/${fileName}`;
-        }
-      } else if (data.imageMobileFile && typeof data.imageMobileFile === "object" && (data.imageMobileFile as Blob).size > 0) {
-        const file = data.imageMobileFile as File;
-        const extension = file.name.split(".").pop() || "png";
-        const fileName = `benefit-mobile-${Date.now()}.${extension}`;
-
-        if (token) {
-          try {
-            const blob = await put(fileName, file, {
-              access: "public",
-              token: token
-            });
-            finalImageMobileUrl = blob.url;
-            imageMobileUploaded = true;
-            console.log("[Vercel Blob] Uploaded mobile image file during edit to:", blob.url);
-          } catch (blobErr: any) {
-            console.error("[Vercel Blob] Mobile upload failed during edit, falling back to disk:", blobErr.message);
-          }
-        }
-
-        if (!imageMobileUploaded) {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = new Uint8Array(arrayBuffer);
-          const uploadsDir = `${process.cwd()}/public/uploads`;
-          const fsModule = await import("fs/promises");
-          await fsModule.mkdir(uploadsDir, { recursive: true });
-          const filePath = `${uploadsDir}/${fileName}`;
-          await fsModule.writeFile(filePath, buffer);
-          finalImageMobileUrl = `/uploads/${fileName}`;
-        }
-      }
+      const uploadedImageUrl = await putImage(requestEvent, "benefit", data.optimizedImage, data.imageFile);
+      const finalImageUrl = uploadedImageUrl ?? (data.clearImage === "true" ? null : existing.imagen);
+      const uploadedImageMobileUrl = await putImage(requestEvent, "benefit-mobile", data.optimizedMobileImage, data.imageMobileFile);
+      const finalImageMobileUrl = uploadedImageMobileUrl ?? (data.clearMobileImage === "true" ? null : existing.imagenMobile);
 
       let lat = data.latitud?.trim() || null;
       let lng = data.longitud?.trim() || null;
@@ -482,7 +190,7 @@ export const useEditBenefitAction = routeAction$(
       }
 
       await db
-        .update(customBenefitsTable)
+        .update(benefitsTable)
         .set({
           titulo: data.titulo,
           resumen: data.resumen,
@@ -501,19 +209,20 @@ export const useEditBenefitAction = routeAction$(
           latitud: lat,
           longitud: lng,
         })
-        .where(eq(customBenefitsTable.id, data.id));
+        .where(eq(benefitsTable.id, data.id));
 
       return { success: true };
     } catch (err: any) {
+      if (err instanceof BenefitFilterValidationError) return requestEvent.fail(400, { message: err.message });
       console.error(err);
       return requestEvent.fail(500, { message: "Error al modificar el beneficio." });
     }
   },
   zod$({
     id: z.string(),
-    titulo: z.string().min(3),
-    resumen: z.string().min(5),
-    descripcion: z.string().min(5),
+    titulo: z.string().trim().min(3, "El título debe tener al menos 3 caracteres."),
+    resumen: z.string().trim().min(5, "El resumen debe tener al menos 5 caracteres."),
+    descripcion: z.string().trim().min(5, "La descripción debe tener al menos 5 caracteres."),
     imagen: z.string().optional(),
     imagenMobile: z.string().optional(),
     isFeatured: z.string().optional(),
@@ -545,7 +254,7 @@ export const useToggleBenefitActiveAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
-      const [existing] = await db.select().from(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
+      const [existing] = await db.select().from(benefitsTable).where(eq(benefitsTable.id, data.id));
       if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
 
       const rawValidUntil = existing.validUntil;
@@ -557,9 +266,9 @@ export const useToggleBenefitActiveAction = routeAction$(
         newValidUntil = `draft|${rawValidUntil || ""}`;
       }
 
-      await db.update(customBenefitsTable)
+      await db.update(benefitsTable)
         .set({ validUntil: newValidUntil })
-        .where(eq(customBenefitsTable.id, data.id));
+        .where(eq(benefitsTable.id, data.id));
 
       return { success: true };
     } catch (err: any) {
@@ -579,7 +288,7 @@ export const useDeleteBenefitAction = routeAction$(
 
     try {
       const db = getDB(requestEvent);
-      await db.delete(customBenefitsTable).where(eq(customBenefitsTable.id, data.id));
+      await db.delete(benefitsTable).where(eq(benefitsTable.id, data.id));
       return { success: true };
     } catch (err: any) {
       console.error(err);
@@ -592,15 +301,31 @@ export const useDeleteBenefitAction = routeAction$(
 );
 
 export default component$(() => {
-  const customBenefits = useAdminCustomBenefitsLoader();
+  const benefits = useAdminCustomBenefitsLoader();
   const adminFilters = useAdminFiltersLoader();
   const createBenefitAction = useCreateBenefitAction();
   const editBenefitAction = useEditBenefitAction();
   const deleteBenefitAction = useDeleteBenefitAction();
   const toggleBenefitActiveAction = useToggleBenefitActiveAction();
+  const createBenefitFilterAction = useCreateBenefitFilterAction();
 
   const isCreateBenefitOpen = useSignal(false);
   const editingBenefit = useSignal<any | null>(null);
+  const filterDialog = useSignal<HTMLDialogElement>();
+  const filterTarget = useSignal<{ type: BenefitFilterType; context: "create" | "edit" } | null>(null);
+  const filterDescription = useSignal("");
+  const filterError = useSignal("");
+  const filterNotice = useSignal("");
+  const createFilterSelection = useStore({ categorias: "", ubicaciones: "", ofertas: "" });
+  const editFilterSelection = useStore({ categorias: "", ubicaciones: "", ofertas: "" });
+
+  const openFilterEditor$ = $((type: BenefitFilterType, context: "create" | "edit") => {
+    filterTarget.value = { type, context };
+    filterDescription.value = "";
+    filterError.value = "";
+    filterNotice.value = "";
+    filterDialog.value?.showModal();
+  });
 
   // Image Upload signals
   const createImagePreviewUrl = useSignal<string | null>(null);
@@ -863,7 +588,7 @@ export default component$(() => {
   const itemsPerPage = 25;
 
   const filteredBenefits = useComputed$(() => {
-    let items = customBenefits.value;
+    let items = benefits.value;
     if (statusFilter.value === "active") {
       items = items.filter(b => !(b.validUntil?.startsWith("draft|") || b.validUntil === "draft"));
     } else if (statusFilter.value === "inactive") {
@@ -898,6 +623,70 @@ export default component$(() => {
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
+      <dialog
+        ref={filterDialog}
+        aria-labelledby="benefit-filter-title"
+        class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-800 shadow-xl backdrop:bg-slate-950/50"
+        preventdefault:cancel
+        onCancel$={() => { if (!createBenefitFilterAction.isRunning) filterDialog.value?.close(); }}
+        onClose$={() => { filterTarget.value = null; }}
+      >
+        <Form
+          action={createBenefitFilterAction}
+          class="space-y-5"
+          onSubmitCompleted$={() => {
+            const result = createBenefitFilterAction.value;
+            const target = filterTarget.value;
+            if (!result?.success) {
+              filterError.value = result?.message || result?.fieldErrors?.descripcion || "Revisá el nombre e intentá de nuevo.";
+              return;
+            }
+            if (!target) return;
+            const option = result.option;
+            if (target.context === "create") {
+              createFilterSelection[target.type] = String(option.id);
+              if (target.type === "categorias") createPreviewCategory.value = option.descripcion;
+              if (target.type === "ubicaciones") createPreviewLocation.value = option.descripcion;
+            } else if (editingBenefit.value) {
+              editFilterSelection[target.type] = String(option.id);
+              if (target.type === "categorias") editPreviewCategory.value = option.descripcion;
+              if (target.type === "ubicaciones") editPreviewLocation.value = option.descripcion;
+            }
+            filterNotice.value = `“${option.descripcion}” está disponible y quedó seleccionada en el beneficio.`;
+            filterDialog.value?.close();
+          }}
+        >
+          <h2 id="benefit-filter-title" class="text-lg font-bold text-brand-green-dark">
+            {filterTarget.value ? filterEditorLabels[filterTarget.value.type].title : "Agregar opción"}
+          </h2>
+          <p class="text-sm text-slate-500">La opción quedará disponible para todos los beneficios.</p>
+          <input type="hidden" name="type" value={filterTarget.value?.type || "categorias"} />
+          <div class="space-y-2">
+            <label for="benefit-filter-description" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Nombre</label>
+            <input
+              id="benefit-filter-description"
+              name="descripcion"
+              type="text"
+              value={filterDescription.value}
+              onInput$={(_, el) => { filterDescription.value = el.value; filterError.value = ""; }}
+              aria-invalid={Boolean(filterError.value)}
+              aria-describedby={filterError.value ? "benefit-filter-error" : undefined}
+              required
+              maxLength={100}
+              autoFocus
+              placeholder={filterTarget.value ? filterEditorLabels[filterTarget.value.type].placeholder : ""}
+              class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-brand-green focus:bg-white focus:outline-none"
+            />
+          </div>
+          {filterError.value && <p id="benefit-filter-error" role="alert" class="text-sm text-red-600">{filterError.value}</p>}
+          <div class="flex justify-end gap-3">
+            <button type="button" disabled={createBenefitFilterAction.isRunning} onClick$={() => filterDialog.value?.close()} class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold disabled:opacity-50 cursor-pointer">Cancelar</button>
+            <button type="submit" disabled={createBenefitFilterAction.isRunning} class="rounded-2xl bg-brand-green px-4 py-3 text-sm font-bold text-white hover:bg-brand-green-light disabled:opacity-50 cursor-pointer">
+              {createBenefitFilterAction.isRunning ? "Guardando..." : "Guardar y seleccionar"}
+            </button>
+          </div>
+        </Form>
+      </dialog>
       {/* Dynamic Header Area (No duplication) */}
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
@@ -975,6 +764,11 @@ export default component$(() => {
 
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
         {/* Action Feedback alerts */}
+        {filterNotice.value && (
+          <div role="status" class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
+            {filterNotice.value}
+          </div>
+        )}
         {createBenefitAction.value?.success && (
           <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-fade-in">
             ✓ Beneficio creado exitosamente e integrado en el catálogo general.
@@ -997,6 +791,11 @@ export default component$(() => {
         {isCreateBenefitOpen.value && (
           <Form action={createBenefitAction} enctype="multipart/form-data" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
             <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Nuevo Beneficio Propio</h4>
+            {createBenefitAction.value?.failed && (
+              <p role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {createBenefitAction.value.message || Object.values(createBenefitAction.value.fieldErrors || {}).join(" ") || "No se pudo crear el beneficio. Revisá los datos e intentá de nuevo."}
+              </p>
+            )}
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1">
@@ -1005,6 +804,7 @@ export default component$(() => {
                   type="text"
                   name="titulo"
                   required
+                  minLength={3}
                   placeholder="Ej: Spa Platense Masajes"
                   onInput$={(e) => { createPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
@@ -1017,6 +817,7 @@ export default component$(() => {
                   type="text"
                   name="resumen"
                   required
+                  minLength={5}
                   placeholder="Ej: 20% de descuento"
                   onInput$={(e) => { createPreviewResumen.value = (e.target as HTMLInputElement).value; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
@@ -1029,6 +830,7 @@ export default component$(() => {
               <textarea
                 name="descripcion"
                 required
+                minLength={5}
                 rows={3}
                 placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
                 onInput$={(e) => { createPreviewDescripcion.value = (e.target as HTMLTextAreaElement).value; }}
@@ -1038,10 +840,13 @@ export default component$(() => {
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Categoría</label>
+                <FilterFieldLabel id="create-categoryId" label="Categoría" onAdd$={() => openFilterEditor$("categorias", "create")} />
                 <select
+                  id="create-categoryId"
                   name="categoryId"
-                  onChange$={(e, el) => { createPreviewCategory.value = el.options[el.selectedIndex].text; }}
+                  required
+                  value={createFilterSelection.categorias || String(adminFilters.value.categorias[0]?.id ?? "")}
+                  onChange$={(e, el) => { createFilterSelection.categorias = el.value; createPreviewCategory.value = el.options[el.selectedIndex].text; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.categorias.map((cat) => (
@@ -1053,10 +858,13 @@ export default component$(() => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Ubicación</label>
+                <FilterFieldLabel id="create-locationId" label="Ubicación" onAdd$={() => openFilterEditor$("ubicaciones", "create")} />
                 <select
+                  id="create-locationId"
                   name="locationId"
-                  onChange$={(e, el) => { createPreviewLocation.value = el.options[el.selectedIndex].text; }}
+                  required
+                  value={createFilterSelection.ubicaciones || String(adminFilters.value.ubicaciones[0]?.id ?? "")}
+                  onChange$={(e, el) => { createFilterSelection.ubicaciones = el.value; createPreviewLocation.value = el.options[el.selectedIndex].text; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.ubicaciones.map((loc) => (
@@ -1068,9 +876,13 @@ export default component$(() => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
+                <FilterFieldLabel id="create-offerId" label="Oferta / Descuento" onAdd$={() => openFilterEditor$("ofertas", "create")} />
                 <select
+                  id="create-offerId"
                   name="offerId"
+                  required
+                  value={createFilterSelection.ofertas || String(adminFilters.value.ofertas[0]?.id ?? "")}
+                  onChange$={(e, el) => { createFilterSelection.ofertas = el.value; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.ofertas.map((off) => (
@@ -1394,6 +1206,11 @@ export default component$(() => {
         {editingBenefit.value && (
           <Form key={editingBenefit.value.id} action={editBenefitAction} enctype="multipart/form-data" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
             <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Modificar Beneficio Propio</h4>
+            {editBenefitAction.value?.failed && (
+              <p role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {editBenefitAction.value.message || Object.values(editBenefitAction.value.fieldErrors || {}).join(" ") || "No se pudieron guardar los cambios. Revisá los datos e intentá de nuevo."}
+              </p>
+            )}
             <input type="hidden" name="id" value={editingBenefit.value.id} />
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1403,6 +1220,7 @@ export default component$(() => {
                   type="text"
                   name="titulo"
                   required
+                  minLength={3}
                   value={editingBenefit.value.titulo}
                   placeholder="Ej: Spa Platense Masajes"
                   onInput$={(e) => { editPreviewTitulo.value = (e.target as HTMLInputElement).value; }}
@@ -1416,6 +1234,7 @@ export default component$(() => {
                   type="text"
                   name="resumen"
                   required
+                  minLength={5}
                   value={editingBenefit.value.resumen}
                   placeholder="Ej: 20% de descuento"
                   onInput$={(e) => { editPreviewResumen.value = (e.target as HTMLInputElement).value; }}
@@ -1429,6 +1248,7 @@ export default component$(() => {
               <textarea
                 name="descripcion"
                 required
+                minLength={5}
                 rows={3}
                 value={editingBenefit.value.descripcion}
                 placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
@@ -1439,14 +1259,17 @@ export default component$(() => {
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Categoría</label>
+                <FilterFieldLabel id="edit-categoryId" label="Categoría" onAdd$={() => openFilterEditor$("categorias", "edit")} />
                 <select
+                  id="edit-categoryId"
                   name="categoryId"
-                  onChange$={(e, el) => { editPreviewCategory.value = el.options[el.selectedIndex].text; }}
+                  required
+                  value={editFilterSelection.categorias}
+                  onChange$={(e, el) => { editFilterSelection.categorias = el.value; editPreviewCategory.value = el.options[el.selectedIndex].text; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id} selected={cat.id === editingBenefit.value.categoryId}>
+                    <option key={cat.id} value={cat.id}>
                       {cat.descripcion}
                     </option>
                   ))}
@@ -1454,14 +1277,17 @@ export default component$(() => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Ubicación</label>
+                <FilterFieldLabel id="edit-locationId" label="Ubicación" onAdd$={() => openFilterEditor$("ubicaciones", "edit")} />
                 <select
+                  id="edit-locationId"
                   name="locationId"
-                  onChange$={(e, el) => { editPreviewLocation.value = el.options[el.selectedIndex].text; }}
+                  required
+                  value={editFilterSelection.ubicaciones}
+                  onChange$={(e, el) => { editFilterSelection.ubicaciones = el.value; editPreviewLocation.value = el.options[el.selectedIndex].text; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.ubicaciones.map((loc) => (
-                    <option key={loc.id} value={loc.id} selected={loc.id === editingBenefit.value.locationId}>
+                    <option key={loc.id} value={loc.id}>
                       {loc.descripcion}
                     </option>
                   ))}
@@ -1469,13 +1295,17 @@ export default component$(() => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Oferta / Descuento</label>
+                <FilterFieldLabel id="edit-offerId" label="Oferta / Descuento" onAdd$={() => openFilterEditor$("ofertas", "edit")} />
                 <select
+                  id="edit-offerId"
                   name="offerId"
+                  required
+                  value={editFilterSelection.ofertas}
+                  onChange$={(e, el) => { editFilterSelection.ofertas = el.value; }}
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all cursor-pointer"
                 >
                   {adminFilters.value.ofertas.map((off) => (
-                    <option key={off.id} value={off.id} selected={off.id === editingBenefit.value.offerId}>
+                    <option key={off.id} value={off.id}>
                       {off.descripcion}
                     </option>
                   ))}
@@ -1529,7 +1359,7 @@ export default component$(() => {
                             editImagePreviewUrl.value.startsWith("http") ||
                             editImagePreviewUrl.value.startsWith("/")
                               ? editImagePreviewUrl.value
-                              : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
+                              : `https://beneficios.lprc.ar/files/${editImagePreviewUrl.value}`
                           }
                           alt="Vista previa"
                           class="w-full h-full object-cover"
@@ -1593,7 +1423,7 @@ export default component$(() => {
                             editImageMobilePreviewUrl.value.startsWith("http") ||
                             editImageMobilePreviewUrl.value.startsWith("/")
                               ? editImageMobilePreviewUrl.value
-                              : `https://beneficios.amepla.org.ar/files/${editImageMobilePreviewUrl.value}`
+                              : `https://beneficios.lprc.ar/files/${editImageMobilePreviewUrl.value}`
                           }
                           alt="Vista previa móvil"
                           class="w-full h-full object-cover"
@@ -1705,7 +1535,7 @@ export default component$(() => {
                             editImagePreviewUrl.value.startsWith("http") ||
                             editImagePreviewUrl.value.startsWith("/")
                               ? editImagePreviewUrl.value
-                              : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
+                              : `https://beneficios.lprc.ar/files/${editImagePreviewUrl.value}`
                           }
                           alt="Preview desktop"
                           class="w-full h-full object-cover"
@@ -1780,7 +1610,7 @@ export default component$(() => {
                               editImageMobilePreviewUrl.value.startsWith("http") ||
                               editImageMobilePreviewUrl.value.startsWith("/")
                                 ? editImageMobilePreviewUrl.value
-                                : `https://beneficios.amepla.org.ar/files/${editImageMobilePreviewUrl.value}`
+                                : `https://beneficios.lprc.ar/files/${editImageMobilePreviewUrl.value}`
                             }
                             alt="Preview mobile"
                             class="w-full h-full object-cover"
@@ -1793,7 +1623,7 @@ export default component$(() => {
                               editImagePreviewUrl.value.startsWith("http") ||
                               editImagePreviewUrl.value.startsWith("/")
                                 ? editImagePreviewUrl.value
-                                : `https://beneficios.amepla.org.ar/files/${editImagePreviewUrl.value}`
+                                : `https://beneficios.lprc.ar/files/${editImagePreviewUrl.value}`
                             }
                             alt="Preview desktop as fallback"
                             class="w-full h-full object-cover"
@@ -1969,6 +1799,9 @@ export default component$(() => {
                             type="button"
                             onClick$={() => {
                               editingBenefit.value = benefit;
+                              editFilterSelection.categorias = String(benefit.categoryId);
+                              editFilterSelection.ubicaciones = String(benefit.locationId);
+                              editFilterSelection.ofertas = String(benefit.offerId);
                               isCreateBenefitOpen.value = false;
                               editImagePreviewUrl.value = benefit.imagen || null;
                               editOptimizedImageBase64.value = "";
@@ -2050,7 +1883,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Gestión de Beneficios",
+  title: "LPRC Club - Gestión de Beneficios",
   meta: [
     {
       name: "description",

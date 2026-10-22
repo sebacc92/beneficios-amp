@@ -103,7 +103,7 @@ export default component$(() => {
                 ¡Sugerencia Enviada!
               </h2>
               <p class="text-slate-500 text-sm leading-relaxed max-w-sm mx-auto">
-                Agradecemos mucho tu tiempo. Tu mensaje ha sido registrado y será analizado por la Mesa Directiva de la AMP para seguir mejorando el portal.
+                Agradecemos mucho tu tiempo. Tu mensaje ha sido registrado y será analizado por la Mesa Directiva de la LPRC para seguir mejorando el portal.
               </p>
             </div>
 
@@ -352,7 +352,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Sugerencias y Dudas - Portal de Beneficios AMP",
+  title: "Sugerencias y Dudas - Portal de Beneficios LPRC",
   meta: [
     {
       name: "description",

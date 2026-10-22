@@ -9,7 +9,7 @@ import { LuShield } from "@qwikest/icons/lucide";
 export const useRegisterAction = routeAction$(
   async (_, requestEvent) => {
     return requestEvent.fail(403, {
-      message: "El registro público de cuentas médicas está deshabilitado. Por favor, comunícate con la administración de AMP+ para solicitar el alta.",
+      message: "El registro público de cuentas de socios está deshabilitado. Por favor, comunícate con la administración de LPRC para solicitar el alta.",
     });
   }
 );
@@ -25,7 +25,7 @@ export default component$(() => {
             <LuShield class="w-6 h-6 text-amber-600" />
           </div>
           <h1 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-tight mt-3">
-            Registro Médico Inhabilitado
+            Registro Inhabilitado
           </h1>
           <p class="text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
             El registro público de cuentas agremiadas se encuentra inhabilitado desde este portal de forma temporal.
@@ -36,10 +36,10 @@ export default component$(() => {
         <div class="rounded-2xl border border-amber-150 bg-amber-50/50 p-5 text-left text-xs font-medium text-amber-800 leading-relaxed shadow-sm space-y-2">
           <p class="font-bold uppercase tracking-wider text-[10px] text-amber-700">Aviso a Profesionales</p>
           <p>
-            Para garantizar la seguridad e integridad del padrón, todas las altas y habilitaciones de matrícula son gestionadas directamente por el personal administrativo de la <strong>Agremiación Médica Platense</strong>.
+            Para garantizar la seguridad e integridad del padrón, todas las altas y habilitaciones de nro. de socio son gestionadas directamente por el personal administrativo de la <strong>La Plata Rugby Club</strong>.
           </p>
           <p class="pt-1.5 border-t border-amber-200/50 font-semibold">
-            Por favor, ponete en contacto con la administración de la AMP para solicitar tu alta de usuario.
+            Por favor, ponete en contacto con la administración de la LPRC para solicitar tu alta de usuario.
           </p>
         </div>
 
@@ -65,11 +65,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Registro Médico - Club de Beneficios AMP",
+  title: "Registro de Socio - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "El registro público de cuentas médicas está inhabilitado. Contacte a la administración para el alta.",
+      content: "El registro público de cuentas de socios está inhabilitado. Contacte a la administración para el alta.",
     },
   ],
 };

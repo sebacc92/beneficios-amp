@@ -45,16 +45,22 @@ export default component$(() => {
   }
 
   return (
-    <div class="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800">
+    <div class="min-h-screen flex flex-col bg-background font-sans text-white">
+      <a
+        href="#main-content"
+        class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-xl focus:bg-accent focus:px-5 focus:py-3 focus:font-bold focus:text-primary focus:outline-2 focus:outline-offset-2 focus:outline-white"
+      >
+        Ir al contenido principal
+      </a>
       <SiteHeader user={user} />
 
-      <main class="flex-grow">
+      <main id="main-content" tabIndex={-1} class="flex-grow scroll-mt-52">
         <Slot />
       </main>
 
       <SiteFooter />
 
-      {!location.url.pathname.startsWith("/admin") && (
+      {!location.url.pathname.startsWith("/perfil/cupon/") && (
         <>
           <Chatbot />
           <ScrollToTop />

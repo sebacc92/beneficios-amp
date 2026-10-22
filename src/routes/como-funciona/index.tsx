@@ -9,11 +9,11 @@ interface FAQItem {
 const FAQS: FAQItem[] = [
   {
     question: "¿Quiénes pueden utilizar los beneficios del portal?",
-    answer: "Todos los médicos agremiados activos en la Agremiación Médica Platense, así como los empleados de la institución y sus respectivos grupos familiares directos."
+    answer: "Todos los socios activos en la La Plata Rugby Club, así como los empleados de la institución y sus respectivos grupos familiares directos."
   },
   {
     question: "¿Es necesario imprimir algún cupón?",
-    answer: "No, en absoluto. Toda la cartilla funciona de manera digital. Solo tenés que mostrar tu credencial digital activa desde la sección 'Tu espacio Club AMP+' de este portal (iniciando sesión con tu cuenta) o tu DNI para acreditar tu condición al momento de la compra."
+    answer: "No, en absoluto. Todo el catálogo de beneficios funciona de manera digital. Solo tenés que mostrar tu credencial digital activa desde la sección 'Tu espacio Club LPRC' de este portal (iniciando sesión con tu cuenta) o tu DNI para acreditar tu condición de socio al momento de la compra."
   },
   {
     question: "¿Los descuentos son acumulables con otras promociones?",
@@ -25,7 +25,7 @@ const FAQS: FAQItem[] = [
   },
   {
     question: "¿Cómo puedo sumar mi comercio al club de beneficios?",
-    answer: "Si tenés un local o servicio y querés ofrecer descuentos a la comunidad médica platense, completá el formulario en la pestaña de Sugerencias con la opción 'Sugerir Comercio'. Nos pondremos en contacto con vos para coordinar el convenio."
+    answer: "Si tenés un local o servicio y querés ofrecer descuentos a la comunidad rugbier platense, completá el formulario en la pestaña de Sugerencias con la opción 'Sugerir Comercio'. Nos pondremos en contacto con vos para coordinar el convenio."
   }
 ];
 
@@ -45,7 +45,7 @@ export default component$((() => {
     },
     {
       num: "02",
-      title: "Explorá la Cartilla",
+      title: "Explorá el Catálogo",
       desc: "Filtrá los más de 250 comercios del portal por categoría, descuento o ubicación. Podés buscar desde hoteles en Bariloche hasta locales gastronómicos en La Plata.",
       icon: (
         <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -56,7 +56,7 @@ export default component$((() => {
     {
       num: "03",
       title: "Acreditá tu Condición",
-      desc: "Al momento del pago en el comercio, presentá tu credencial digital activa directamente desde tu perfil web o informá tu DNI para verificar tu afiliación.",
+      desc: "Al momento del pago en el comercio, presentá tu credencial digital activa directamente desde tu perfil web o informá tu DNI para verificar tu condición de socio.",
       icon: (
         <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h3.75v3.75H5.25V7.5z" />
@@ -88,7 +88,7 @@ export default component$((() => {
             ¿Cómo Funciona el Portal?
           </h1>
           <p class="text-slate-500 text-sm sm:text-base leading-relaxed">
-            Ahorrar con el club de beneficios de la Agremiación Médica Platense es muy simple. Seguí estos 4 pasos básicos.
+            Ahorrar con el club de beneficios de la La Plata Rugby Club es muy simple. Seguí estos 4 pasos básicos.
           </p>
         </section>
 
@@ -134,7 +134,7 @@ export default component$((() => {
                 ¿Llevás tu credencial digital en el celular?
               </h2>
               <p class="text-slate-200 text-sm leading-relaxed max-w-xl">
-                Con la nueva credencial web integrada de Club AMP+, no necesitás descargar aplicaciones externas. Iniciá sesión en este portal desde tu celular, presentala en los comercios ¡y empezá a disfrutar de tus beneficios al instante!
+                Con la nueva credencial web integrada de Club LPRC, no necesitás descargar aplicaciones externas. Iniciá sesión en este portal desde tu celular, presentala en los comercios ¡y empezá a disfrutar de tus beneficios al instante!
               </p>
             </div>
             <div class="flex flex-wrap gap-3.5 lg:justify-end">
@@ -203,11 +203,11 @@ export default component$((() => {
 }));
 
 export const head: DocumentHead = {
-  title: "Cómo Funciona - Club de Beneficios AMP",
+  title: "Cómo Funciona - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Ahorrá con el club de beneficios médicos en 4 simples pasos. Guía de acreditación con credencial digital y preguntas frecuentes."
+      content: "Ahorrá con el club de beneficios en 4 simples pasos. Guía de acreditación con credencial digital y preguntas frecuentes."
     }
   ]
 };

@@ -20,7 +20,7 @@ export const useAdminUsersLoader = routeLoader$(async (event) => {
       id: u.id,
       name: u.name,
       email: u.email,
-      matricula: u.matricula,
+      numeroSocio: u.numeroSocio,
       role: u.role,
       createdAt: u.createdAt,
     }));
@@ -224,7 +224,7 @@ export default component$(() => {
                   type="email"
                   name="email"
                   required
-                  placeholder="Ej: marcelo@amepla.org.ar"
+                  placeholder="Ej: marcelo@lprc.ar"
                   class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
                 />
               </div>
@@ -349,7 +349,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "AMP+ Club - Administradores del Portal",
+  title: "LPRC Club - Administradores del Portal",
   meta: [
     {
       name: "description",
