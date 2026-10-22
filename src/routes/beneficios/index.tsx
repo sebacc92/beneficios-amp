@@ -162,12 +162,10 @@ export default component$(() => {
               <span class="hidden md:inline">Todos los beneficios</span>
             </h1>
             <p role="status" class="text-slate-400 text-sm mt-2 font-medium">
-              {total}{" "}
-              {total === 1 ? "beneficio encontrado" : "beneficios encontrados"}
+              {`${total} ${total === 1 ? "beneficio encontrado" : "beneficios encontrados"}`}
               {displayBenefits.length > 0 && totalPages > 1 && (
                 <span class="block text-xs mt-1">
-                  Mostrando {firstResult}–{lastResult} · Página {page} de{" "}
-                  {totalPages}
+                  {`Mostrando ${firstResult}–${lastResult} · Página ${page} de ${totalPages}`}
                 </span>
               )}
             </p>
