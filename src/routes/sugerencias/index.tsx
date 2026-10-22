@@ -1,4 +1,4 @@
-import { component$, useSignal } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import { routeAction$, Form, type DocumentHead } from "@builder.io/qwik-city";
 
 // Server action to process form submission with robust programmatic validation
@@ -67,12 +67,9 @@ export const useSubmitSuggestion = routeAction$(async (data) => {
 
 export default component$(() => {
   const action = useSubmitSuggestion();
-  
-  // Local state for input focus effects
-  const activeField = useSignal<string | null>(null);
 
   return (
-    <div class="relative min-h-screen py-16 bg-slate-50 flex items-center justify-center">
+    <div class="relative min-h-screen overflow-hidden py-12 sm:py-16 bg-slate-50 text-slate-800 flex items-center justify-center">
       {/* Decorative backdrop shapes */}
       <div class="absolute w-[400px] h-[400px] bg-brand-green-light/5 rounded-full blur-3xl -top-20 -left-20" />
       <div class="absolute w-[400px] h-[400px] bg-brand-gold/5 rounded-full blur-3xl -bottom-20 -right-20" />
@@ -91,7 +88,10 @@ export default component$(() => {
 
         {action.value?.success ? (
           /* C. Success Screen state */
-          <div class="glass-card border rounded-3xl p-8 sm:p-12 text-center shadow-lg bg-white space-y-6 animate-pulse-slow">
+          <div
+            role="status"
+            class="border border-slate-200 rounded-3xl p-8 sm:p-12 text-center shadow-lg bg-white space-y-6"
+          >
             <div class="w-20 h-20 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-emerald-500 shadow-sm">
               <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -118,8 +118,9 @@ export default component$(() => {
           </div>
         ) : (
           /* D. Main Interactive Suggestions Form */
-          <div class="glass-card border rounded-3xl p-6 sm:p-10 shadow-lg bg-white">
-            <Form action={action} class="space-y-6">
+          <div class="border border-slate-200 rounded-3xl p-6 sm:p-10 shadow-lg bg-white">
+            <Form action={action} aria-busy={action.isRunning} class="space-y-6">
+              <p class="text-xs text-slate-600">Los campos con * son obligatorios.</p>
               
               {/* Row 1: Nombre & Correo */}
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -127,30 +128,30 @@ export default component$(() => {
                 <div class="relative">
                   <label
                     for="nombre"
-                    class={`absolute left-4 top-3 text-xs font-bold transition-all duration-300 pointer-events-none uppercase tracking-wide ${
-                      activeField.value === "nombre" || action.formData?.get("nombre")
-                        ? "text-brand-green-light -translate-y-6 text-[10px]"
-                        : "text-slate-400"
-                    }`}
+                    class="mb-2 block text-xs font-bold text-slate-600"
                   >
                     Nombre Completo *
                   </label>
                   <input
                     id="nombre"
                     name="nombre"
+                    aria-invalid={!!action.value?.errors?.nombre}
+                    aria-describedby={
+                      action.value?.errors?.nombre ? "nombre-error" : undefined
+                    }
                     type="text"
+                    autocomplete="name"
+                    minLength={3}
                     required
                     value={action.formData?.get("nombre")?.toString() || ""}
-                    onFocus$={() => (activeField.value = "nombre")}
-                    onBlur$={() => (activeField.value = null)}
-                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
+                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.nombre
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
                         : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
                     }`}
                   />
                   {action.value?.errors?.nombre && (
-                    <span class="text-xs text-red-500 font-semibold mt-1.5 block pl-1">
+                    <span id="nombre-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
                       {action.value.errors.nombre}
                     </span>
                   )}
@@ -160,30 +161,29 @@ export default component$(() => {
                 <div class="relative">
                   <label
                     for="email"
-                    class={`absolute left-4 top-3 text-xs font-bold transition-all duration-300 pointer-events-none uppercase tracking-wide ${
-                      activeField.value === "email" || action.formData?.get("email")
-                        ? "text-brand-green-light -translate-y-6 text-[10px]"
-                        : "text-slate-400"
-                    }`}
+                    class="mb-2 block text-xs font-bold text-slate-600"
                   >
                     Correo Electrónico *
                   </label>
                   <input
                     id="email"
                     name="email"
+                    aria-invalid={!!action.value?.errors?.email}
+                    aria-describedby={
+                      action.value?.errors?.email ? "email-error" : undefined
+                    }
                     type="email"
+                    autocomplete="email"
                     required
                     value={action.formData?.get("email")?.toString() || ""}
-                    onFocus$={() => (activeField.value = "email")}
-                    onBlur$={() => (activeField.value = null)}
-                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
+                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.email
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
                         : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
                     }`}
                   />
                   {action.value?.errors?.email && (
-                    <span class="text-xs text-red-500 font-semibold mt-1.5 block pl-1">
+                    <span id="email-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
                       {action.value.errors.email}
                     </span>
                   )}
@@ -196,29 +196,28 @@ export default component$(() => {
                 <div class="relative">
                   <label
                     for="telefono"
-                    class={`absolute left-4 top-3 text-xs font-bold transition-all duration-300 pointer-events-none uppercase tracking-wide ${
-                      activeField.value === "telefono" || action.formData?.get("telefono")
-                        ? "text-brand-green-light -translate-y-6 text-[10px]"
-                        : "text-slate-400"
-                    }`}
+                    class="mb-2 block text-xs font-bold text-slate-600"
                   >
-                    Teléfono de Contacto
+                    Teléfono de contacto (opcional)
                   </label>
                   <input
                     id="telefono"
                     name="telefono"
+                    aria-invalid={!!action.value?.errors?.telefono}
+                    aria-describedby={
+                      action.value?.errors?.telefono ? "telefono-error" : undefined
+                    }
                     type="tel"
+                    autocomplete="tel"
                     value={action.formData?.get("telefono")?.toString() || ""}
-                    onFocus$={() => (activeField.value = "telefono")}
-                    onBlur$={() => (activeField.value = null)}
-                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
+                    class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.telefono
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
                         : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
                     }`}
                   />
                   {action.value?.errors?.telefono && (
-                    <span class="text-xs text-red-500 font-semibold mt-1.5 block pl-1">
+                    <span id="telefono-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
                       {action.value.errors.telefono}
                     </span>
                   )}
@@ -228,22 +227,17 @@ export default component$(() => {
                 <div class="relative">
                   <label
                     for="comercio"
-                    class={`absolute left-4 top-3 text-xs font-bold transition-all duration-300 pointer-events-none uppercase tracking-wide ${
-                      activeField.value === "comercio" || action.formData?.get("comercio")
-                        ? "text-brand-green-light -translate-y-6 text-[10px]"
-                        : "text-slate-400"
-                    }`}
+                    class="mb-2 block text-xs font-bold text-slate-600"
                   >
-                    Nombre del Comercio (Opcional)
+                    Nombre del comercio (opcional)
                   </label>
                   <input
                     id="comercio"
                     name="comercio"
                     type="text"
+                    autocomplete="organization"
                     value={action.formData?.get("comercio")?.toString() || ""}
-                    onFocus$={() => (activeField.value = "comercio")}
-                    onBlur$={() => (activeField.value = null)}
-                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-brand-green-light focus:border-brand-green-light transition-all"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-brand-green-light focus:border-brand-green-light transition-all"
                   />
                 </div>
               </div>
@@ -256,8 +250,12 @@ export default component$(() => {
                 <select
                   id="tipo"
                   name="tipo"
+                  aria-invalid={!!action.value?.errors?.tipo}
+                  aria-describedby={
+                    action.value?.errors?.tipo ? "tipo-error" : undefined
+                  }
                   required
-                  class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all cursor-pointer ${
+                  class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all cursor-pointer ${
                     action.value?.errors?.tipo
                       ? "border-red-400 focus:ring-red-400 focus:border-red-400"
                       : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
@@ -280,7 +278,7 @@ export default component$(() => {
                   </option>
                 </select>
                 {action.value?.errors?.tipo && (
-                  <span class="text-xs text-red-500 font-semibold mt-1.5 block pl-1">
+                  <span id="tipo-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
                     {action.value.errors.tipo}
                   </span>
                 )}
@@ -290,30 +288,29 @@ export default component$(() => {
               <div class="relative">
                 <label
                   for="mensaje"
-                  class={`absolute left-4 top-3 text-xs font-bold transition-all duration-300 pointer-events-none uppercase tracking-wide ${
-                    activeField.value === "mensaje" || action.formData?.get("mensaje")
-                      ? "text-brand-green-light -translate-y-6 text-[10px]"
-                      : "text-slate-400"
-                  }`}
+                  class="mb-2 block text-xs font-bold text-slate-600"
                 >
                   Mensaje o Sugerencia *
                 </label>
                 <textarea
                   id="mensaje"
                   name="mensaje"
+                  minLength={10}
+                  aria-invalid={!!action.value?.errors?.mensaje}
+                  aria-describedby={
+                    action.value?.errors?.mensaje ? "mensaje-error" : undefined
+                  }
                   required
                   rows={5}
                   value={action.formData?.get("mensaje")?.toString() || ""}
-                  onFocus$={() => (activeField.value = "mensaje")}
-                  onBlur$={() => (activeField.value = null)}
-                  class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all resize-none ${
+                  class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all resize-y ${
                     action.value?.errors?.mensaje
                       ? "border-red-400 focus:ring-red-400 focus:border-red-400"
                       : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
                   }`}
                 />
                 {action.value?.errors?.mensaje && (
-                  <span class="text-xs text-red-500 font-semibold mt-1.5 block pl-1">
+                  <span id="mensaje-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
                     {action.value.errors.mensaje}
                   </span>
                 )}
@@ -324,7 +321,7 @@ export default component$(() => {
                 <button
                   type="submit"
                   disabled={action.isRunning}
-                  class={`inline-flex items-center justify-center space-x-2 py-3.5 px-8 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}
+                  class={`inline-flex w-full sm:w-auto items-center justify-center space-x-2 py-3.5 px-8 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}
                 >
                   {action.isRunning ? (
                     <>

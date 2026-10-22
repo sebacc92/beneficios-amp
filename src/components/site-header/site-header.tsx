@@ -4,6 +4,7 @@ import type { Signal } from "@builder.io/qwik";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuMapPin, LuSettings, LuUser, LuLock } from "@qwikest/icons/lucide";
 import { getSearchSuggestions } from "~/routes/layout";
+import { ClubBrand } from "~/components/club-brand/club-brand";
 
 interface SiteHeaderProps {
   user: Readonly<Signal<AuthenticatedUser | null>>;
@@ -13,6 +14,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
   const isMobileMenuOpen = useSignal(false);
   const location = useLocation();
   const searchInput = useSignal("");
+  const menuButtonRef = useSignal<HTMLButtonElement>();
 
   const suggestions = useSignal<
     Awaited<ReturnType<typeof getSearchSuggestions>>
@@ -92,6 +94,12 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
       {/* Main Sticky Header — Dark theme */}
       <header
         class="sticky top-0 z-40 bg-primary/95 backdrop-blur-md border-b border-secondary shadow-lg transition-all duration-300 print:hidden"
+        onKeyDown$={(event) => {
+          if (event.key === "Escape" && isMobileMenuOpen.value) {
+            isMobileMenuOpen.value = false;
+            menuButtonRef.value?.focus();
+          }
+        }}
         window:onClick$={(ev) => {
           const target = ev.target as HTMLElement | null;
           if (!target) return;
@@ -101,36 +109,10 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
         }}
       >
         <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-3 lg:flex lg:justify-between lg:gap-4 lg:min-h-[104px] xl:min-h-[120px]">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 py-3 xl:grid-cols-[auto_minmax(12rem,1fr)_auto] xl:gap-x-6">
             {/* Brand Logo */}
-            <div class="order-1 flex items-center flex-shrink-0">
-              <Link href="/" class="flex items-center group space-x-3">
-                <div class="flex items-center space-x-2.5">
-                  <img
-                    src="/lprc.avif"
-                    alt="La Plata Rugby Club"
-                    width={120}
-                    height={101}
-                    class="w-[68px] h-auto flex-shrink-0 object-contain drop-shadow-md sm:w-[88px] xl:w-[120px]"
-                  />
-                  <div class="hidden sm:flex flex-col leading-none">
-                    <span class="font-display font-black text-white text-lg tracking-wide uppercase">
-                      La Plata Rugby Club
-                    </span>
-                    <span class="text-[9px] font-bold text-accent tracking-[0.2em] uppercase">
-                      Portal de Beneficios
-                    </span>
-                  </div>
-                  <div class="sm:hidden flex flex-col leading-none">
-                    <span class="font-display font-black text-accent text-lg tracking-wide">
-                      LPRC
-                    </span>
-                    <span class="text-[8px] font-bold text-slate-400 tracking-widest uppercase">
-                      Beneficios
-                    </span>
-                  </div>
-                </div>
-              </Link>
+            <div class="order-1 flex min-w-0 items-center">
+              <ClubBrand />
             </div>
 
             {/* One search form shared by mobile and desktop */}
@@ -140,13 +122,13 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                 if (!element.contains(event.relatedTarget as Node | null))
                   showSuggestions.value = false;
               }}
-              class="order-3 col-span-2 relative flex w-full min-w-0 items-center lg:order-2 lg:flex-1 lg:max-w-md"
+              class="order-3 col-span-2 relative flex w-full min-w-0 items-center xl:order-2 xl:col-span-1 xl:max-w-xl xl:justify-self-center"
             >
               <form
                 action="/beneficios/"
                 method="get"
                 role="search"
-                class="w-full relative"
+                class="relative w-full min-w-0 overflow-hidden rounded-full"
               >
                 <input
                   id="site-search"
@@ -275,9 +257,20 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
             </div>
 
             {/* Desktop Navigation Links */}
-            <nav class="order-4 hidden 2xl:flex items-center space-x-4 flex-shrink-0">
+            <nav
+              aria-label="Navegación principal"
+              class="order-5 col-span-full hidden items-center justify-center gap-x-6 gap-y-2 border-t border-secondary pt-2 xl:flex xl:flex-wrap"
+            >
+              <Link
+                href="/beneficios"
+                aria-current={isActive("/beneficios") ? "page" : undefined}
+                class={`font-extrabold text-[13px] uppercase tracking-wider transition-colors py-2 border-b-2 hover:text-accent ${isActive("/beneficios") ? "text-accent border-accent" : "text-slate-300 border-transparent hover:border-accent/30"}`}
+              >
+                Beneficios
+              </Link>
               <Link
                 href="/como-funciona"
+                aria-current={isActive("/como-funciona") ? "page" : undefined}
                 class={`font-extrabold text-[13px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-accent ${
                   isActive("/como-funciona")
                     ? "text-accent border-accent"
@@ -288,6 +281,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               </Link>
               <Link
                 href="/sorteos"
+                aria-current={isActive("/sorteos") ? "page" : undefined}
                 class={`font-extrabold text-[13px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-accent ${
                   isActive("/sorteos")
                     ? "text-accent border-accent"
@@ -298,6 +292,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               </Link>
               <Link
                 href="/sugerencias"
+                aria-current={isActive("/sugerencias") ? "page" : undefined}
                 class={`font-extrabold text-[13px] uppercase tracking-wider transition-all duration-300 py-2 border-b-2 hover:text-accent ${
                   isActive("/sugerencias")
                     ? "text-accent border-accent"
@@ -309,7 +304,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
             </nav>
 
             {/* Right-most Action Buttons */}
-            <div class="order-5 hidden xl:flex items-center space-x-3 flex-shrink-0">
+            <div class="order-4 hidden xl:order-3 xl:flex items-center gap-2 flex-shrink-0">
               <Link
                 href="/mapa"
                 class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-secondary bg-secondary/40 hover:bg-secondary text-white font-black text-sm shadow-sm hover:shadow-md transition-all uppercase tracking-wider cursor-pointer"
@@ -351,13 +346,14 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
             </div>
 
             {/* Mobile Menu Button */}
-            <div class="order-2 lg:order-6 2xl:hidden flex items-center flex-shrink-0">
+            <div class="order-2 xl:hidden flex items-center flex-shrink-0">
               <button
+                ref={menuButtonRef}
                 onClick$={() =>
                   (isMobileMenuOpen.value = !isMobileMenuOpen.value)
                 }
                 type="button"
-                class="inline-flex items-center justify-center p-2 rounded-md text-accent hover:text-accent-hover focus:outline-none transition-colors duration-300"
+                class="inline-flex h-11 w-11 items-center justify-center rounded-md text-accent hover:bg-secondary hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-colors duration-300"
                 aria-controls="mobile-menu"
                 aria-expanded={isMobileMenuOpen.value}
               >
@@ -368,7 +364,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                 </span>
                 {isMobileMenuOpen.value ? (
                   <svg
-                    class="h-6 h-6"
+                    class="h-6 w-6"
                     stroke="currentColor"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -382,7 +378,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                   </svg>
                 ) : (
                   <svg
-                    class="h-6 h-6"
+                    class="h-6 w-6"
                     stroke="currentColor"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -401,10 +397,11 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
         </div>
 
         {/* Mobile Navigation Drawer — Dark */}
-        <div
-          class={`2xl:hidden transition-all duration-300 overflow-hidden ${
+        <nav
+          aria-label="Navegación móvil"
+          class={`xl:hidden transition-all duration-300 overflow-hidden ${
             isMobileMenuOpen.value
-              ? "max-h-[calc(100dvh-170px)] lg:max-h-[calc(100dvh-140px)] overflow-y-auto opacity-100 border-t border-secondary"
+              ? "max-h-[calc(100dvh-200px)] overflow-y-auto overscroll-contain opacity-100 border-t border-secondary"
               : "max-h-0 opacity-0"
           }`}
           id="mobile-menu"
@@ -456,6 +453,14 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               }`}
             >
               Inicio
+            </Link>
+            <Link
+              href="/beneficios"
+              aria-current={isActive("/beneficios") ? "page" : undefined}
+              onClick$={() => (isMobileMenuOpen.value = false)}
+              class={`block min-h-11 px-3 py-2 rounded-md text-base font-semibold transition-colors ${isActive("/beneficios") ? "text-accent bg-secondary" : "text-slate-300 hover:bg-secondary hover:text-accent"}`}
+            >
+              Todos los beneficios
             </Link>
             <Link
               href="/mapa"
@@ -510,7 +515,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
               Sugerencias
             </Link>
           </div>
-        </div>
+        </nav>
       </header>
     </>
   );

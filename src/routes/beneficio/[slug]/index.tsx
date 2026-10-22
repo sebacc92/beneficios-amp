@@ -236,6 +236,8 @@ export default component$(() => {
   const data = useBenefitData();
   const isMapLoaded = useSignal(false);
   const showToast = useSignal(false);
+  const isSharing = useSignal(false);
+  const manualShareLink = useSignal("");
   const user = useLayoutUser();
 
   const generatedCoupon = useSignal<{
@@ -293,7 +295,10 @@ export default component$(() => {
   });
 
   const handleShare = $(async () => {
-    if (typeof window === "undefined" || !data.value) return;
+    if (typeof window === "undefined" || !data.value || isSharing.value) return;
+    isSharing.value = true;
+    showToast.value = false;
+    manualShareLink.value = "";
     const { benefit } = data.value;
     const shareData = {
       title: `${benefit.titulo} - Club de Beneficios LPRC`,
@@ -301,22 +306,28 @@ export default component$(() => {
       url: window.location.href,
     };
 
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        console.log("Shared cancelled or failed", err);
+    try {
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch (err) {
+          // Closing the native share sheet is an intentional cancellation.
+          if (err instanceof Error && err.name === "AbortError") return;
+        }
       }
-    } else {
+
       try {
         await navigator.clipboard.writeText(window.location.href);
         showToast.value = true;
         setTimeout(() => {
           showToast.value = false;
         }, 3000);
-      } catch (err) {
-        console.error("Failed to copy link", err);
+      } catch {
+        manualShareLink.value = window.location.href;
       }
+    } finally {
+      isSharing.value = false;
     }
   });
 
@@ -562,8 +573,11 @@ export default component$(() => {
                   )}
 
                   <button
+                    type="button"
                     onClick$={handleShare}
-                    class="inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-full border border-secondary bg-[#1E2B45] hover:bg-[#253554] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                    disabled={isSharing.value}
+                    aria-busy={isSharing.value}
+                    class="inline-flex min-h-11 items-center justify-center space-x-2 px-5 py-2.5 rounded-full border border-secondary bg-[#1E2B45] hover:bg-[#253554] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
                   >
                     <svg
                       class="w-4 h-4 text-accent fill-none"
@@ -577,8 +591,26 @@ export default component$(() => {
                         d="M8.684 10.742l4.62-2.31m0 7.136l-4.62-2.31M21 12a3 3 0 11-6 0 3 3 0 016 0zm-11-8a3 3 0 11-6 0 3 3 0 016 0zm0 16a3 3 0 11-6 0 3 3 0 016 0z"
                       />
                     </svg>
-                    <span>Compartir / Reenviar</span>
+                    <span>{isSharing.value ? "Compartiendo…" : "Compartir / Reenviar"}</span>
                   </button>
+                  {manualShareLink.value && (
+                    <div class="w-full space-y-2 rounded-xl border border-accent/30 bg-accent/5 p-4">
+                      <p role="status" class="text-sm text-slate-200">
+                        No pudimos copiar el enlace automáticamente. Podés seleccionarlo y copiarlo para compartir este beneficio.
+                      </p>
+                      <label for="manual-share-link" class="block text-xs font-bold text-accent">
+                        Enlace del beneficio
+                      </label>
+                      <input
+                        id="manual-share-link"
+                        type="text"
+                        readOnly
+                        value={manualShareLink.value}
+                        onFocus$={(_, input) => input.select()}
+                        class="w-full min-w-0 rounded-lg border border-secondary bg-primary px-3 py-3 text-base text-white focus:outline-2 focus:outline-accent"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Glassmorphic Contact Actions Tray */}
@@ -1268,7 +1300,7 @@ export default component$(() => {
       </div>
 
       {showToast.value && (
-        <div class="fixed bottom-32 sm:bottom-10 left-1/2 -translate-x-1/2 z-50 bg-[#0B1526] text-white text-xs font-bold uppercase tracking-wider py-3 px-6 rounded-full shadow-2xl flex items-center space-x-2.5 animate-toast-up border border-secondary print:hidden">
+        <div role="status" class="fixed bottom-32 sm:bottom-10 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100%-2rem)] bg-[#0B1526] text-white text-xs font-bold uppercase tracking-wider py-3 px-6 rounded-full shadow-2xl flex items-center space-x-2.5 animate-toast-up border border-secondary print:hidden">
           <span class="text-accent">✓</span>
           <span>¡Enlace copiado al portapapeles!</span>
         </div>

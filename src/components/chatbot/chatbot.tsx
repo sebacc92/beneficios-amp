@@ -148,7 +148,7 @@ export const Chatbot = component$(() => {
       {!state.isOpen && (
         <span
           class={[
-            "pointer-events-none fixed right-6 z-40 h-14 w-14 sm:h-16 sm:w-16 animate-ping rounded-full bg-brand-gold opacity-50 transition-all duration-300",
+            "pointer-events-none fixed right-6 z-40 h-14 w-14 sm:h-16 sm:w-16 animate-pulse rounded-full bg-brand-gold opacity-50 transition-all duration-300",
             bottomPos,
           ]}
         ></span>
@@ -204,14 +204,14 @@ export const Chatbot = component$(() => {
       {state.isOpen && (
         <div
           class={[
-            "animate-in slide-in-from-bottom-5 fade-in fixed right-4 z-[100] flex h-[34rem] max-h-[85vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96",
+            "animate-in slide-in-from-bottom-5 fade-in fixed right-4 z-[100] flex h-[34rem] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96 [@media(max-height:600px)]:bottom-4 [@media(max-height:600px)]:max-h-[calc(100dvh-2rem)]",
             hasScrolled.value
-              ? "bottom-44 sm:bottom-48"
-              : "bottom-24 sm:bottom-28",
+              ? "bottom-44 max-h-[calc(100dvh-12rem)] sm:bottom-48 sm:max-h-[calc(100dvh-13rem)]"
+              : "bottom-24 max-h-[calc(100dvh-7rem)] sm:bottom-28 sm:max-h-[calc(100dvh-8rem)]",
           ]}
         >
           {/* Header */}
-          <div class="flex items-center justify-between bg-brand-green-dark border-b border-brand-gold/20 p-4 text-white">
+          <div class="flex shrink-0 items-center justify-between bg-brand-green-dark border-b border-brand-gold/20 p-4 text-white">
             <div class="flex items-center gap-3">
               <div class="relative">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
@@ -258,7 +258,7 @@ export const Chatbot = component$(() => {
           {/* Messages Area */}
           <div
             ref={messagesContainerRef}
-            class="flex flex-1 flex-col space-y-4 overflow-y-auto bg-slate-50 p-4 scrollbar-thin"
+            class="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto bg-slate-50 p-4 scrollbar-thin"
           >
             {state.messages.map((msg, i) => (
               <div
@@ -293,7 +293,7 @@ export const Chatbot = component$(() => {
           </div>
 
           {/* Input Area */}
-          <div class="border-t border-slate-100 bg-white p-4">
+          <div class="shrink-0 border-t border-slate-100 bg-white p-4">
             <form
               preventdefault:submit
               onSubmit$={sendMessage}
@@ -303,7 +303,7 @@ export const Chatbot = component$(() => {
                 type="text"
                 bind:value={inputValue}
                 placeholder="Escribe tu consulta..."
-                class="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-brand-gold focus:outline-none"
+                class="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-brand-gold focus:outline-none"
                 disabled={state.isLoading}
               />
               <button
