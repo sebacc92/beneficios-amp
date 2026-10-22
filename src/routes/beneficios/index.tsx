@@ -156,7 +156,7 @@ export default component$(() => {
       {/* Main Catalog View Container */}
       <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6 print:hidden">
         <div class="flex items-center justify-between border-b border-secondary pb-3 mb-4 md:pb-5 md:mb-6 gap-3 text-left">
-          <div>
+          <div class="min-w-0">
             <h1 class="text-2xl md:text-3xl font-display font-extrabold text-white tracking-tight leading-none flex items-center">
               <span class="md:hidden">Beneficios</span>
               <span class="hidden md:inline">Todos los beneficios</span>
