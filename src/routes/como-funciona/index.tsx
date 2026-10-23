@@ -1,213 +1,274 @@
-import { component$, useSignal } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import { Link, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  LuArrowRight,
+  LuPlus,
+  LuSearch,
+  LuSmartphone,
+  LuTicket,
+  LuUser,
+} from "@qwikest/icons/lucide";
 
 interface FAQItem {
   question: string;
   answer: string;
+  link?: { href: string; label: string };
 }
 
 const FAQS: FAQItem[] = [
   {
-    question: "¿Quiénes pueden utilizar los beneficios del portal?",
-    answer: "Todos los socios activos en la La Plata Rugby Club, así como los empleados de la institución y sus respectivos grupos familiares directos."
+    question: "¿Qué hago si mi DNI no está registrado?",
+    answer:
+      "Ingresá el DNI con el que te dieron de alta en el portal, con o sin puntos y espacios. Si no lo encuentra, comunicate con la administración del club para que revisen tu registro.",
+    link: {
+      href: "/sugerencias/?tipo=Consulta%20General",
+      label: "Consultar al club",
+    },
   },
   {
-    question: "¿Es necesario imprimir algún cupón?",
-    answer: "No, en absoluto. Todo el catálogo de beneficios funciona de manera digital. Solo tenés que mostrar tu credencial digital activa desde la sección 'Tu espacio Club LPRC' de este portal (iniciando sesión con tu cuenta) o tu DNI para acreditar tu condición de socio al momento de la compra."
+    question: "¿Dónde encuentro los cupones que ya generé?",
+    answer:
+      "En tu perfil, dentro de Mis cupones. Desde ahí podés volver a abrir el código y el QR, y consultar si el cupón está activo, utilizado o vencido.",
+    link: { href: "/perfil/#mis-cupones", label: "Ir a Mis cupones" },
   },
   {
-    question: "¿Los descuentos son acumulables con otras promociones?",
-    answer: "Por lo general, los descuentos no se acumulan con otras promociones vigentes en el comercio, a menos que el detalle del beneficio especifique lo contrario (como en el caso de NINI Mayorista)."
+    question: "¿Tengo que imprimir el cupón?",
+    answer:
+      "No hace falta: podés mostrar el QR o el código desde tu celular. Si preferís llevarlo en papel, también tenés la opción de imprimir desde la página del cupón.",
   },
   {
-    question: "¿Qué hago si un comercio no quiere aplicar el descuento?",
-    answer: "Podés reportar la situación de inmediato a través de nuestra sección de Sugerencias en esta web, detallando el nombre del comercio y el día del inconveniente. Nos comunicaremos con el local a la brevedad."
+    question: "¿Puedo usar el mismo cupón más de una vez?",
+    answer:
+      "Cada código permite un solo canje. Cuando el comercio lo valida, el cupón queda marcado como utilizado y ya no se puede volver a canjear.",
   },
   {
-    question: "¿Cómo puedo sumar mi comercio al club de beneficios?",
-    answer: "Si tenés un local o servicio y querés ofrecer descuentos a la comunidad rugbier platense, completá el formulario en la pestaña de Sugerencias con la opción 'Sugerir Comercio'. Nos pondremos en contacto con vos para coordinar el convenio."
-  }
+    question: "¿Los descuentos tienen condiciones?",
+    answer:
+      "Sí. Antes de generar el cupón, revisá la ficha del beneficio: puede tener una vigencia, días de uso, requisitos o restricciones. Consultá también si se puede combinar con otras promociones antes de pagar.",
+  },
+  {
+    question: "¿Qué hago si un comercio no aplica el beneficio?",
+    answer:
+      "Contanos lo que pasó desde el formulario de sugerencias. Indicá el comercio, el beneficio y la fecha del inconveniente para que el equipo del club pueda revisarlo.",
+    link: {
+      href: "/sugerencias/?tipo=Problema%20Comercio",
+      label: "Reportar un inconveniente",
+    },
+  },
+  {
+    question: "¿Cómo puedo proponer un comercio?",
+    answer:
+      "Podés recomendar un comercio desde el formulario de sugerencias. Si sos su titular, contanos qué beneficio querés ofrecer a los socios y dejá un medio de contacto.",
+    link: {
+      href: "/sugerencias/?tipo=Sugerir%20Comercio",
+      label: "Proponer un comercio",
+    },
+  },
 ];
 
-export default component$((() => {
-  const activeFaqIdx = useSignal<number | null>(null);
-
+export default component$(() => {
   const steps = [
     {
-      num: "01",
-      title: "Iniciá Sesión en el Portal",
-      desc: "Accedé a este sitio web oficial e iniciá sesión con tus credenciales. Si estás en tu celular, podés agregar un acceso directo en tu pantalla de inicio para mayor comodidad.",
-      icon: (
-        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-        </svg>
-      )
+      number: "01",
+      title: "Elegí tu beneficio",
+      description:
+        "Explorá el catálogo por categoría, ubicación o descuento. Abrí el beneficio que te interesa y revisá sus condiciones.",
+      icon: <LuSearch class="h-6 w-6" aria-hidden="true" />,
     },
     {
-      num: "02",
-      title: "Explorá el Catálogo",
-      desc: "Filtrá los más de 250 comercios del portal por categoría, descuento o ubicación. Podés buscar desde hoteles en Bariloche hasta locales gastronómicos en La Plata.",
-      icon: (
-        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      )
+      number: "02",
+      title: "Ingresá tu DNI",
+      description:
+        "Desde la ficha del beneficio, ingresá tu DNI registrado en el portal. Podés escribirlo con o sin puntos y espacios.",
+      icon: <LuUser class="h-6 w-6" aria-hidden="true" />,
     },
     {
-      num: "03",
-      title: "Acreditá tu Condición",
-      desc: "Al momento del pago en el comercio, presentá tu credencial digital activa directamente desde tu perfil web o informá tu DNI para verificar tu condición de socio.",
-      icon: (
-        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h3.75v3.75H5.25V7.5z" />
-        </svg>
-      )
+      number: "03",
+      title: "Generá tu cupón",
+      description:
+        "Elegí la opción para obtener tu cupón. Vas a tener un código y un QR personal, que también quedan disponibles en Mis cupones.",
+      icon: <LuTicket class="h-6 w-6" aria-hidden="true" />,
     },
     {
-      num: "04",
-      title: "Disfrutá del Ahorro",
-      desc: "El comercio aplicará el descuento correspondiente sobre el total de tu factura. ¡Así de fácil! Ahorrá en indumentaria, turismo, servicios y más.",
-      icon: (
-        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125H3.75a1.125 1.125 0 01-1.125-1.125V5.625C2.625 5.004 3.129 4.5 3.75 4.5zM9 10.5h.008v.008H9V10.5zm3 0h.008v.008H12V10.5z" />
-        </svg>
-      )
-    }
+      number: "04",
+      title: "Mostralo antes de pagar",
+      description:
+        "Presentá el QR o el código en el comercio, junto con tu DNI y la credencial que te soliciten. El comercio verifica y registra el canje.",
+      icon: <LuSmartphone class="h-6 w-6" aria-hidden="true" />,
+    },
   ];
 
   return (
-    <div class="relative min-h-screen py-16 bg-slate-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20">
-
-        {/* 1. Header Banner */}
-        <section class="text-center space-y-4 max-w-2xl mx-auto">
-          <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-[11px] font-extrabold bg-brand-gold/15 text-brand-gold border border-brand-gold/25 uppercase tracking-widest">
-            Guía Práctica
-          </span>
-          <h1 class="text-3xl sm:text-5xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
-            ¿Cómo Funciona el Portal?
-          </h1>
-          <p class="text-slate-500 text-sm sm:text-base leading-relaxed">
-            Ahorrar con el club de beneficios de la La Plata Rugby Club es muy simple. Seguí estos 4 pasos básicos.
-          </p>
-        </section>
-
-        {/* 2. Infographic Steps Grid */}
-        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {steps.map((step, idx) => (
-            <div
-              key={idx}
-              class="group relative glass-card border rounded-2xl p-6 bg-white shadow-sm flex flex-col justify-between space-y-6 pt-10"
+    <div class="bg-background py-8 text-primary sm:py-12 lg:py-16">
+      <div class="mx-auto max-w-7xl space-y-12 px-4 sm:space-y-16 sm:px-6 lg:px-8">
+        <section
+          aria-labelledby="how-it-works-title"
+          class="grid gap-8 rounded-[2rem] border border-line bg-surface p-6 shadow-sm sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12"
+        >
+          <div>
+            <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900">
+              Guía para socios
+            </span>
+            <h1
+              id="how-it-works-title"
+              class="mt-5 max-w-xl font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl"
             >
-              {/* Floating step number bubble */}
-              <div class="absolute -top-5 left-6 w-11 h-11 rounded-full bg-brand-navy-dark text-brand-gold border-2 border-white flex items-center justify-center font-display font-black text-sm shadow-md group-hover:scale-110 transition-transform">
-                {step.num}
-              </div>
-
-              <div class="space-y-3">
-                <div class="w-12 h-12 rounded-xl bg-brand-navy-light/5 border border-brand-navy-light/10 flex items-center justify-center">
-                  {step.icon}
-                </div>
-                <h3 class="text-base font-display font-extrabold text-brand-navy-dark">
-                  {step.title}
-                </h3>
-                <p class="text-xs text-slate-500 leading-relaxed">
-                  {step.desc}
-                </p>
-              </div>
-
-              <div class="pt-4 border-t border-slate-100 flex items-center text-[11px] font-extrabold uppercase tracking-widest text-brand-gold-dark">
-                Paso Completado
-              </div>
-            </div>
-          ))}
-        </section>
-
-        {/* 3. Call to Action panel */}
-        <section class="p-8 sm:p-12 rounded-3xl bg-brand-navy text-white shadow-lg border border-brand-gold/20 relative overflow-hidden">
-          {/* Backdrop details */}
-          <div class="absolute right-0 top-0 w-80 h-full bg-brand-navy-dark/40 skew-x-12 z-0" />
-
-          <div class="relative grid grid-cols-1 lg:grid-cols-3 gap-8 items-center z-10">
-            <div class="lg:col-span-2 space-y-3 text-left">
-              <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-white">
-                ¿Llevás tu credencial digital en el celular?
-              </h2>
-              <p class="text-slate-200 text-sm leading-relaxed max-w-xl">
-                Con la nueva credencial web integrada de Club LPRC, no necesitás descargar aplicaciones externas. Iniciá sesión en este portal desde tu celular, presentala en los comercios ¡y empezá a disfrutar de tus beneficios al instante!
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-3.5 lg:justify-end">
+              Disfrutá tus beneficios en 4 pasos.
+            </h1>
+            <p class="mt-5 max-w-lg text-sm leading-relaxed text-slate-600 sm:text-base">
+              Elegí un beneficio, generá tu cupón y mostralo en el comercio.
+              Todo desde tu celular.
+            </p>
+            <div class="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link
-                href="/login"
-                class="inline-flex items-center space-x-2 py-4 px-8 rounded-2xl bg-white text-brand-navy-dark hover:bg-slate-50 text-xs font-extrabold uppercase tracking-wider transition-all active:scale-95 shadow-md cursor-pointer"
+                href="/beneficios/"
+                class="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-accent px-4 py-3 text-sm font-extrabold text-primary transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary sm:px-5"
               >
-                <span>Acceder a Mi Credencial</span>
+                Explorar beneficios
+                <LuArrowRight class="h-4 w-4 shrink-0" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/perfil/#mis-cupones"
+                class="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary sm:px-5"
+              >
+                <LuTicket class="h-4 w-4" aria-hidden="true" />
+                Ver mis cupones
               </Link>
             </div>
-          </div>
-        </section>
-
-        {/* 4. Interactive Accordion FAQ Section */}
-        <section class="max-w-3xl mx-auto space-y-6">
-          <div class="text-center space-y-2">
-            <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-brand-navy-dark">
-              Preguntas Frecuentes
-            </h2>
-            <p class="text-slate-500 text-xs sm:text-sm">
-              Despejá tus dudas operativas de forma rápida.
+            <p class="mt-4 text-xs leading-relaxed text-slate-600">
+              Podés explorar el catálogo sin iniciar sesión.
             </p>
           </div>
 
-          <div class="space-y-4">
-            {FAQS.map((faq, idx) => {
-              const isOpen = activeFaqIdx.value === idx;
-              return (
-                <div
-                  key={idx}
-                  class="glass-card border rounded-2xl overflow-hidden shadow-sm bg-white"
-                >
-                  <button
-                    onClick$={() => (activeFaqIdx.value = isOpen ? null : idx)}
-                    class="w-full flex items-center justify-between p-5 text-left font-display font-bold text-sm sm:text-base text-brand-navy-dark focus:outline-none cursor-pointer hover:bg-slate-50/50"
-                  >
-                    <span>{faq.question}</span>
-                    <svg
-                      class={`w-5 h-5 text-brand-gold transform transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+          <aside
+            aria-labelledby="before-you-start-title"
+            class="rounded-3xl border border-line bg-surface-muted p-5 sm:p-7"
+          >
+            <div class="mb-5 flex items-center gap-3">
+              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
+                <LuSmartphone class="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2 id="before-you-start-title" class="font-display text-xl font-bold">
+                Lo que necesitás tener a mano
+              </h2>
+            </div>
+            <ul class="space-y-5">
+              <li class="border-t border-line pt-4">
+                <p class="text-sm font-bold">Tu DNI registrado</p>
+                <p class="mt-1 text-sm leading-relaxed text-slate-600">
+                  Para ingresar y obtener tu cupón personal.
+                </p>
+              </li>
+              <li>
+                <p class="text-sm font-bold">El código o QR del cupón</p>
+                <p class="mt-1 text-sm leading-relaxed text-slate-600">
+                  Podés mostrarlo directamente desde el celular.
+                </p>
+              </li>
+              <li>
+                <p class="text-sm font-bold">Las condiciones del beneficio</p>
+                <p class="mt-1 text-sm leading-relaxed text-slate-600">
+                  Revisá la vigencia y los requisitos antes de usarlo.
+                </p>
+              </li>
+            </ul>
+          </aside>
+        </section>
 
-                  <div
-                    class={`transition-all duration-300 overflow-hidden ${isOpen ? "max-h-48 opacity-100 border-t border-slate-100" : "max-h-0 opacity-0"
-                      }`}
-                  >
-                    <p class="p-5 text-xs sm:text-sm text-slate-500 leading-relaxed bg-slate-50/20">
-                      {faq.answer}
-                    </p>
-                  </div>
+        <section aria-labelledby="steps-title">
+          <div class="mb-6 max-w-2xl space-y-2">
+            <h2 id="steps-title" class="font-display text-2xl font-extrabold sm:text-3xl">
+              Del catálogo al comercio
+            </h2>
+            <p class="text-sm leading-relaxed text-slate-600">
+              Un recorrido simple para aprovechar cada descuento.
+            </p>
+          </div>
+          <ol class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step) => (
+              <li key={step.number} class="rounded-3xl border border-line bg-surface p-6 shadow-sm">
+                <div class="mb-5 flex items-center justify-between gap-3">
+                  <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
+                    {step.icon}
+                  </span>
+                  <span aria-hidden="true" class="font-display text-3xl font-bold text-slate-500">
+                    {step.number}
+                  </span>
                 </div>
-              );
-            })}
+                <h3 class="font-display text-lg font-bold leading-tight">{step.title}</h3>
+                <p class="mt-3 text-sm leading-relaxed text-slate-600">{step.description}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section aria-labelledby="faq-title" class="grid gap-6 lg:grid-cols-[1fr_2fr] lg:gap-12">
+          <div>
+            <h2 id="faq-title" class="font-display text-2xl font-extrabold sm:text-3xl">
+              ¿Te quedó alguna duda?
+            </h2>
+            <p class="mt-3 text-sm leading-relaxed text-slate-600">
+              Encontrá respuestas sobre el ingreso, los cupones y el uso de tus beneficios.
+            </p>
+            <Link
+              href="/sugerencias/?tipo=Consulta%20General"
+              class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-bold underline decoration-line underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+            >
+              Hacer una consulta
+              <LuArrowRight class="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div class="space-y-3">
+            {FAQS.map((faq) => (
+              <details key={faq.question} class="group rounded-2xl border border-line bg-surface open:shadow-sm">
+                <summary class="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm font-bold transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary sm:text-base [&::-webkit-details-marker]:hidden">
+                  <span>{faq.question}</span>
+                  <LuPlus class="h-5 w-5 shrink-0 text-slate-600 transition-transform group-open:rotate-45 motion-reduce:transition-none" aria-hidden="true" />
+                </summary>
+                <div class="border-t border-line px-5 pb-5 pt-4">
+                  <p class="text-sm leading-relaxed text-slate-600">{faq.answer}</p>
+                  {faq.link && (
+                    <Link
+                      href={faq.link.href}
+                      class="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-bold underline decoration-line underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                    >
+                      {faq.link.label}
+                      <LuArrowRight class="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  )}
+                </div>
+              </details>
+            ))}
           </div>
         </section>
 
+        <section class="flex flex-col gap-5 rounded-3xl border border-line bg-surface px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div>
+            <h2 class="font-display text-2xl font-extrabold">Tu próximo beneficio te espera.</h2>
+            <p class="mt-2 text-sm leading-relaxed text-slate-600">
+              Buscá un comercio y conocé lo que tiene para vos.
+            </p>
+          </div>
+          <Link
+            href="/beneficios/"
+            class="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-extrabold text-primary transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+          >
+            Ver beneficios
+            <LuArrowRight class="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </section>
       </div>
     </div>
   );
-}));
+});
 
 export const head: DocumentHead = {
-  title: "Cómo Funciona - Club de Beneficios LPRC",
+  title: "Cómo funciona - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Ahorrá con el club de beneficios en 4 simples pasos. Guía de acreditación con credencial digital y preguntas frecuentes."
-    }
-  ]
+      content:
+        "Conocé cómo usar tus beneficios en 4 pasos: elegí un comercio, ingresá con tu DNI, generá tu cupón y mostralo antes de pagar. Respuestas a las preguntas frecuentes.",
+    },
+  ],
 };
