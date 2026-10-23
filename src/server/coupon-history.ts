@@ -22,6 +22,8 @@ export async function getCouponHistory(event: RequestEventBase, userId: string) 
     id: coupons.id, code: coupons.code, benefitId: coupons.benefitId,
     benefitTitle: coupons.benefitTitle, benefitResumen: coupons.benefitResumen,
     status: effectiveStatus, createdAt: coupons.createdAt, usedAt: coupons.usedAt,
+    // Coupons expire with their benefit, so the card shows the benefit's date.
+    validUntil: benefits.validUntil,
   }).from(coupons).leftJoin(benefits, eq(benefits.id, coupons.benefitId))
     .where(and(eq(coupons.userId, userId), status === "all" ? undefined : eq(effectiveStatus, status)))
     .orderBy(desc(coupons.createdAt), desc(coupons.id)).limit(12).offset((page - 1) * 12);

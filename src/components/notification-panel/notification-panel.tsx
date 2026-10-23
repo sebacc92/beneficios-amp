@@ -1,4 +1,5 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { LuBell, LuBellOff } from "@qwikest/icons/lucide";
 
 interface PushReply {
   error?: string;
@@ -40,7 +41,13 @@ async function settings(
   return data;
 }
 
-export default component$(() => {
+interface NotificationPanelProps {
+  /** Anchor other pages link to (e.g. /sorteos sends members to "#avisos-del-club"). */
+  id?: string;
+  class?: string;
+}
+
+export default component$<NotificationPanelProps>(({ id, class: extraClass = "" }) => {
   const checking = useSignal(true);
   const busy = useSignal(false);
   const enabled = useSignal(false);
@@ -200,52 +207,61 @@ export default component$(() => {
 
   return (
     <section
-      class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-3"
+      id={id}
+      class={`card scroll-mt-52 border-t-4 border-t-accent p-5 sm:p-6 ${extraClass}`}
       aria-labelledby="notifications-title"
     >
-      <h2 id="notifications-title" class="text-sm font-bold text-slate-800">
-        Notificaciones del club
-      </h2>
-      <p class="text-xs text-slate-600">
-        Recibí avisos en este dispositivo. El permiso se solicita al activar.
-      </p>
+      <div class="flex items-start gap-3">
+        {enabled.value ? (
+          <LuBell class="mt-1 h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+        ) : (
+          <LuBellOff class="mt-1 h-6 w-6 shrink-0 text-slate-500" aria-hidden="true" />
+        )}
+        <div>
+          <h2 id="notifications-title" class="heading-display text-xl text-primary">
+            Avisos del club
+          </h2>
+          <p class="mt-2 text-sm leading-relaxed text-slate-600">
+            Activalos para recibir en este dispositivo los avisos que envíe el club. El permiso
+            se pide recién al activar.
+          </p>
+        </div>
+      </div>
       <button
         type="button"
         role="switch"
         aria-checked={enabled.value}
         disabled={checking.value || busy.value || !available.value}
         onClick$={toggle}
-        class="w-full rounded-xl px-3 py-3 min-h-11 text-xs font-bold bg-slate-900 text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+        class={["btn mt-5 w-full", enabled.value ? "btn-outline" : "btn-dark"]}
       >
-        <span>
-          {checking.value
-            ? "Comprobando…"
-            : busy.value
-              ? "Procesando…"
-              : enabled.value
-                ? "Desactivar notificaciones"
-                : "Activar notificaciones"}
-        </span>
+        {checking.value
+          ? "Comprobando…"
+          : busy.value
+            ? "Procesando…"
+            : enabled.value
+              ? "Desactivar avisos"
+              : "Activar avisos"}
       </button>
       {enabled.value && (
         <button
           type="button"
           disabled={busy.value}
           onClick$={test}
-          class="min-h-11 w-full text-xs font-bold text-slate-800 underline disabled:opacity-50"
+          class="mt-2 min-h-11 w-full text-sm font-bold text-primary underline underline-offset-4 disabled:opacity-50"
         >
-          Enviar una prueba
+          Enviar un aviso de prueba
         </button>
       )}
       <p
         role="status"
         aria-live="polite"
-        class="text-xs text-slate-600 leading-relaxed"
+        class="mt-3 text-xs leading-relaxed text-slate-600"
       >
         {message.value ||
           (enabled.value
-            ? "Activadas en este dispositivo."
-            : "Desactivadas en este dispositivo.")}
+            ? "Activados en este dispositivo."
+            : "Desactivados en este dispositivo.")}
       </p>
     </section>
   );

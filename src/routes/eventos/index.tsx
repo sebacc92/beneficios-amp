@@ -1,139 +1,221 @@
 import { component$ } from "@builder.io/qwik";
 import { routeLoader$, Link, type DocumentHead } from "@builder.io/qwik-city";
-import { LuCalendar, LuMapPin } from "@qwikest/icons/lucide";
+import { LuArrowRight, LuCalendar, LuCalendarPlus, LuDownload, LuExternalLink, LuMapPin } from "@qwikest/icons/lucide";
+import { SectionHeading } from "~/components/section-heading/section-heading";
 import { getAgenda, type ClubEvent } from "~/server/club-content";
-import { formatEventParts } from "~/utils/club-content";
+import { CLUB } from "~/utils/club";
+import {
+  eventIcsDataUri,
+  eventKindLabel,
+  eventMapsUrl,
+  formatEventDate,
+  formatEventParts,
+  googleCalendarUrl,
+} from "~/utils/club-content";
+
+interface AgendaItem extends ClubEvent {
+  googleCalendar: string | null;
+  icsHref: string | null;
+}
+
+// Only plain web links become an "Inscribirme" button.
+const safeExternalUrl = (url: string | null | undefined) => (url && /^https?:\/\//i.test(url.trim()) ? url.trim() : null);
 
 export const useEventsLoader = routeLoader$(async (event) => {
   try {
-    return await getAgenda(event);
+    const { upcoming, past } = await getAgenda(event);
+    const now = new Date();
+    return {
+      upcoming: upcoming.map<AgendaItem>((item) => ({
+        ...item,
+        registrationUrl: safeExternalUrl(item.registrationUrl),
+        googleCalendar: googleCalendarUrl(item),
+        icsHref: eventIcsDataUri(item, now),
+      })),
+      past,
+    };
   } catch (err) {
     console.error("Failed to load events:", err);
-    return { upcoming: [] as ClubEvent[], past: [] as ClubEvent[] };
+    return { upcoming: [] as AgendaItem[], past: [] as ClubEvent[] };
   }
 });
 
-const EventCard = component$<{ eventItem: ClubEvent; past?: boolean }>(({ eventItem, past }) => {
-  const { day, month, weekday, time } = formatEventParts(eventItem.date);
+const icsFileName = (title: string) =>
+  `${title.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "evento"}.ics`;
+
+const EventCard = component$<{ eventItem: AgendaItem; expanded: boolean }>(({ eventItem, expanded }) => {
+  const { weekday, time } = formatEventParts(eventItem.date);
+  const kind = eventKindLabel(eventItem.kind);
+  const titleId = `event-${eventItem.id}-title`;
   return (
-    <article
-      class={[
-        "bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm transition-all duration-300 flex flex-col md:flex-row group",
-        past ? "opacity-75" : "hover:shadow-md",
-      ]}
-    >
-      {/* Left Calendar Block & Image */}
-      <div class="md:w-1/3 relative bg-slate-100 flex flex-col justify-center items-center py-8 px-6 md:py-0 overflow-hidden">
+    <article aria-labelledby={titleId} class="grid border border-line bg-surface md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div class="relative aspect-[16/9] bg-secondary md:aspect-auto md:min-h-72">
         {eventItem.image ? (
-          <img
-            src={eventItem.image}
-            alt=""
-            width={400}
-            height={240}
-            loading="lazy"
-            class={[
-              "absolute inset-0 object-cover w-full h-full transition-transform duration-500 opacity-20 md:opacity-40",
-              past ? "grayscale" : "group-hover:scale-105",
-            ]}
-          />
-        ) : null}
-
-        {/* Floating Date Badge */}
-        <div class="relative z-10 w-20 h-20 bg-brand-navy text-white rounded-2xl flex flex-col items-center justify-center shadow-lg border border-brand-navy-light">
-          <span class="text-3xl font-display font-extrabold leading-none">{day}</span>
-          <span class="text-xs font-bold tracking-widest leading-none mt-1.5 uppercase text-brand-gold">{month}</span>
-        </div>
-
-        <div class="relative z-10 mt-3 text-xs font-bold text-slate-600 capitalize">
-          {weekday} · {time} hs
+          <img src={eventItem.image} alt="" width={640} height={360} loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <div class="absolute inset-0 flex items-center justify-center">
+            <img src="/lprc.avif" alt="" width={120} height={101} class="w-24 opacity-90" />
+          </div>
+        )}
+        <div class="absolute left-3 top-3 flex flex-wrap gap-2">
+          <span class="badge badge-accent">Próximo</span>
+          {kind && <span class="badge badge-dark">{kind}</span>}
         </div>
       </div>
 
-      {/* Right Content */}
-      <div class="p-8 flex flex-col justify-between flex-grow md:w-2/3 space-y-4">
-        <div class="space-y-3">
-          <h3 class="text-xl sm:text-2xl font-display font-extrabold text-slate-800 leading-tight group-hover:text-brand-navy transition-colors duration-300">
-            {eventItem.title}
-          </h3>
-          <p class="text-slate-600 text-sm sm:text-base leading-relaxed whitespace-pre-line">
-            {eventItem.description}
+      <div class="flex flex-col">
+        <div class="flex flex-wrap items-end gap-x-4 gap-y-1 border-b-4 border-accent bg-primary px-5 py-4 text-white sm:px-6">
+          <p class="font-display text-3xl font-bold leading-none tracking-wide text-accent sm:text-4xl">
+            <time dateTime={eventItem.date}>{formatEventDate(eventItem.date)}</time>
           </p>
-          <div class="flex items-center gap-1.5 text-xs font-bold text-slate-500 pt-2">
-            <LuMapPin class="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-            <span>{eventItem.location}</span>
-          </div>
+          <p class="eyebrow pb-0.5 text-slate-200">
+            {weekday} · {time} hs
+          </p>
         </div>
 
-        {!past && (
-          <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-semibold">
-            <span class="text-slate-500">La Plata Rugby Club</span>
-            <Link
-              href="/beneficios/"
-              class="text-brand-navy hover:text-brand-navy-light flex items-center gap-1 transition-colors"
-            >
-              Ver Beneficios
-              <span aria-hidden="true">→</span>
-            </Link>
+        <div class="flex flex-grow flex-col gap-4 p-5 sm:p-6">
+          <h3 id={titleId} class="heading-display text-2xl text-primary sm:text-3xl">
+            {eventItem.title}
+          </h3>
+          <a
+            href={eventMapsUrl(eventItem.location, CLUB.mapsUrl)}
+            target="_blank"
+            rel="noopener"
+            class="inline-flex min-h-11 w-fit items-center gap-2 text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4 hover:decoration-primary"
+          >
+            <LuMapPin class="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            {eventItem.location}
+            <span class="sr-only"> (ver en el mapa, abre en una pestaña nueva)</span>
+          </a>
+
+          <details open={expanded} class="group border-t border-line pt-3">
+            <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 font-display text-sm font-semibold uppercase tracking-wider text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+              <span class="group-open:hidden">Ver detalles</span>
+              <span class="hidden group-open:inline">Ocultar detalles</span>
+              <LuArrowRight class="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden="true" />
+            </summary>
+            <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600 sm:text-base">{eventItem.description}</p>
+          </details>
+
+          <div class="mt-auto flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+            {eventItem.registrationUrl && (
+              <a href={eventItem.registrationUrl} target="_blank" rel="noopener" class="btn btn-primary">
+                Inscribirme
+                <LuExternalLink class="h-4 w-4" aria-hidden="true" />
+                <span class="sr-only"> (abre en una pestaña nueva)</span>
+              </a>
+            )}
+            {eventItem.googleCalendar && (
+              <a href={eventItem.googleCalendar} target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+                <LuCalendarPlus class="h-4 w-4" aria-hidden="true" />
+                Google Calendar
+                <span class="sr-only"> (agregar «{eventItem.title}», abre en una pestaña nueva)</span>
+              </a>
+            )}
+            {eventItem.icsHref && (
+              <a href={eventItem.icsHref} download={icsFileName(eventItem.title)} class="btn btn-outline btn-sm">
+                <LuDownload class="h-4 w-4" aria-hidden="true" />
+                Calendario (.ics)
+                <span class="sr-only"> para Apple, Outlook y otros: «{eventItem.title}»</span>
+              </a>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </article>
   );
 });
+
+const AgendaLinkBand = component$<{ hasEvents: boolean }>(({ hasEvents }) => (
+  <section aria-labelledby="club-agenda-title" class="flex flex-col gap-6 border-l-4 border-accent bg-primary px-6 py-8 text-white sm:px-10 md:flex-row md:items-center md:justify-between">
+    <div>
+      <p class="eyebrow text-accent">lprc.com.ar</p>
+      <h2 id="club-agenda-title" class="heading-display mt-2 text-2xl sm:text-3xl">
+        {hasEvents ? "Toda la agenda del club" : "La agenda completa está en el sitio del club"}
+      </h2>
+      <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
+        Partidos, fixture y todas las actividades de {CLUB.name}, en el sitio oficial.
+      </p>
+    </div>
+    <a href={CLUB.agendaUrl} target="_blank" rel="noopener" class="btn btn-primary shrink-0">
+      Ver la agenda del club en lprc.com.ar
+      <LuExternalLink class="h-4 w-4" aria-hidden="true" />
+      <span class="sr-only"> (abre en una pestaña nueva)</span>
+    </a>
+  </section>
+));
 
 export default component$(() => {
   const agenda = useEventsLoader();
   const { upcoming, past } = agenda.value;
 
   return (
-    <div class="bg-slate-50 min-h-screen py-16 px-4 sm:px-6 lg:px-8 font-sans">
-      <div class="max-w-4xl mx-auto space-y-12">
-        {/* Header */}
-        <div class="text-center space-y-4">
-          <div class="inline-flex items-center space-x-1.5 bg-amber-50 text-amber-700 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-100">
-            <LuCalendar class="w-3.5 h-3.5" />
-            <span>Agenda Oficial</span>
-          </div>
-          <h1 class="text-4xl sm:text-5xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
-            Eventos & Actividades
-          </h1>
-          <p class="text-slate-500 max-w-xl mx-auto text-sm sm:text-base font-medium">
-            Programá tu agenda y participá de los torneos, clínicas y actividades organizadas por La Plata Rugby Club.
-          </p>
+    <div class="bg-background">
+      <section class="border-b-4 border-accent bg-primary text-white">
+        <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
+          <SectionHeading as="h1" tone="dark" size="xl" eyebrow="Torneos, clínicas y encuentros" title="Agenda del club">
+            <p class="mt-5 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
+              Las actividades que el club publica en el portal. Agendalas en tu calendario y, si piden inscripción, anotate desde acá.
+            </p>
+          </SectionHeading>
         </div>
+      </section>
 
-        {/* Upcoming events */}
-        <section aria-labelledby="upcoming-events-title" class="space-y-8">
-          <h2 id="upcoming-events-title" class="sr-only">Próximos eventos</h2>
+      <div class="mx-auto max-w-5xl space-y-14 px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
+        <section aria-labelledby="upcoming-events-title" class="space-y-6">
+          <h2 id="upcoming-events-title" class="sr-only">
+            Próximas actividades
+          </h2>
           {upcoming.length === 0 ? (
-            <div class="text-center bg-white border border-slate-200 rounded-3xl p-12 shadow-sm space-y-3">
-              <LuCalendar class="w-12 h-12 text-slate-400 mx-auto" aria-hidden="true" />
-              <div>
-                <p class="text-lg font-bold text-slate-800">No hay eventos agendados</p>
-                <p class="text-slate-500 text-sm mt-1">
-                  Cuando el club publique torneos, clínicas o actividades, los vas a ver acá.
-                </p>
+            <div class="border border-line bg-surface p-8 sm:p-10">
+              <LuCalendar class="h-10 w-10 text-primary" aria-hidden="true" />
+              <p class="heading-display mt-4 text-2xl text-primary">Por ahora no hay actividades en el portal</p>
+              <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
+                Cuando el club publique torneos, clínicas o encuentros, los vas a ver acá. La agenda completa, con partidos y fixture, ya está en el sitio del club.
+              </p>
+              <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <a href={CLUB.agendaUrl} target="_blank" rel="noopener" class="btn btn-primary">
+                  Ver la agenda del club en lprc.com.ar
+                  <LuExternalLink class="h-4 w-4" aria-hidden="true" />
+                  <span class="sr-only"> (abre en una pestaña nueva)</span>
+                </a>
+                <Link href="/beneficios/" class="btn btn-outline">
+                  Mirá los beneficios
+                </Link>
               </div>
-              <Link href="/beneficios/" class="inline-flex mt-2 text-sm font-bold text-brand-navy hover:text-brand-navy-light">
-                Mientras tanto, mirá los beneficios →
-              </Link>
             </div>
           ) : (
-            upcoming.map((eventItem) => <EventCard key={eventItem.id} eventItem={eventItem} />)
+            upcoming.map((eventItem) => <EventCard key={eventItem.id} eventItem={eventItem} expanded={upcoming.length === 1} />)
           )}
         </section>
 
+        {upcoming.length > 0 && <AgendaLinkBand hasEvents />}
+
         {past.length > 0 && (
-          <details class="group/past space-y-6">
-            <summary class="cursor-pointer list-none text-sm font-bold text-slate-600 hover:text-brand-navy focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-navy rounded-lg w-fit mx-auto">
-              <span class="group-open/past:hidden">Ver eventos anteriores ({past.length})</span>
-              <span class="hidden group-open/past:inline">Ocultar eventos anteriores</span>
-            </summary>
-            <div class="space-y-6 pt-6">
-              <h2 class="text-lg font-display font-extrabold text-slate-700">Eventos anteriores</h2>
-              {past.map((eventItem) => <EventCard key={eventItem.id} eventItem={eventItem} past />)}
-            </div>
-          </details>
+          <section aria-labelledby="past-events-title" class="space-y-6">
+            <SectionHeading id="past-events-title" eyebrow="Ya pasaron" title="Momentos del club" size="md" />
+            <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {past.map((eventItem) => (
+                <li key={eventItem.id} class="border border-line bg-surface">
+                  <div class="relative aspect-[4/3] bg-secondary">
+                    {eventItem.image ? (
+                      <img src={eventItem.image} alt="" width={320} height={240} loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <img src="/lprc.avif" alt="" width={120} height={101} loading="lazy" class="w-14 opacity-80" />
+                      </div>
+                    )}
+                  </div>
+                  <div class="p-3">
+                    <p class="text-xs font-semibold text-slate-600">
+                      <time dateTime={eventItem.date}>{formatEventDate(eventItem.date)}</time>
+                    </p>
+                    <h3 class="heading-display mt-1 text-sm leading-snug text-primary sm:text-base">{eventItem.title}</h3>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </div>
@@ -141,11 +223,11 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Eventos & Actividades - Club de Beneficios LPRC",
+  title: "Agenda del club - Club de Beneficios LPRC",
   meta: [
     {
       name: "description",
-      content: "Calendario y agenda de torneos, clínicas, y actividades deportivas de La Plata Rugby Club.",
+      content: "Torneos, clínicas y encuentros de La Plata Rugby Club: fechas, lugar, inscripción y cómo agendarlos en tu calendario.",
     },
   ],
 };

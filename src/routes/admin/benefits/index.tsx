@@ -1,6 +1,29 @@
-import { component$, useSignal, useStore, useComputed$, useTask$, $, type QRL, type Signal } from "@builder.io/qwik";
-import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
-import { LuPlus, LuTicket, LuTrash2, LuPencil, LuSparkles, LuChevronLeft, LuChevronRight, LuSearch, LuImage, LuSmartphone, LuCopy, LuMapPinOff } from "@qwikest/icons/lucide";
+import { component$, Slot, useSignal, useStore, useComputed$, useTask$, $, type QRL, type Signal } from "@builder.io/qwik";
+import { routeLoader$, routeAction$, Form, useLocation, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  LuCalendarClock,
+  LuChevronLeft,
+  LuChevronRight,
+  LuClock,
+  LuCopy,
+  LuExternalLink,
+  LuFileText,
+  LuGlobe,
+  LuImage,
+  LuInstagram,
+  LuMapPin,
+  LuMapPinOff,
+  LuMessageCircle,
+  LuPencil,
+  LuPhone,
+  LuPlus,
+  LuSearch,
+  LuSmartphone,
+  LuSparkles,
+  LuTicket,
+  LuTrash2,
+  LuX,
+} from "@qwikest/icons/lucide";
 import { eq } from "drizzle-orm";
 import { putImage, putMedia } from "~/server/media";
 import { getDB } from "~/db";
@@ -9,20 +32,28 @@ import { getFilters, getCustomBenefitRows, type Benefit } from "~/server/cache";
 import { BenefitCard } from "~/components/ui/BenefitCard";
 import { createBenefitFilter, validateBenefitFilterSelection, BenefitFilterValidationError, type BenefitFilterType } from "~/server/benefit-filters";
 import { deleteBenefit, getCouponCountsByBenefit } from "~/server/coupons";
-import { ActionFeedback } from "~/components/admin/action-feedback";
+import { ActionFeedback, Notice } from "~/components/admin/action-feedback";
+import { AdminPageHeader } from "~/components/admin/page-header";
 import { isDraftBenefit, parseValidUntil } from "~/utils/benefit-status";
 import {
+  EXPIRING_SOON_DAYS,
   RESUMEN_MAX_LENGTH,
+  argentinaDay,
+  benefitValidity,
   benefitValuesFromForm,
   findDuplicateTitle,
   formatValidUntil,
   hasCoordinates,
+  merchantFieldError,
   normalizeResumen,
+  normalizeTitle,
   parseCoordinateFields,
   parseMapsLink,
+  parseMerchantFields,
   percentIn,
   resumenContradictsOffer,
   withPublishedState,
+  type MerchantField,
 } from "~/utils/benefit-admin";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
@@ -34,19 +65,15 @@ const filterEditorLabels = {
 
 const couponLabel = (count: number) => (count === 1 ? "1 cupón" : `${count} cupones`);
 
-const FilterFieldLabel = component$<{ id: string; label: string; onAdd$: QRL<() => void> }>((props) => (
-  <div class="flex items-center justify-between gap-2">
-    <label for={props.id} class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{props.label}</label>
-    <button type="button" onClick$={props.onAdd$} aria-label={`Agregar ${props.label.toLowerCase()}`} class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-navy hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-brand-navy cursor-pointer">
-      <LuPlus class="h-3.5 w-3.5" /> Agregar
-    </button>
-  </div>
-));
-
 type AdminBenefitRow = typeof benefitsTable.$inferSelect & { couponCount: number };
+type FieldErrors = Record<string, string | undefined>;
+type StatusFilter = "all" | "published" | "draft";
+type ValidityFilter = "all" | "vencido" | "vence-pronto";
 
-const fieldClass = "w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all";
-const fieldLabelClass = "text-xs font-bold text-slate-500 uppercase tracking-wider block";
+const fieldLabelClass = "field-label";
+const hintClass = "mt-1 text-xs text-slate-600";
+const iconButtonClass =
+  "inline-flex h-10 w-10 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary cursor-pointer";
 
 /** Date inputs only take YYYY-MM-DD; a stored ISO instant keeps its day. */
 const dateInputValue = (raw: string | null | undefined) => parseValidUntil(raw).validUntil?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -55,26 +82,110 @@ const dateInputValue = (raw: string | null | undefined) => parseValidUntil(raw).
 const previewSrc = (url: string) =>
   /^(data:|blob:|https?:|\/)/.test(url) ? url : `https://beneficios.lprc.ar/files/${url}`;
 
-/** Brings an opened form into view and focuses its first field (it renders above the list). */
-const revealForm = (id: string) =>
+const describeError = (id: string, error?: string, hint?: string) =>
+  [error ? `${id}-error` : "", hint ? `${id}-hint` : ""].filter(Boolean).join(" ") || undefined;
+
+/** Brings an opened form into view and focuses its first field, once it has rendered. */
+const revealForm = (id: string, attempt = 0): void => {
   setTimeout(() => {
     const form = document.getElementById(id);
-    if (!form) return;
+    if (!form) {
+      if (attempt < 20) revealForm(id, attempt + 1);
+      return;
+    }
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     form.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     form.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
   }, 60);
+};
 
-const ResumenField = component$<{ id: string; value: Signal<string>; offer?: string; listId: string }>((props) => {
+/** After a failed save, take the admin to the first field that needs attention (once it renders). */
+const focusFirstInvalid = (formId: string, attempt = 0): void => {
+  setTimeout(() => {
+    const form = document.getElementById(formId);
+    const target = form?.querySelector<HTMLElement>("[aria-invalid='true']") ?? form?.querySelector<HTMLElement>("[data-form-error]");
+    if (!target) {
+      if (attempt < 20) focusFirstInvalid(formId, attempt + 1);
+      return;
+    }
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    target.focus({ preventScroll: true });
+  }, 50);
+};
+
+/** Shrinks uploads in the browser to WebP so the server stores light images; SVG stays as is. */
+const optimizeImage = (file: File, maxW: number, maxH: number) =>
+  new Promise<{ preview: string; optimized: string }>((resolve, reject) => {
+    if (file.type === "image/svg+xml") {
+      resolve({ preview: URL.createObjectURL(file), optimized: "" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      img.onload = () => {
+        const ratio = Math.min(1, maxW / img.width, maxH / img.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("No se pudo procesar la imagen."));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/webp", 0.85);
+        resolve({ preview: dataUrl, optimized: dataUrl });
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+
+/** Message under a field; plain JSX so it always follows the latest action result. */
+const fieldError = (id: string, message?: string) =>
+  message ? (
+    <p id={`${id}-error`} class="mt-1 text-xs font-semibold text-red-700">
+      {message}
+    </p>
+  ) : null;
+
+const FormSection = component$<{ title: string; description?: string; first?: boolean }>((props) => (
+  <div class={props.first ? "" : "border-t border-line pt-6"}>
+    <fieldset class="min-w-0">
+      <legend class="heading-display text-lg text-primary">{props.title}</legend>
+      {props.description && <p class="mt-0.5 text-sm text-slate-600">{props.description}</p>}
+      <div class="mt-4 space-y-4">
+        <Slot />
+      </div>
+    </fieldset>
+  </div>
+));
+
+const FilterFieldLabel = component$<{ id: string; label: string; onAdd$: QRL<() => void> }>((props) => (
+  <div class="flex items-end justify-between gap-2">
+    <label for={props.id} class={fieldLabelClass}>{props.label}</label>
+    <button
+      type="button"
+      onClick$={props.onAdd$}
+      aria-label={`Agregar ${props.label.toLowerCase()}`}
+      class="mb-1 inline-flex min-h-8 items-center gap-1 px-2 text-xs font-bold text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+    >
+      <LuPlus class="h-3.5 w-3.5" /> Agregar
+    </button>
+  </div>
+));
+
+const ResumenField = component$<{ id: string; value: Signal<string>; offer?: string; listId: string; error?: string }>((props) => {
   const length = props.value.value.length;
   const offerText = props.offer ? normalizeResumen(props.offer) : "";
   const badgePercent = percentIn(props.value.value);
   const offerPercent = percentIn(props.offer);
   return (
-    <div class="space-y-1">
-      <div class="flex items-center justify-between gap-2">
-        <label for={props.id} class={fieldLabelClass}>Resumen (badge descuento)</label>
-        <span class={`text-[11px] font-bold tabular-nums ${length > RESUMEN_MAX_LENGTH - 5 ? "text-amber-700" : "text-slate-500"}`}>
+    <div>
+      <div class="flex items-end justify-between gap-2">
+        <label for={props.id} class={fieldLabelClass}>Texto del badge</label>
+        <span class={`mb-1.5 text-xs font-bold tabular-nums ${length > RESUMEN_MAX_LENGTH - 5 ? "text-amber-900" : "text-slate-500"}`}>
           {length}/{RESUMEN_MAX_LENGTH}
         </span>
       </div>
@@ -82,45 +193,47 @@ const ResumenField = component$<{ id: string; value: Signal<string>; offer?: str
         id={props.id}
         type="text"
         name="resumen"
-        required
-        minLength={2}
         maxLength={RESUMEN_MAX_LENGTH}
         // Qwik's input typings lack `list`; it links the <datalist> of suggested badges.
         {...{ list: props.listId }}
         value={props.value.value}
         placeholder="Ej: 20% Off o 2x1"
-        aria-describedby={`${props.id}-hint`}
+        aria-invalid={props.error ? "true" : undefined}
+        aria-describedby={describeError(props.id, props.error, "hint")}
         onInput$={(_, el) => { props.value.value = el.value; }}
-        class={fieldClass}
+        class="field"
       />
-      <p id={`${props.id}-hint`} class="text-[11px] text-slate-500">Texto corto del badge. Se guarda sin espacios de más (“10 % Off” → “10% Off”).</p>
+      {fieldError(props.id, props.error)}
+      <p id={`${props.id}-hint`} class={hintClass}>Texto corto que se ve sobre la foto. Se guarda sin espacios de más (“10 % Off” → “10% Off”).</p>
       {offerText && normalizeResumen(props.value.value) !== offerText && (
-        <button type="button" onClick$={() => { props.value.value = offerText; }} class="text-[11px] font-bold text-brand-navy hover:underline cursor-pointer">
+        <button type="button" onClick$={() => { props.value.value = offerText; }} class="mt-1 text-xs font-bold text-primary underline cursor-pointer">
           Usar «{offerText}»
         </button>
       )}
       {resumenContradictsOffer(props.value.value, props.offer) && (
-        <p class="text-[11px] font-bold text-amber-800">
-          El badge dice {badgePercent}% pero la oferta elegida es {offerPercent}%. Revisá cuál corresponde.
+        <p class="mt-1 text-xs font-bold text-amber-900">
+          El badge dice {badgePercent}% pero el descuento elegido es {offerPercent}%. Revisá cuál corresponde.
         </p>
       )}
     </div>
   );
 });
 
-const CoordinateFields = component$<{ idPrefix: string; latitud: Signal<string>; longitud: Signal<string> }>((props) => {
+const CoordinateFields = component$<{ idPrefix: string; latitud: Signal<string>; longitud: Signal<string>; errors: FieldErrors }>((props) => {
   const mapsStatus = useSignal<"" | "ok" | "error">("");
   const result = parseCoordinateFields(props.latitud.value, props.longitud.value);
-  const errors = result.ok ? {} : result.errors;
+  const live = result.ok ? {} : result.errors;
+  const errors = { latitud: live.latitud ?? props.errors.latitud, longitud: live.longitud ?? props.errors.longitud };
   return (
-    <div class="space-y-4 border-t border-slate-100 pt-5">
-      <div class="space-y-1">
+    <div class="space-y-4">
+      <div>
         <label for={`${props.idPrefix}-maps-link`} class={fieldLabelClass}>Link de Google Maps (opcional)</label>
         <input
           id={`${props.idPrefix}-maps-link`}
           type="url"
           inputMode="url"
           placeholder="Pegá el link del lugar y completamos las coordenadas"
+          aria-describedby={`${props.idPrefix}-maps-link-status`}
           onInput$={(_, el) => {
             if (!el.value.trim()) {
               mapsStatus.value = "";
@@ -135,112 +248,98 @@ const CoordinateFields = component$<{ idPrefix: string; latitud: Signal<string>;
             props.longitud.value = parsed.longitud;
             mapsStatus.value = "ok";
           }}
-          class={fieldClass}
+          class="field"
         />
-        {mapsStatus.value === "ok" && <p role="status" class="text-[11px] font-bold text-emerald-700">Coordenadas completadas desde el link.</p>}
-        {mapsStatus.value === "error" && (
-          <p role="alert" class="text-[11px] font-bold text-amber-800">
-            No encontramos coordenadas en ese link. Abrí el lugar en Google Maps desde la computadora y copiá la dirección completa de la barra; los links cortos (maps.app.goo.gl) no las incluyen.
-          </p>
-        )}
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="space-y-1">
-          <label for={`${props.idPrefix}-latitud`} class={fieldLabelClass}>Latitud</label>
-          <input
-            id={`${props.idPrefix}-latitud`}
-            type="text"
-            name="latitud"
-            inputMode="decimal"
-            value={props.latitud.value}
-            placeholder="Ej: -34.9205"
-            aria-invalid={Boolean(errors.latitud)}
-            aria-describedby={errors.latitud ? `${props.idPrefix}-latitud-error` : undefined}
-            onInput$={(_, el) => { props.latitud.value = el.value; }}
-            class={`${fieldClass} font-mono`}
-          />
-          {errors.latitud && <p id={`${props.idPrefix}-latitud-error`} class="text-[11px] font-bold text-red-700">{errors.latitud}</p>}
-        </div>
-        <div class="space-y-1">
-          <label for={`${props.idPrefix}-longitud`} class={fieldLabelClass}>Longitud</label>
-          <input
-            id={`${props.idPrefix}-longitud`}
-            type="text"
-            name="longitud"
-            inputMode="decimal"
-            value={props.longitud.value}
-            placeholder="Ej: -57.9536"
-            aria-invalid={Boolean(errors.longitud)}
-            aria-describedby={errors.longitud ? `${props.idPrefix}-longitud-error` : undefined}
-            onInput$={(_, el) => { props.longitud.value = el.value; }}
-            class={`${fieldClass} font-mono`}
-          />
-          {errors.longitud && <p id={`${props.idPrefix}-longitud-error`} class="text-[11px] font-bold text-red-700">{errors.longitud}</p>}
+        <div id={`${props.idPrefix}-maps-link-status`} aria-live="polite">
+          {mapsStatus.value === "ok" && <p class="mt-1 text-xs font-bold text-green-800">Coordenadas completadas desde el link.</p>}
+          {mapsStatus.value === "error" && (
+            <p class="mt-1 text-xs font-bold text-amber-900">
+              No encontramos coordenadas en ese link. Abrí el lugar en Google Maps desde la computadora y copiá la dirección completa de la barra; los links cortos (maps.app.goo.gl) no las incluyen.
+            </p>
+          )}
         </div>
       </div>
-      <p class="text-[11px] text-slate-500">Si dejás las dos vacías, el beneficio no aparece en el mapa.</p>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {(["latitud", "longitud"] as const).map((field) => (
+          <div key={field}>
+            <label for={`${props.idPrefix}-${field}`} class={fieldLabelClass}>{field === "latitud" ? "Latitud" : "Longitud"}</label>
+            <input
+              id={`${props.idPrefix}-${field}`}
+              type="text"
+              name={field}
+              inputMode="decimal"
+              value={props[field].value}
+              placeholder={field === "latitud" ? "Ej: -34.9205" : "Ej: -57.9536"}
+              aria-invalid={errors[field] ? "true" : undefined}
+              aria-describedby={describeError(`${props.idPrefix}-${field}`, errors[field])}
+              onInput$={(_, el) => { props[field].value = el.value; }}
+              class="field font-mono"
+            />
+            {fieldError(`${props.idPrefix}-${field}`, errors[field])}
+          </div>
+        ))}
+      </div>
+      <p class="text-xs text-slate-600">Si dejás las dos vacías, el beneficio no aparece en el mapa “Cerca mío”.</p>
     </div>
   );
 });
 
-const ValidityFields = component$<{ idPrefix: string; validUntil: string; terms: string; isPremiumOnly: boolean; couponCode: string }>((props) => (
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-5">
-    <div class="space-y-1">
-      <label for={`${props.idPrefix}-validUntil`} class={fieldLabelClass}>Válido hasta (opcional)</label>
-      <input
-        id={`${props.idPrefix}-validUntil`}
-        type="date"
-        name="validUntil"
-        value={props.validUntil}
-        aria-describedby={`${props.idPrefix}-validUntil-hint`}
-        class={fieldClass}
-      />
-      <p id={`${props.idPrefix}-validUntil-hint`} class="text-[11px] text-slate-500">Después de esa fecha no se pueden generar ni canjear cupones. Vacío: sin vencimiento.</p>
+interface ImageUploadProps {
+  id: string;
+  name: string;
+  label: string;
+  hint: string;
+  preview: string | null;
+  vertical?: boolean;
+  onPick$: QRL<(file: File) => void>;
+  onRemove$: QRL<() => void>;
+}
+
+const ImageUpload = component$<ImageUploadProps>((props) => (
+  <div class="space-y-2">
+    <span class={fieldLabelClass} id={`${props.id}-label`}>{props.label}</span>
+    <div class="flex items-center gap-4">
+      <div class={["flex shrink-0 items-center justify-center overflow-hidden border border-line bg-slate-100", props.vertical ? "h-24 w-20" : "h-20 w-32"]}>
+        {props.preview ? (
+          <img src={previewSrc(props.preview)} alt="" class="h-full w-full object-cover" width={128} height={80} />
+        ) : props.vertical ? (
+          <LuSmartphone class="h-6 w-6 text-slate-400" />
+        ) : (
+          <LuImage class="h-6 w-6 text-slate-400" />
+        )}
+      </div>
+      <div class="flex flex-col gap-2">
+        <input
+          id={props.id}
+          type="file"
+          name={props.name}
+          accept="image/*"
+          aria-describedby={`${props.id}-hint`}
+          onChange$={(_, el) => { if (el.files?.[0]) props.onPick$(el.files[0]); }}
+          class="peer sr-only"
+        />
+        <label for={props.id} class="btn btn-outline btn-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary">
+          {props.preview ? "Cambiar" : "Elegir imagen"}
+        </label>
+        {props.preview && (
+          <button type="button" onClick$={props.onRemove$} class="text-left text-xs font-bold text-red-700 underline cursor-pointer">
+            Quitar imagen
+          </button>
+        )}
+      </div>
     </div>
-    <div class="flex items-start gap-3 sm:pt-6">
-      <input
-        type="checkbox"
-        id={`${props.idPrefix}-isPremiumOnly`}
-        name="isPremiumOnly"
-        checked={props.isPremiumOnly}
-        class="mt-0.5 rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4"
-      />
-      <label for={`${props.idPrefix}-isPremiumOnly`} class="text-xs font-bold text-slate-600 cursor-pointer">
-        Solo socios Gold
-        <span class="block text-[11px] font-medium text-slate-500">Solo los socios Gold pueden generar el cupón.</span>
-      </label>
-    </div>
-    <div class="space-y-1 sm:col-span-2">
-      <label for={`${props.idPrefix}-couponCode`} class={fieldLabelClass}>Código promocional del comercio (opcional)</label>
-      <input
-        id={`${props.idPrefix}-couponCode`}
-        type="text"
-        name="couponCode"
-        maxLength={40}
-        autocomplete="off"
-        value={props.couponCode}
-        aria-describedby={`${props.idPrefix}-couponCode-hint`}
-        placeholder="Ej: LPRC15"
-        class={fieldClass}
-      />
-      <p id={`${props.idPrefix}-couponCode-hint`} class="text-[11px] text-slate-500">Se muestra en la página del beneficio para usarlo online o por teléfono.</p>
-    </div>
-    <div class="space-y-1 sm:col-span-2">
-      <label for={`${props.idPrefix}-terms`} class={fieldLabelClass}>Condiciones (opcional)</label>
-      <textarea
-        id={`${props.idPrefix}-terms`}
-        name="terms"
-        rows={3}
-        maxLength={2000}
-        value={props.terms}
-        placeholder="Ej: Válido de lunes a jueves. No acumulable con otras promociones."
-        class={fieldClass}
-      />
-    </div>
+    <p id={`${props.id}-hint`} class={hintClass}>{props.hint}</p>
   </div>
 ));
 
-interface BenefitPreviewProps {
+const CONTACT_ICONS = {
+  phone: () => <LuPhone class="h-4 w-4" />,
+  whatsapp: () => <LuMessageCircle class="h-4 w-4" />,
+  instagram: () => <LuInstagram class="h-4 w-4" />,
+  website: () => <LuGlobe class="h-4 w-4" />,
+};
+
+interface PreviewData {
   title: string;
   summary: string;
   description: string;
@@ -248,41 +347,112 @@ interface BenefitPreviewProps {
   mobileImage: string | null;
   category: string;
   location: string;
+  isPremiumOnly: boolean;
+  validUntil: string;
+  terms: string;
+  couponCode: string;
+  address: string;
+  hours: string;
+  phone: string;
+  whatsapp: string;
+  instagram: string;
+  website: string;
 }
 
-const BenefitPreview = component$<BenefitPreviewProps>((props) => {
+const BenefitPreview = component$<{ data: PreviewData; slug: string | null; isDraft: boolean }>(({ data, slug, isDraft }) => {
   const benefit: Benefit = {
     id: 0,
     url: "vista-previa",
-    titulo: props.title || "Título del beneficio",
-    resumen: props.summary || "Exclusivo",
-    descripcion: props.description || "Detalles del beneficio...",
-    imagen: props.image,
+    titulo: data.title || "Nombre del comercio",
+    resumen: data.summary || "20% Off",
+    descripcion: data.description || "Detalles del beneficio...",
+    imagen: data.image,
+    imagenMobile: data.mobileImage,
     latitud: null,
     longitud: null,
-    categorias: [{ id: 0, descripcion: props.category || "Categoría" }],
-    ubicacion: [{ id: 0, descripcion: props.location || "La Plata" }],
+    categorias: [{ id: 0, descripcion: data.category || "Categoría" }],
+    ubicacion: [{ id: 0, descripcion: data.location || "La Plata" }],
     ofertas: [],
+    isPremiumOnly: data.isPremiumOnly,
+    address: data.address || null,
   };
+  const expires = formatValidUntil(data.validUntil);
+  const instagramHandle = data.instagram.match(/instagram\.com\/([^/?#]+)/i)?.[1] ?? data.instagram.replace(/^@/, "");
+  const contacts = [
+    { kind: "phone" as const, label: data.phone },
+    { kind: "whatsapp" as const, label: data.whatsapp && `WhatsApp ${data.whatsapp}` },
+    { kind: "instagram" as const, label: data.instagram && `@${instagramHandle}` },
+    { kind: "website" as const, label: data.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") },
+  ].filter((contact) => contact.label);
 
   return (
-    <div class="border-t border-slate-100 pt-6 space-y-4">
-      <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-        <LuSparkles class="w-4 h-4 text-brand-gold" /> Vista previa del beneficio
-      </h4>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
-        <div class="space-y-2.5">
-          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">En computadora</span>
-          <div inert class="max-w-[340px] mx-auto lg:mx-0">
-            <BenefitCard benefit={benefit} />
-          </div>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="heading-display text-lg text-primary">Vista previa</h3>
+        {slug ? (
+          <a href={`/beneficio/${slug}/`} target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary underline">
+            {isDraft ? "Ver ficha (borrador)" : "Ver ficha publicada"}
+            <LuExternalLink class="h-4 w-4" />
+            <span class="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+        ) : (
+          <span class="text-xs text-slate-600">La ficha se crea al guardar.</span>
+        )}
+      </div>
+
+      <div class="space-y-2">
+        <p class="eyebrow text-[11px] text-slate-600">Tarjeta en el listado</p>
+        <div inert class="max-w-[320px]">
+          <BenefitCard benefit={benefit} />
         </div>
-        <div class="space-y-2.5">
-          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">En celular</span>
-          <div inert class="max-w-[280px] mx-auto lg:mx-0">
-            <BenefitCard benefit={{ ...benefit, imagen: props.mobileImage || props.image }} />
+      </div>
+
+      <div class="space-y-2">
+        <p class="eyebrow text-[11px] text-slate-600">Ficha del beneficio</p>
+        <article inert class="border border-line bg-white">
+          {data.image ? (
+            <img src={data.image} alt="" width={640} height={360} class="aspect-video w-full object-cover" />
+          ) : (
+            <div class="flex aspect-video w-full items-center justify-center bg-slate-100 text-xs text-slate-500">Sin imagen</div>
+          )}
+          <div class="space-y-3 p-4">
+            <p class="eyebrow text-[10px] text-amber-900">{benefit.categorias[0].descripcion} · {benefit.ubicacion[0].descripcion}</p>
+            <h4 class="heading-display text-2xl text-primary break-words">{benefit.titulo}</h4>
+            <div class="flex flex-wrap gap-1.5">
+              <span class="badge badge-accent">{normalizeResumen(benefit.resumen)}</span>
+              {data.isPremiumOnly && <span class="badge badge-dark">Solo Gold</span>}
+            </div>
+            <p class="flex items-center gap-1.5 text-sm text-slate-700">
+              <LuCalendarClock class="h-4 w-4 shrink-0 text-slate-500" />
+              {expires ? `Válido hasta el ${expires}` : "Sin fecha de vencimiento"}
+            </p>
+            {data.terms && (
+              <div class="border-l-4 border-accent bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <p class="font-bold text-primary">Condiciones</p>
+                <p class="whitespace-pre-line">{data.terms}</p>
+              </div>
+            )}
+            {data.couponCode && (
+              <p class="text-xs text-slate-700">Código para usar online: <strong class="font-mono text-primary">{data.couponCode}</strong></p>
+            )}
+            {(data.address || data.hours) && (
+              <ul class="space-y-1.5 border-t border-line pt-3 text-sm text-slate-700">
+                {data.address && <li class="flex gap-1.5"><LuMapPin class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />{data.address}</li>}
+                {data.hours && <li class="flex gap-1.5 whitespace-pre-line"><LuClock class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />{data.hours}</li>}
+              </ul>
+            )}
+            {contacts.length > 0 && (
+              <ul class="flex flex-wrap gap-1.5">
+                {contacts.map((contact) => (
+                  <li key={contact.label} class="inline-flex max-w-full items-center gap-1.5 border border-line px-2 py-1 text-xs text-primary">
+                    {CONTACT_ICONS[contact.kind]()}
+                    <span class="truncate">{contact.label}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
+        </article>
       </div>
     </div>
   );
@@ -341,54 +511,86 @@ export const useCreateBenefitFilterAction = routeAction$(
   })
 );
 
-export const useCreateBenefitAction = routeAction$(
+/** Checked per field, so a bad phone is reported together with any other mistake. */
+const merchantField = (field: MerchantField) =>
+  z.string().optional().superRefine((value, ctx) => {
+    const error = merchantFieldError(field, value);
+    if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error });
+  });
+
+/** One action for both forms: with `id` it updates that benefit, without it creates one. */
+export const useSaveBenefitAction = routeAction$(
   async (data, requestEvent) => {
     const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
     if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
 
     const coordinates = parseCoordinateFields(data.latitud, data.longitud);
-    if (!coordinates.ok) return requestEvent.fail(400, { message: Object.values(coordinates.errors).join(" ") });
+    const merchant = parseMerchantFields(data);
+    if (!coordinates.ok || !merchant.ok) {
+      return requestEvent.fail(400, {
+        message: "Revisá los campos marcados.",
+        fieldErrors: { ...(coordinates.ok ? {} : coordinates.errors), ...(merchant.ok ? {} : merchant.errors) } as FieldErrors,
+      });
+    }
 
     try {
       await validateBenefitFilterSelection(requestEvent, data);
       const db = getDB(requestEvent);
-      const uuid = "cb-" + Date.now().toString();
-      const slug = uuid + "-" + data.titulo.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
+      const existing = data.id
+        ? (await db.select().from(benefitsTable).where(eq(benefitsTable.id, data.id)))[0]
+        : undefined;
+      if (data.id && !existing) return requestEvent.fail(404, { message: "Ese beneficio ya no existe. Recargá la página." });
 
-      let uploadedPdfUrl = null;
+      let pdfUrl = existing?.pdfUrl ?? null;
       if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
         const file = data.pdfFile as File;
         const extension = file.name.split(".").pop() || "pdf";
-        uploadedPdfUrl = await putMedia(requestEvent, `benefit-pdf-${Date.now()}.${extension}`, file);
+        pdfUrl = await putMedia(requestEvent, `benefit-pdf-${Date.now()}.${extension}`, file);
+      } else if (data.clearPdf === "true") {
+        pdfUrl = null;
       }
 
-      const uploadedImageUrl = await putImage(requestEvent, "benefit", data.optimizedImage, data.imageFile);
-      const uploadedImageMobileUrl = await putImage(requestEvent, "benefit-mobile", data.optimizedMobileImage, data.imageMobileFile);
+      const uploadedImage = await putImage(requestEvent, "benefit", data.optimizedImage, data.imageFile);
+      const uploadedMobileImage = await putImage(requestEvent, "benefit-mobile", data.optimizedMobileImage, data.imageMobileFile);
+      // An edit keeps the stored images unless removed; "Duplicar" reuses the original's.
+      const imagen = uploadedImage ?? (existing ? (data.clearImage === "true" ? null : existing.imagen) : data.copiedImage || null);
+      const imagenMobile = uploadedMobileImage ?? (existing ? (data.clearMobileImage === "true" ? null : existing.imagenMobile) : data.copiedMobileImage || null);
 
-      await db.insert(benefitsTable).values({
-        id: uuid,
+      const values = {
         ...benefitValuesFromForm(data),
-        // "Duplicar" reuses the original's images unless new ones are uploaded.
-        imagen: uploadedImageUrl ?? (data.copiedImage || null),
-        imagenMobile: uploadedImageMobileUrl ?? (data.copiedMobileImage || null),
-        slug,
-        pdfUrl: uploadedPdfUrl,
+        ...merchant.values,
+        imagen,
+        imagenMobile,
+        pdfUrl,
         latitud: coordinates.latitud,
         longitud: coordinates.longitud,
-        createdAt: new Date().toISOString(),
-      });
+      };
 
-      return { success: true };
+      if (existing) {
+        await db.update(benefitsTable).set(values).where(eq(benefitsTable.id, existing.id));
+        return { success: true, created: false, id: existing.id, slug: existing.slug, titulo: values.titulo };
+      }
+
+      const id = "cb-" + Date.now().toString();
+      const slug = `${id}-${normalizeTitle(data.titulo).replace(/\s+/g, "-") || "beneficio"}`;
+      await db.insert(benefitsTable).values({ id, slug, createdAt: new Date().toISOString(), ...values });
+      return { success: true, created: true, id, slug, titulo: values.titulo };
     } catch (err: any) {
-      if (err instanceof BenefitFilterValidationError) return requestEvent.fail(400, { message: err.message });
+      if (err instanceof BenefitFilterValidationError) {
+        return requestEvent.fail(400, {
+          message: err.message,
+          fieldErrors: (err.field ? { [err.field]: err.message } : {}) as FieldErrors,
+        });
+      }
       console.error(err);
-      return requestEvent.fail(500, { message: "Error al crear el beneficio." });
+      return requestEvent.fail(500, { message: data.id ? "No se pudieron guardar los cambios. Intentá de nuevo." : "No se pudo crear el beneficio. Intentá de nuevo." });
     }
   },
   zod$({
-    titulo: z.string().trim().min(3, "El título debe tener al menos 3 caracteres."),
-    resumen: z.string().trim().min(2, "El resumen debe tener al menos 2 caracteres.").max(RESUMEN_MAX_LENGTH, `El resumen admite hasta ${RESUMEN_MAX_LENGTH} caracteres.`),
-    descripcion: z.string().trim().min(5, "La descripción debe tener al menos 5 caracteres."),
+    id: z.string().optional(),
+    titulo: z.string().trim().min(3, "Escribí un título de al menos 3 caracteres."),
+    resumen: z.string().trim().min(2, "Escribí el texto del badge (al menos 2 caracteres).").max(RESUMEN_MAX_LENGTH, `El badge admite hasta ${RESUMEN_MAX_LENGTH} caracteres.`),
+    descripcion: z.string().trim().min(5, "Contá en qué consiste el beneficio (al menos 5 caracteres)."),
     isFeatured: z.string().optional(),
     isPremiumOnly: z.string().optional(),
     categoryId: z.string(),
@@ -398,6 +600,12 @@ export const useCreateBenefitAction = routeAction$(
     isActive: z.string().optional(),
     terms: z.string().max(2000, "Las condiciones admiten hasta 2000 caracteres.").optional(),
     couponCode: z.string().max(40, "El código admite hasta 40 caracteres.").optional(),
+    address: merchantField("address"),
+    hours: merchantField("hours"),
+    phone: merchantField("phone"),
+    whatsapp: merchantField("whatsapp"),
+    instagram: merchantField("instagram"),
+    website: merchantField("website"),
     pdfFile: z.any().optional(),
     imageFile: z.any().optional(),
     optimizedImage: z.string().optional(),
@@ -405,79 +613,7 @@ export const useCreateBenefitAction = routeAction$(
     optimizedMobileImage: z.string().optional(),
     copiedImage: z.string().optional(),
     copiedMobileImage: z.string().optional(),
-    latitud: z.string().optional(),
-    longitud: z.string().optional(),
-  })
-);
-
-export const useEditBenefitAction = routeAction$(
-  async (data, requestEvent) => {
-    const user = requestEvent.sharedMap.get("user") as AuthenticatedUser | undefined;
-    if (!user || user.role !== "admin") return requestEvent.fail(403, { message: "No autorizado." });
-
-    const coordinates = parseCoordinateFields(data.latitud, data.longitud);
-    if (!coordinates.ok) return requestEvent.fail(400, { message: Object.values(coordinates.errors).join(" ") });
-
-    try {
-      await validateBenefitFilterSelection(requestEvent, data);
-      const db = getDB(requestEvent);
-      
-      const [existing] = await db.select().from(benefitsTable).where(eq(benefitsTable.id, data.id));
-      if (!existing) return requestEvent.fail(404, { message: "Beneficio no encontrado." });
-
-      let finalPdfUrl = existing.pdfUrl;
-      if (data.pdfFile && typeof data.pdfFile === "object" && (data.pdfFile as Blob).size > 0) {
-        const file = data.pdfFile as File;
-        const extension = file.name.split(".").pop() || "pdf";
-        finalPdfUrl = await putMedia(requestEvent, `benefit-pdf-${Date.now()}.${extension}`, file);
-      } else if (data.clearPdf === "true") {
-        finalPdfUrl = null;
-      }
-
-      const uploadedImageUrl = await putImage(requestEvent, "benefit", data.optimizedImage, data.imageFile);
-      const finalImageUrl = uploadedImageUrl ?? (data.clearImage === "true" ? null : existing.imagen);
-      const uploadedImageMobileUrl = await putImage(requestEvent, "benefit-mobile", data.optimizedMobileImage, data.imageMobileFile);
-      const finalImageMobileUrl = uploadedImageMobileUrl ?? (data.clearMobileImage === "true" ? null : existing.imagenMobile);
-
-      await db
-        .update(benefitsTable)
-        .set({
-          ...benefitValuesFromForm(data),
-          imagen: finalImageUrl,
-          imagenMobile: finalImageMobileUrl,
-          pdfUrl: finalPdfUrl,
-          latitud: coordinates.latitud,
-          longitud: coordinates.longitud,
-        })
-        .where(eq(benefitsTable.id, data.id));
-
-      return { success: true };
-    } catch (err: any) {
-      if (err instanceof BenefitFilterValidationError) return requestEvent.fail(400, { message: err.message });
-      console.error(err);
-      return requestEvent.fail(500, { message: "Error al modificar el beneficio." });
-    }
-  },
-  zod$({
-    id: z.string(),
-    titulo: z.string().trim().min(3, "El título debe tener al menos 3 caracteres."),
-    resumen: z.string().trim().min(2, "El resumen debe tener al menos 2 caracteres.").max(RESUMEN_MAX_LENGTH, `El resumen admite hasta ${RESUMEN_MAX_LENGTH} caracteres.`),
-    descripcion: z.string().trim().min(5, "La descripción debe tener al menos 5 caracteres."),
-    isFeatured: z.string().optional(),
-    isPremiumOnly: z.string().optional(),
-    categoryId: z.string(),
-    locationId: z.string(),
-    offerId: z.string(),
-    validUntil: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Elegí una fecha válida.").optional(),
-    isActive: z.string().optional(),
-    terms: z.string().max(2000, "Las condiciones admiten hasta 2000 caracteres.").optional(),
-    couponCode: z.string().max(40, "El código admite hasta 40 caracteres.").optional(),
-    pdfFile: z.any().optional(),
-    imageFile: z.any().optional(),
-    optimizedImage: z.string().optional(),
     clearImage: z.string().optional(),
-    imageMobileFile: z.any().optional(),
-    optimizedMobileImage: z.string().optional(),
     clearMobileImage: z.string().optional(),
     clearPdf: z.string().optional(),
     latitud: z.string().optional(),
@@ -539,35 +675,649 @@ export const useDeleteBenefitAction = routeAction$(
   })
 );
 
-export default component$(() => {
+// --- FORM ---
+
+interface BenefitFormProps {
+  mode: "create" | "edit";
+  /** The benefit being edited, or the one "Duplicar" copies into a new draft. */
+  source: AdminBenefitRow | null;
+  /** Values a merchant request sends to a new benefit (/admin/solicitudes → ?nuevo=1). */
+  prefill?: { titulo: string; phone: string } | null;
+  onClose$: QRL<() => void>;
+  /** Action state lives in the hook instance that submitted, so the form reports success up. */
+  onSaved$: QRL<(notice: { text: string; slug: string }) => void>;
+  onEditOther$: QRL<(row: AdminBenefitRow) => void>;
+}
+
+const BenefitForm = component$<BenefitFormProps>((props) => {
   const benefits = useAdminCustomBenefitsLoader();
   const adminFilters = useAdminFiltersLoader();
-  const createBenefitAction = useCreateBenefitAction();
-  const editBenefitAction = useEditBenefitAction();
-  const deleteBenefitAction = useDeleteBenefitAction();
-  const toggleBenefitActiveAction = useToggleBenefitActiveAction();
-  const createBenefitFilterAction = useCreateBenefitFilterAction();
+  const saveAction = useSaveBenefitAction();
+  const createFilterAction = useCreateBenefitFilterAction();
+  const source = props.source;
+  const isEdit = props.mode === "edit" && !!source;
+  const isDuplicate = props.mode === "create" && !!source;
+  const formId = isEdit ? "benefit-edit-form" : "benefit-create-form";
+  const p = isEdit ? "edit" : "create";
 
-  const isCreateBenefitOpen = useSignal(false);
-  const editingBenefit = useSignal<AdminBenefitRow | null>(null);
+  const prefill = !source ? props.prefill ?? null : null;
+  const titulo = useSignal(isDuplicate ? `${source.titulo} (copia)` : source?.titulo ?? prefill?.titulo ?? "");
+  const resumen = useSignal(source?.resumen ?? "");
+  const descripcion = useSignal(source?.descripcion ?? "");
+  const selection = useStore({
+    categorias: source ? String(source.categoryId) : String(adminFilters.value.categorias[0]?.id ?? ""),
+    ubicaciones: source ? String(source.locationId) : String(adminFilters.value.ubicaciones[0]?.id ?? ""),
+    ofertas: source ? String(source.offerId) : String(adminFilters.value.ofertas[0]?.id ?? ""),
+  });
+  const validUntil = useSignal(dateInputValue(source?.validUntil));
+  const terms = useSignal(source?.terms ?? "");
+  const couponCode = useSignal(source?.couponCode ?? "");
+  const isPremiumOnly = useSignal(source?.isPremiumOnly ?? false);
+  const isFeatured = useSignal(isDuplicate ? false : source?.isFeatured ?? false);
+  // New benefits start published; a duplicate starts as a draft so near-copies are explicit.
+  const isActive = useSignal(isEdit ? !isDraftBenefit(source.validUntil) : !isDuplicate);
+  const latitud = useSignal(source?.latitud ?? "");
+  const longitud = useSignal(source?.longitud ?? "");
+  const merchant = useStore({
+    address: source?.address ?? "",
+    hours: source?.hours ?? "",
+    phone: source?.phone ?? prefill?.phone ?? "",
+    whatsapp: source?.whatsapp ?? "",
+    instagram: source?.instagram ?? "",
+    website: source?.website ?? "",
+  });
+  const image = useStore({
+    preview: source?.imagen || null as string | null,
+    optimized: "",
+    cleared: false,
+    mobilePreview: source?.imagenMobile || null as string | null,
+    mobileOptimized: "",
+    mobileCleared: false,
+    pdfCleared: false,
+  });
   const filterDialog = useSignal<HTMLDialogElement>();
-  const filterTarget = useSignal<{ type: BenefitFilterType; context: "create" | "edit" } | null>(null);
-  const filterDescription = useSignal("");
+  const filterTarget = useSignal<BenefitFilterType | null>(null);
   const filterError = useSignal("");
   const filterNotice = useSignal("");
+  const imageError = useSignal("");
+
+  const duplicate = useComputed$(() => findDuplicateTitle(benefits.value, titulo.value, isEdit ? source.id : undefined));
+  const offerDescription = useComputed$(() => adminFilters.value.ofertas.find((offer) => String(offer.id) === selection.ofertas)?.descripcion);
+  const resumenSuggestions = useComputed$(() => {
+    const values = [...adminFilters.value.ofertas.map((offer) => offer.descripcion), ...benefits.value.map((benefit) => benefit.resumen)];
+    return [...new Set(values.map(normalizeResumen).filter(Boolean))].slice(0, 30);
+  });
+
+  const result = saveAction.value as { failed?: boolean; message?: string; fieldErrors?: FieldErrors } | undefined;
+  const errors: FieldErrors = result?.failed ? result.fieldErrors ?? {} : {};
+  const errorCount = Object.values(errors).filter(Boolean).length;
+  const validity = validUntil.value ? benefitValidity(validUntil.value) : "sin-vencimiento";
+
+  const openFilterEditor$ = $((type: BenefitFilterType) => {
+    filterTarget.value = type;
+    filterError.value = "";
+    filterNotice.value = "";
+    filterDialog.value?.showModal();
+  });
+
+  const pickImage$ = $(async (file: File, target: "desktop" | "mobile") => {
+    imageError.value = "";
+    try {
+      const { preview, optimized } = target === "desktop" ? await optimizeImage(file, 800, 450) : await optimizeImage(file, 600, 600);
+      if (target === "desktop") {
+        image.preview = preview;
+        image.optimized = optimized;
+        image.cleared = false;
+      } else {
+        image.mobilePreview = preview;
+        image.mobileOptimized = optimized;
+        image.mobileCleared = false;
+      }
+    } catch {
+      imageError.value = "No pudimos leer esa imagen. Probá con un JPG, PNG o WebP.";
+    }
+  });
+
+  const removeImage$ = $((target: "desktop" | "mobile") => {
+    const input = document.getElementById(`${p}-${target === "desktop" ? "image" : "image-mobile"}-file`) as HTMLInputElement | null;
+    if (input) input.value = "";
+    if (target === "desktop") {
+      image.preview = null;
+      image.optimized = "";
+      image.cleared = true;
+    } else {
+      image.mobilePreview = null;
+      image.mobileOptimized = "";
+      image.mobileCleared = true;
+    }
+  });
+
+  const categoryName = adminFilters.value.categorias.find((c) => String(c.id) === selection.categorias)?.descripcion ?? "";
+  const locationName = adminFilters.value.ubicaciones.find((l) => String(l.id) === selection.ubicaciones)?.descripcion ?? "";
+
+  const selectField = (key: BenefitFilterType, name: "categoryId" | "locationId" | "offerId", label: string) => {
+    const id = `${p}-${name}`;
+    return (
+      <div>
+        <FilterFieldLabel id={id} label={label} onAdd$={() => openFilterEditor$(key)} />
+        <select
+          id={id}
+          name={name}
+          value={selection[key]}
+          aria-invalid={errors[name] ? "true" : undefined}
+          aria-describedby={describeError(id, errors[name])}
+          onChange$={(_, el) => { selection[key] = el.value; }}
+          class="field cursor-pointer"
+        >
+          {adminFilters.value[key].map((option) => (
+            // `selected` too: a form opened from a deep link is rendered on the server, where `value` does nothing.
+            <option key={option.id} value={option.id} selected={String(option.id) === selection[key]}>{option.descripcion}</option>
+          ))}
+        </select>
+        {fieldError(id, errors[name])}
+      </div>
+    );
+  };
+
+  const textField = (
+    name: "address" | "hours" | "phone" | "whatsapp" | "instagram" | "website",
+    label: string,
+    options: { placeholder: string; hint?: string; type?: string; inputMode?: "tel" | "url" | "text"; autocomplete?: "street-address" },
+  ) => {
+    const id = `${p}-${name}`;
+    return (
+      <div>
+        <label for={id} class={fieldLabelClass}>{label}</label>
+        <input
+          id={id}
+          type={options.type ?? "text"}
+          name={name}
+          value={merchant[name]}
+          inputMode={options.inputMode}
+          autocomplete={options.autocomplete ?? "off"}
+          placeholder={options.placeholder}
+          aria-invalid={errors[name] ? "true" : undefined}
+          aria-describedby={describeError(id, errors[name], options.hint)}
+          onInput$={(_, el) => { merchant[name] = el.value; }}
+          class="field"
+        />
+        {fieldError(id, errors[name])}
+        {options.hint && <p id={`${id}-hint`} class={hintClass}>{options.hint}</p>}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <dialog
+        ref={filterDialog}
+        aria-labelledby={`${p}-filter-title`}
+        class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md border-t-4 border-accent bg-white p-6 text-slate-800 shadow-xl backdrop:bg-brand-ink/60"
+        preventdefault:cancel
+        onCancel$={() => { if (!createFilterAction.isRunning) filterDialog.value?.close(); }}
+        onClose$={() => { filterTarget.value = null; }}
+      >
+        <Form
+          action={createFilterAction}
+          class="space-y-5"
+          onSubmitCompleted$={() => {
+            const outcome = createFilterAction.value;
+            const target = filterTarget.value;
+            if (!outcome?.success) {
+              filterError.value = outcome?.message || outcome?.fieldErrors?.descripcion || "Revisá el nombre e intentá de nuevo.";
+              return;
+            }
+            if (!target) return;
+            selection[target] = String(outcome.option.id);
+            filterNotice.value = `“${outcome.option.descripcion}” está disponible y quedó seleccionada en el beneficio.`;
+            filterDialog.value?.close();
+          }}
+        >
+          <h2 id={`${p}-filter-title`} class="heading-display text-xl text-primary">
+            {filterTarget.value ? filterEditorLabels[filterTarget.value].title : "Agregar opción"}
+          </h2>
+          <p class="text-sm text-slate-600">La opción quedará disponible para todos los beneficios.</p>
+          <input type="hidden" name="type" value={filterTarget.value || "categorias"} />
+          <div>
+            <label for={`${p}-filter-description`} class={fieldLabelClass}>Nombre</label>
+            <input
+              id={`${p}-filter-description`}
+              name="descripcion"
+              type="text"
+              onInput$={() => { filterError.value = ""; }}
+              aria-invalid={filterError.value ? "true" : undefined}
+              aria-describedby={filterError.value ? `${p}-filter-description-error` : undefined}
+              required
+              maxLength={100}
+              autoFocus
+              placeholder={filterTarget.value ? filterEditorLabels[filterTarget.value].placeholder : ""}
+              class="field"
+            />
+            {filterError.value && <p id={`${p}-filter-description-error`} role="alert" class="mt-1 text-sm font-semibold text-red-700">{filterError.value}</p>}
+          </div>
+          <div class="flex justify-end gap-3">
+            <button type="button" disabled={createFilterAction.isRunning} onClick$={() => filterDialog.value?.close()} class="btn btn-outline btn-sm">Cancelar</button>
+            <button type="submit" disabled={createFilterAction.isRunning} class="btn btn-dark btn-sm">
+              {createFilterAction.isRunning ? "Guardando..." : "Guardar y seleccionar"}
+            </button>
+          </div>
+        </Form>
+      </dialog>
+
+      <Form
+        id={formId}
+        action={saveAction}
+        enctype="multipart/form-data"
+        noValidate
+        onSubmitCompleted$={async () => {
+          const outcome = saveAction.value;
+          if (outcome?.success) {
+            await props.onSaved$({ text: `«${outcome.titulo}» ${outcome.created ? "se creó" : "se guardó"} correctamente.`, slug: outcome.slug });
+            await props.onClose$();
+          } else {
+            focusFirstInvalid(formId);
+          }
+        }}
+        class="scroll-mt-20 border border-line border-t-4 border-t-primary bg-white"
+        aria-labelledby={`${formId}-title`}
+      >
+        <div class="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-8">
+          <div>
+            <p class="eyebrow text-[11px] text-amber-900">{isEdit ? "Editar beneficio" : isDuplicate ? "Duplicar beneficio" : "Nuevo beneficio"}</p>
+            <h2 id={`${formId}-title`} class="heading-display text-2xl text-primary break-words">
+              {isEdit ? source.titulo : titulo.value || "Beneficio sin título"}
+            </h2>
+          </div>
+          <button type="button" onClick$={props.onClose$} aria-label="Cerrar formulario" class={iconButtonClass}>
+            <LuX class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-8 px-5 py-6 sm:px-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div class="min-w-0 space-y-6">
+            {prefill && (prefill.titulo || prefill.phone) && (
+              <p class="border-l-4 border-secondary bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Completamos {prefill.titulo && prefill.phone ? "el nombre y el teléfono" : prefill.titulo ? "el nombre" : "el teléfono"} con los datos de la solicitud del comercio. Revisalos y completá el resto: no se guarda nada hasta que toques “Crear beneficio”.
+              </p>
+            )}
+            {isDuplicate && (
+              <p class="border-l-4 border-secondary bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Copia de «{source.titulo}». Se guarda como borrador: revisá los datos antes de publicarla.
+              </p>
+            )}
+            {result?.failed && (
+              <div role="alert" tabIndex={-1} data-form-error class="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800 focus:outline-none">
+                <p class="font-bold">{result.message || "No se pudo guardar. Revisá los datos e intentá de nuevo."}</p>
+                {errorCount > 0 && <p>{errorCount === 1 ? "Hay 1 campo para revisar." : `Hay ${errorCount} campos para revisar.`} Te llevamos al primero.</p>}
+              </div>
+            )}
+            {filterNotice.value && <Notice>{filterNotice.value}</Notice>}
+            <datalist id={`${p}-resumen-suggestions`}>
+              {resumenSuggestions.value.map((suggestion) => (
+                <option key={suggestion} value={suggestion} />
+              ))}
+            </datalist>
+            {isEdit && <input type="hidden" name="id" value={source.id} />}
+            {!isEdit && <input type="hidden" name="copiedImage" value={image.cleared ? "" : source?.imagen ?? ""} />}
+            {!isEdit && <input type="hidden" name="copiedMobileImage" value={image.mobileCleared ? "" : source?.imagenMobile ?? ""} />}
+
+            <FormSection first title="Datos" description="Lo que identifica al beneficio en el listado y en la búsqueda.">
+              <div>
+                <label for={`${p}-titulo`} class={fieldLabelClass}>Título</label>
+                <input
+                  id={`${p}-titulo`}
+                  type="text"
+                  name="titulo"
+                  value={titulo.value}
+                  placeholder="Ej: Spa Platense Masajes"
+                  aria-invalid={errors.titulo ? "true" : undefined}
+                  aria-describedby={describeError(`${p}-titulo`, errors.titulo)}
+                  onInput$={(_, el) => { titulo.value = el.value; }}
+                  class="field"
+                />
+                {fieldError(`${p}-titulo`, errors.titulo)}
+                {duplicate.value && (
+                  <p role="status" class="mt-2 border-l-4 border-accent bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Ya existe «{duplicate.value.titulo}» ({isDraftBenefit(duplicate.value.validUntil) ? "borrador" : "publicado"}).{" "}
+                    <button type="button" onClick$={() => duplicate.value && props.onEditOther$(duplicate.value)} class="font-bold underline cursor-pointer">
+                      Editar ese beneficio
+                    </button>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label for={`${p}-descripcion`} class={fieldLabelClass}>Descripción</label>
+                <textarea
+                  id={`${p}-descripcion`}
+                  name="descripcion"
+                  rows={4}
+                  value={descripcion.value}
+                  placeholder="Contá en qué consiste el beneficio y cómo se usa."
+                  aria-invalid={errors.descripcion ? "true" : undefined}
+                  aria-describedby={describeError(`${p}-descripcion`, errors.descripcion)}
+                  onInput$={(_, el) => { descripcion.value = el.value; }}
+                  class="field"
+                />
+                {fieldError(`${p}-descripcion`, errors.descripcion)}
+              </div>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {selectField("categorias", "categoryId", "Categoría")}
+                {selectField("ubicaciones", "locationId", "Zona")}
+              </div>
+            </FormSection>
+
+            <FormSection title="Oferta" description="El descuento, cómo se ve y quién puede usarlo.">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {selectField("ofertas", "offerId", "Descuento")}
+                <ResumenField id={`${p}-resumen`} value={resumen} offer={offerDescription.value} listId={`${p}-resumen-suggestions`} error={errors.resumen} />
+              </div>
+              <div>
+                <label for={`${p}-terms`} class={fieldLabelClass}>Condiciones (opcional)</label>
+                <textarea
+                  id={`${p}-terms`}
+                  name="terms"
+                  rows={3}
+                  maxLength={2000}
+                  value={terms.value}
+                  placeholder="Ej: Válido de lunes a jueves. No acumulable con otras promociones."
+                  aria-invalid={errors.terms ? "true" : undefined}
+                  aria-describedby={describeError(`${p}-terms`, errors.terms)}
+                  onInput$={(_, el) => { terms.value = el.value; }}
+                  class="field"
+                />
+                {fieldError(`${p}-terms`, errors.terms)}
+              </div>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label for={`${p}-couponCode`} class={fieldLabelClass}>Código del comercio (opcional)</label>
+                  <input
+                    id={`${p}-couponCode`}
+                    type="text"
+                    name="couponCode"
+                    maxLength={40}
+                    autocomplete="off"
+                    value={couponCode.value}
+                    placeholder="Ej: LPRC15"
+                    aria-invalid={errors.couponCode ? "true" : undefined}
+                    aria-describedby={describeError(`${p}-couponCode`, errors.couponCode, "hint")}
+                    onInput$={(_, el) => { couponCode.value = el.value; }}
+                    class="field font-mono"
+                  />
+                  {fieldError(`${p}-couponCode`, errors.couponCode)}
+                  <p id={`${p}-couponCode-hint`} class={hintClass}>Para comprar online o por teléfono; se muestra en la ficha.</p>
+                </div>
+                <div class="flex items-start gap-3 sm:pt-7">
+                  <input
+                    type="checkbox"
+                    id={`${p}-isPremiumOnly`}
+                    name="isPremiumOnly"
+                    checked={isPremiumOnly.value}
+                    onChange$={(_, el) => { isPremiumOnly.value = el.checked; }}
+                    class="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                  />
+                  <label for={`${p}-isPremiumOnly`} class="text-sm font-bold text-primary cursor-pointer">
+                    Solo socios Gold
+                    <span class="block text-xs font-normal text-slate-600">Solo los socios Gold pueden generar el cupón.</span>
+                  </label>
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection title="Vigencia">
+              <div class="max-w-xs">
+                <label for={`${p}-validUntil`} class={fieldLabelClass}>Válido hasta (opcional)</label>
+                <input
+                  id={`${p}-validUntil`}
+                  type="date"
+                  name="validUntil"
+                  value={validUntil.value}
+                  aria-invalid={errors.validUntil ? "true" : undefined}
+                  aria-describedby={describeError(`${p}-validUntil`, errors.validUntil, "hint")}
+                  onInput$={(_, el) => { validUntil.value = el.value; }}
+                  class="field"
+                />
+                {fieldError(`${p}-validUntil`, errors.validUntil)}
+              </div>
+              <p id={`${p}-validUntil-hint`} class={[
+                "text-sm",
+                validity === "vencido" ? "border-l-4 border-red-600 bg-red-50 px-3 py-2 font-semibold text-red-800" : validity === "vence-pronto" ? "border-l-4 border-accent bg-amber-50 px-3 py-2 text-amber-900" : "text-slate-600",
+              ]}>
+                {validity === "vencido"
+                  ? "Esa fecha ya pasó: el beneficio figura vencido y los socios no pueden generar ni canjear cupones."
+                  : validity === "vence-pronto"
+                    ? `Vence dentro de los próximos ${EXPIRING_SOON_DAYS} días. Los cupones dejan de servir el día siguiente.`
+                    : "Después de esa fecha no se pueden generar ni canjear cupones. Vacío: sin vencimiento."}
+              </p>
+            </FormSection>
+
+            <FormSection title="Ubicación y comercio" description="Datos que se muestran en la ficha para llegar y contactar al comercio.">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {textField("address", "Dirección", { placeholder: "Ej: Calle 7 N° 1234, La Plata", autocomplete: "street-address" })}
+                {textField("hours", "Horarios", { placeholder: "Ej: Lun a sáb de 9 a 20" })}
+                {textField("phone", "Teléfono", { placeholder: "Ej: 221 456-7890", type: "tel", inputMode: "tel", hint: "Con código de área." })}
+                {textField("whatsapp", "WhatsApp", { placeholder: "Ej: 221 555-1234", type: "tel", inputMode: "tel", hint: "El número al que escriben los socios." })}
+                {textField("instagram", "Instagram", { placeholder: "Ej: @comercio", hint: "Usuario o link del perfil." })}
+                {textField("website", "Sitio web", { placeholder: "Ej: comercio.com.ar", inputMode: "url" })}
+              </div>
+              <CoordinateFields idPrefix={p} latitud={latitud} longitud={longitud} errors={errors} />
+            </FormSection>
+
+            <FormSection title="Imágenes y archivos">
+              <input type="hidden" name="optimizedImage" value={image.optimized} />
+              <input type="hidden" name="optimizedMobileImage" value={image.mobileOptimized} />
+              {isEdit && <input type="hidden" name="clearImage" value={image.cleared ? "true" : "false"} />}
+              {isEdit && <input type="hidden" name="clearMobileImage" value={image.mobileCleared ? "true" : "false"} />}
+              {isEdit && <input type="hidden" name="clearPdf" value={image.pdfCleared ? "true" : "false"} />}
+              {imageError.value && <p role="alert" class="text-sm font-semibold text-red-700">{imageError.value}</p>}
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <ImageUpload
+                  id={`${p}-image-file`}
+                  name="imageFile"
+                  label="Imagen principal (horizontal)"
+                  hint="16:9, por ejemplo 1600×900. Se optimiza sola al subirla."
+                  preview={image.preview}
+                  onPick$={(file) => pickImage$(file, "desktop")}
+                  onRemove$={() => removeImage$("desktop")}
+                />
+                <ImageUpload
+                  id={`${p}-image-mobile-file`}
+                  name="imageMobileFile"
+                  label="Imagen para celular (opcional)"
+                  hint="Vertical o cuadrada (600×600). Si falta, se usa la principal."
+                  preview={image.mobilePreview}
+                  vertical
+                  onPick$={(file) => pickImage$(file, "mobile")}
+                  onRemove$={() => removeImage$("mobile")}
+                />
+              </div>
+              <div>
+                <label for={`${p}-pdf-file`} class={fieldLabelClass}>PDF (opcional)</label>
+                <input
+                  id={`${p}-pdf-file`}
+                  type="file"
+                  name="pdfFile"
+                  accept="application/pdf"
+                  aria-describedby={`${p}-pdf-file-hint`}
+                  onChange$={() => { image.pdfCleared = false; }}
+                  class="field cursor-pointer text-sm"
+                />
+                <p id={`${p}-pdf-file-hint`} class={hintClass}>Lista de precios, menú o bases y condiciones.</p>
+                {isEdit && source.pdfUrl && !image.pdfCleared && (
+                  <div class="mt-2 flex items-center justify-between gap-3 border border-line bg-slate-50 px-3 py-2">
+                    <span class="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-700">
+                      <LuFileText class="h-4 w-4 shrink-0" />
+                      <span class="truncate">{source.pdfUrl.split("/").pop()}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick$={() => {
+                        image.pdfCleared = true;
+                        const input = document.getElementById(`${p}-pdf-file`) as HTMLInputElement | null;
+                        if (input) input.value = "";
+                      }}
+                      class="shrink-0 text-xs font-bold text-red-700 underline cursor-pointer"
+                    >
+                      Quitar PDF
+                    </button>
+                  </div>
+                )}
+                {isEdit && source.pdfUrl && image.pdfCleared && <p class="mt-2 text-xs font-bold text-amber-900">El PDF se va a quitar al guardar.</p>}
+              </div>
+            </FormSection>
+
+            <FormSection title="Publicación">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id={`${p}-isActive`}
+                    name="isActive"
+                    checked={isActive.value}
+                    onChange$={(_, el) => { isActive.value = el.checked; }}
+                    class="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                  />
+                  <label for={`${p}-isActive`} class="text-sm font-bold text-primary cursor-pointer">
+                    Publicado
+                    <span class="block text-xs font-normal text-slate-600">Si lo destildás queda como borrador: solo lo ven los admins.</span>
+                  </label>
+                </div>
+                <div class="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id={`${p}-isFeatured`}
+                    name="isFeatured"
+                    checked={isFeatured.value}
+                    onChange$={(_, el) => { isFeatured.value = el.checked; }}
+                    class="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                  />
+                  <label for={`${p}-isFeatured`} class="text-sm font-bold text-primary cursor-pointer">
+                    Mostrar en “Beneficios destacados”
+                    <span class="block text-xs font-normal text-slate-600">La portada muestra hasta 6 destacados publicados, de los más nuevos a los más viejos.</span>
+                  </label>
+                </div>
+              </div>
+            </FormSection>
+          </div>
+
+          <aside class="min-w-0 xl:sticky xl:top-20 xl:self-start" aria-label="Vista previa">
+            <BenefitPreview
+              slug={isEdit ? source.slug : null}
+              isDraft={!isActive.value}
+              data={{
+                title: titulo.value,
+                summary: resumen.value || offerDescription.value || "",
+                description: descripcion.value,
+                image: image.preview ? previewSrc(image.preview) : null,
+                mobileImage: image.mobilePreview ? previewSrc(image.mobilePreview) : null,
+                category: categoryName,
+                location: locationName,
+                isPremiumOnly: isPremiumOnly.value,
+                validUntil: validUntil.value,
+                terms: terms.value,
+                couponCode: couponCode.value,
+                address: merchant.address,
+                hours: merchant.hours,
+                phone: merchant.phone,
+                whatsapp: merchant.whatsapp,
+                instagram: merchant.instagram,
+                website: merchant.website,
+              }}
+            />
+          </aside>
+        </div>
+
+        {/* Kept in view while scrolling a long form. */}
+        <div class="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-3 border-t-2 border-primary bg-white px-5 py-3 shadow-[0_-6px_16px_rgb(2_6_23/0.08)] sm:px-8">
+          {errorCount > 0 && (
+            <p class="w-full text-sm font-semibold text-red-700 sm:mr-auto sm:w-auto">
+              {errorCount === 1 ? "1 campo para revisar" : `${errorCount} campos para revisar`}
+            </p>
+          )}
+          <button type="button" onClick$={props.onClose$} disabled={saveAction.isRunning} class="btn btn-outline flex-1 px-3 sm:flex-none sm:px-6">
+            Cancelar
+          </button>
+          <button type="submit" disabled={saveAction.isRunning} class="btn btn-dark flex-1 px-3 sm:flex-none sm:px-6">
+            {saveAction.isRunning ? "Guardando..." : isEdit ? (
+              <>
+                Guardar<span class="hidden sm:inline">&nbsp;cambios</span>
+              </>
+            ) : (
+              "Crear beneficio"
+            )}
+          </button>
+        </div>
+      </Form>
+    </>
+  );
+});
+
+// --- PAGE ---
+
+export default component$(() => {
+  const location = useLocation();
+  const benefits = useAdminCustomBenefitsLoader();
+  const adminFilters = useAdminFiltersLoader();
+  const deleteBenefitAction = useDeleteBenefitAction();
+  const toggleBenefitActiveAction = useToggleBenefitActiveAction();
+  const params = location.url.searchParams;
+
+  // Deep links: ?estado=, ?vigencia=, ?ubicacion=sin, ?destacados=1 and ?editar=<id> from the
+  // dashboard; ?nuevo=1&titulo=&telefono= from a merchant request (prefilled, never saved alone).
+  const editTarget = benefits.value.find((row) => row.id === params.get("editar")) ?? null;
+  const createPrefill =
+    !editTarget && params.get("nuevo") === "1"
+      ? { titulo: (params.get("titulo") ?? "").trim().slice(0, 120), phone: (params.get("telefono") ?? "").trim().slice(0, 40) }
+      : null;
+  // A store that never turns null: props derived from it stay readable while the form unmounts.
+  const form = useStore<{
+    open: boolean;
+    mode: "create" | "edit";
+    source: AdminBenefitRow | null;
+    prefill: { titulo: string; phone: string } | null;
+    key: number;
+  }>({
+    open: !!editTarget || !!createPrefill,
+    mode: editTarget ? "edit" : "create",
+    source: editTarget,
+    prefill: createPrefill,
+    key: 1,
+  });
   const deleteDialog = useSignal<HTMLDialogElement>();
   const deleteTarget = useSignal<{ id: string; titulo: string; couponCount: number } | null>(null);
   const deleteError = useSignal("");
   const deleteNotice = useSignal("");
-  const createFilterSelection = useStore({ categorias: "", ubicaciones: "", ofertas: "" });
-  const editFilterSelection = useStore({ categorias: "", ubicaciones: "", ofertas: "" });
+  const saveNotice = useSignal<{ text: string; slug: string } | null>(null);
 
-  const openFilterEditor$ = $((type: BenefitFilterType, context: "create" | "edit") => {
-    filterTarget.value = { type, context };
-    filterDescription.value = "";
-    filterError.value = "";
-    filterNotice.value = "";
-    filterDialog.value?.showModal();
+  const currentPage = useSignal(1);
+  const searchQuery = useSignal("");
+  const featuredOnly = useSignal(params.get("destacados") === "1");
+  const withoutLocationOnly = useSignal(params.get("ubicacion") === "sin");
+  const statusFilter = useSignal<StatusFilter>(
+    params.get("estado") === "publicados" ? "published" : params.get("estado") === "borradores" ? "draft" : "all",
+  );
+  const validityFilter = useSignal<ValidityFilter>(
+    params.get("vigencia") === "vencidos" ? "vencido" : params.get("vigencia") === "vence-pronto" ? "vence-pronto" : "all",
+  );
+
+  const openForm$ = $((mode: "create" | "edit", source: AdminBenefitRow | null) => {
+    saveNotice.value = null;
+    form.prefill = null;
+    form.mode = mode;
+    form.source = source;
+    form.key++;
+    form.open = true;
+    revealForm(mode === "edit" ? "benefit-edit-form" : "benefit-create-form");
+  });
+
+  const closeForm$ = $(() => {
+    form.open = false;
+    // A reload must not reopen a form that was already closed or saved.
+    const url = new URL(window.location.href);
+    const keys = ["editar", "nuevo", "titulo", "telefono"].filter((key) => url.searchParams.has(key));
+    if (keys.length) {
+      keys.forEach((key) => url.searchParams.delete(key));
+      history.replaceState(history.state, "", url);
+    }
   });
 
   const openDeleteDialog$ = $((target: { id: string; titulo: string; couponCount: number }) => {
@@ -577,364 +1327,9 @@ export default component$(() => {
     deleteDialog.value?.showModal();
   });
 
-  // Image Upload signals
-  const createImagePreviewUrl = useSignal<string | null>(null);
-  const createOptimizedImageBase64 = useSignal<string>("");
-  const createImageMobilePreviewUrl = useSignal<string | null>(null);
-  const createOptimizedMobileImageBase64 = useSignal<string>("");
-
-  const editImagePreviewUrl = useSignal<string | null>(null);
-  const editOptimizedImageBase64 = useSignal<string>("");
-  const editIsImageDeleted = useSignal<boolean>(false);
-  const editImageMobilePreviewUrl = useSignal<string | null>(null);
-  const editOptimizedMobileImageBase64 = useSignal<string>("");
-  const editIsMobileImageDeleted = useSignal<boolean>(false);
-  const editIsPdfDeleted = useSignal<boolean>(false);
-  const editLatitud = useSignal("");
-  const editLongitud = useSignal("");
-
-  // Create form state; the form remounts (new key) whenever it is reset or prefilled.
-  const createFormKey = useSignal(0);
-  const createLatitud = useSignal("");
-  const createLongitud = useSignal("");
-  const createValidity = useSignal({ validUntil: "", terms: "", isPremiumOnly: false, couponCode: "" });
-  const createIsActive = useSignal(true);
-  const createCopiedImage = useSignal("");
-  const createCopiedMobileImage = useSignal("");
-  const createSourceTitle = useSignal("");
-
-  // Pagination & Search state
-  const currentPage = useSignal(1);
-  const searchQuery = useSignal("");
-  const goldFilterActive = useSignal(false);
-  const statusFilter = useSignal<"all" | "active" | "inactive">("all");
-
-  // Create form values, also used by the live preview
-  const createPreviewTitulo = useSignal("");
-  const createPreviewResumen = useSignal("");
-  const createPreviewDescripcion = useSignal("");
-  const createPreviewIsFeatured = useSignal(false);
-  const createPreviewCategory = useSignal("");
-  const createPreviewLocation = useSignal("");
-
-  // Live preview signals for Edit
-  const editPreviewTitulo = useSignal("");
-  const editPreviewResumen = useSignal("");
-  const editPreviewDescripcion = useSignal("");
-  const editPreviewIsFeatured = useSignal(false);
-  const editPreviewCategory = useSignal("");
-  const editPreviewLocation = useSignal("");
-
-  useTask$(({ track }) => {
-    track(() => adminFilters.value);
-    if (adminFilters.value) {
-      if (!createPreviewCategory.value) createPreviewCategory.value = adminFilters.value.categorias[0]?.descripcion || "Categoría";
-      if (!createPreviewLocation.value) createPreviewLocation.value = adminFilters.value.ubicaciones[0]?.descripcion || "La Plata";
-    }
-  });
-
-  // Change handler with client-side canvas optimization (Create)
-  const handleCreateImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-    createCopiedImage.value = "";
-
-    if (file.type === "image/svg+xml") {
-      createOptimizedImageBase64.value = "";
-      createImagePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 800;
-        const maxH = 450;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          createOptimizedImageBase64.value = dataUrl;
-          createImagePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Change handler with client-side canvas optimization (Create Mobile)
-  const handleCreateMobileImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-    createCopiedMobileImage.value = "";
-
-    if (file.type === "image/svg+xml") {
-      createOptimizedMobileImageBase64.value = "";
-      createImageMobilePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 600;
-        const maxH = 600;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          createOptimizedMobileImageBase64.value = dataUrl;
-          createImageMobilePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Change handler with client-side canvas optimization (Edit)
-  const handleEditImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-    editIsImageDeleted.value = false;
-
-    if (file.type === "image/svg+xml") {
-      editOptimizedImageBase64.value = "";
-      editImagePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 800;
-        const maxH = 450;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          editOptimizedImageBase64.value = dataUrl;
-          editImagePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Change handler with client-side canvas optimization (Edit Mobile)
-  const handleEditMobileImageChange = $((event: Event) => {
-    const element = event.target as HTMLInputElement;
-    if (!element.files || element.files.length === 0) return;
-    const file = element.files[0];
-    editIsMobileImageDeleted.value = false;
-
-    if (file.type === "image/svg+xml") {
-      editOptimizedMobileImageBase64.value = "";
-      editImageMobilePreviewUrl.value = URL.createObjectURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 600;
-        const maxH = 600;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/webp", 0.85);
-          editOptimizedMobileImageBase64.value = dataUrl;
-          editImageMobilePreviewUrl.value = dataUrl;
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  /** Every per-benefit edit flag lives here, so no flag leaks into the next benefit. */
-  const resetEditState$ = $(() => {
-    editImagePreviewUrl.value = null;
-    editOptimizedImageBase64.value = "";
-    editIsImageDeleted.value = false;
-    editImageMobilePreviewUrl.value = null;
-    editOptimizedMobileImageBase64.value = "";
-    editIsMobileImageDeleted.value = false;
-    editIsPdfDeleted.value = false;
-    editLatitud.value = "";
-    editLongitud.value = "";
-  });
-
-  const resetCreateState$ = $(() => {
-    createPreviewTitulo.value = "";
-    createPreviewResumen.value = "";
-    createPreviewDescripcion.value = "";
-    createPreviewIsFeatured.value = false;
-    createLatitud.value = "";
-    createLongitud.value = "";
-    createValidity.value = { validUntil: "", terms: "", isPremiumOnly: false, couponCode: "" };
-    createIsActive.value = true;
-    createImagePreviewUrl.value = null;
-    createOptimizedImageBase64.value = "";
-    createImageMobilePreviewUrl.value = null;
-    createOptimizedMobileImageBase64.value = "";
-    createCopiedImage.value = "";
-    createCopiedMobileImage.value = "";
-    createSourceTitle.value = "";
-    createFilterSelection.categorias = "";
-    createFilterSelection.ubicaciones = "";
-    createFilterSelection.ofertas = "";
-    createPreviewCategory.value = adminFilters.value.categorias[0]?.descripcion || "Categoría";
-    createPreviewLocation.value = adminFilters.value.ubicaciones[0]?.descripcion || "La Plata";
-    createFormKey.value++;
-  });
-
   const describeFilters = (benefit: AdminBenefitRow) => ({
     category: adminFilters.value.categorias.find((c) => c.id === benefit.categoryId)?.descripcion || `Cat #${benefit.categoryId}`,
     location: adminFilters.value.ubicaciones.find((l) => l.id === benefit.locationId)?.descripcion || `Loc #${benefit.locationId}`,
-  });
-
-  const openEditBenefit$ = $(async (benefit: AdminBenefitRow) => {
-    await resetEditState$();
-    isCreateBenefitOpen.value = false;
-    editingBenefit.value = benefit;
-    editFilterSelection.categorias = String(benefit.categoryId);
-    editFilterSelection.ubicaciones = String(benefit.locationId);
-    editFilterSelection.ofertas = String(benefit.offerId);
-    editImagePreviewUrl.value = benefit.imagen || null;
-    editImageMobilePreviewUrl.value = benefit.imagenMobile || null;
-    editLatitud.value = benefit.latitud || "";
-    editLongitud.value = benefit.longitud || "";
-    editPreviewTitulo.value = benefit.titulo;
-    editPreviewResumen.value = benefit.resumen || "";
-    editPreviewDescripcion.value = benefit.descripcion || "";
-    editPreviewIsFeatured.value = benefit.isFeatured;
-    editPreviewCategory.value = adminFilters.value.categorias.find((c) => c.id === benefit.categoryId)?.descripcion || "Categoría";
-    editPreviewLocation.value = adminFilters.value.ubicaciones.find((l) => l.id === benefit.locationId)?.descripcion || "La Plata";
-    revealForm("benefit-edit-form");
-  });
-
-  const closeEditBenefit$ = $(async () => {
-    editingBenefit.value = null;
-    await resetEditState$();
-  });
-
-  /** Opens the create form prefilled from a row, as a draft, so near-copies are explicit. */
-  const duplicateBenefit$ = $(async (benefit: AdminBenefitRow) => {
-    await closeEditBenefit$();
-    await resetCreateState$();
-    createPreviewTitulo.value = `${benefit.titulo} (copia)`;
-    createPreviewResumen.value = benefit.resumen;
-    createPreviewDescripcion.value = benefit.descripcion;
-    createFilterSelection.categorias = String(benefit.categoryId);
-    createFilterSelection.ubicaciones = String(benefit.locationId);
-    createFilterSelection.ofertas = String(benefit.offerId);
-    createPreviewCategory.value = adminFilters.value.categorias.find((c) => c.id === benefit.categoryId)?.descripcion || "Categoría";
-    createPreviewLocation.value = adminFilters.value.ubicaciones.find((l) => l.id === benefit.locationId)?.descripcion || "La Plata";
-    createLatitud.value = benefit.latitud || "";
-    createLongitud.value = benefit.longitud || "";
-    createValidity.value = {
-      validUntil: dateInputValue(benefit.validUntil),
-      terms: benefit.terms || "",
-      isPremiumOnly: benefit.isPremiumOnly,
-      couponCode: benefit.couponCode || "",
-    };
-    createIsActive.value = false;
-    createCopiedImage.value = benefit.imagen || "";
-    createImagePreviewUrl.value = benefit.imagen || null;
-    createCopiedMobileImage.value = benefit.imagenMobile || "";
-    createImageMobilePreviewUrl.value = benefit.imagenMobile || null;
-    createSourceTitle.value = benefit.titulo;
-    isCreateBenefitOpen.value = true;
-    revealForm("benefit-create-form");
-  });
-
-  useTask$(async ({ track }) => {
-    track(() => editBenefitAction.value);
-    if (editBenefitAction.value?.success) await closeEditBenefit$();
-  });
-
-  useTask$(async ({ track }) => {
-    track(() => createBenefitAction.value);
-    if (createBenefitAction.value?.success) {
-      isCreateBenefitOpen.value = false;
-      await resetCreateState$();
-    }
-  });
-
-  const createDuplicate = useComputed$(() => findDuplicateTitle(benefits.value, createPreviewTitulo.value));
-  const editDuplicate = useComputed$(() =>
-    editingBenefit.value ? findDuplicateTitle(benefits.value, editPreviewTitulo.value, editingBenefit.value.id) : null,
-  );
-
-  const createOfferDescription = useComputed$(() => {
-    const id = createFilterSelection.ofertas || String(adminFilters.value.ofertas[0]?.id ?? "");
-    return adminFilters.value.ofertas.find((offer) => String(offer.id) === id)?.descripcion;
-  });
-  const editOfferDescription = useComputed$(() =>
-    adminFilters.value.ofertas.find((offer) => String(offer.id) === editFilterSelection.ofertas)?.descripcion,
-  );
-
-  const resumenSuggestions = useComputed$(() => {
-    const values = [...adminFilters.value.ofertas.map((offer) => offer.descripcion), ...benefits.value.map((benefit) => benefit.resumen)];
-    return [...new Set(values.map(normalizeResumen).filter(Boolean))].slice(0, 30);
   });
 
   const toggleNotice = useComputed$(() => {
@@ -943,86 +1338,71 @@ export default component$(() => {
     return `«${result.titulo}» ${result.published ? "quedó publicado." : "pasó a borrador."}`;
   });
 
-  useTask$(({ track }) => {
-    track(() => searchQuery.value);
-    currentPage.value = 1;
-  });
 
   useTask$(({ track }) => {
-    track(() => goldFilterActive.value);
-    currentPage.value = 1;
-  });
-
-  useTask$(({ track }) => {
-    track(() => statusFilter.value);
+    track(() => [searchQuery.value, featuredOnly.value, withoutLocationOnly.value, statusFilter.value, validityFilter.value]);
     currentPage.value = 1;
   });
 
   const itemsPerPage = 25;
+  const today = argentinaDay();
 
   const filteredBenefits = useComputed$(() => {
     let items = benefits.value;
-    if (goldFilterActive.value) items = items.filter((benefit) => benefit.isFeatured);
-    if (statusFilter.value === "active") {
-      items = items.filter((b) => !isDraftBenefit(b.validUntil));
-    } else if (statusFilter.value === "inactive") {
-      items = items.filter((b) => isDraftBenefit(b.validUntil));
-    }
+    if (featuredOnly.value) items = items.filter((benefit) => benefit.isFeatured);
+    if (withoutLocationOnly.value) items = items.filter((benefit) => !hasCoordinates(benefit));
+    if (statusFilter.value === "published") items = items.filter((b) => !isDraftBenefit(b.validUntil));
+    else if (statusFilter.value === "draft") items = items.filter((b) => isDraftBenefit(b.validUntil));
+    if (validityFilter.value !== "all") items = items.filter((b) => benefitValidity(b.validUntil, today) === validityFilter.value);
     const query = searchQuery.value.toLowerCase().trim();
     if (!query) return items;
     return items.filter(
       (b) =>
         b.titulo.toLowerCase().includes(query) ||
         b.resumen?.toLowerCase().includes(query) ||
-        b.descripcion?.toLowerCase().includes(query)
+        b.descripcion?.toLowerCase().includes(query) ||
+        b.address?.toLowerCase().includes(query)
     );
   });
 
-  const totalPages = useComputed$(() => {
-    const count = filteredBenefits.value.length;
-    return Math.max(1, Math.ceil(count / itemsPerPage));
-  });
-
+  const totalPages = useComputed$(() => Math.max(1, Math.ceil(filteredBenefits.value.length / itemsPerPage)));
   const paginatedBenefits = useComputed$(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    return filteredBenefits.value.slice(start, end);
+    return filteredBenefits.value.slice(start, start + itemsPerPage);
   });
+  const filtersActive =
+    !!searchQuery.value || featuredOnly.value || withoutLocationOnly.value || statusFilter.value !== "all" || validityFilter.value !== "all";
 
   const changePage = $((page: number) => {
-    if (page >= 1 && page <= totalPages.value) {
-      currentPage.value = page;
-    }
+    if (page >= 1 && page <= totalPages.value) currentPage.value = page;
   });
 
   const renderBadges = (benefit: AdminBenefitRow) => {
     const isActive = !isDraftBenefit(benefit.validUntil);
     const expires = formatValidUntil(benefit.validUntil);
+    const validity = benefitValidity(benefit.validUntil, today);
     return (
       <>
         {benefit.isFeatured && (
-          <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900" title={isActive ? "Seleccionado para Beneficios destacados" : "Marcado como destacado; publicalo para incluirlo en la selección"}>
-            <LuSparkles class="w-3 h-3" /> Destacado
+          <span class="badge badge-accent" title={isActive ? "Seleccionado para Beneficios destacados" : "Marcado como destacado; publicalo para incluirlo en la selección"}>
+            <LuSparkles class="h-3 w-3" /> Destacado
           </span>
         )}
-        {benefit.isPremiumOnly && (
-          <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-bold text-amber-200" title="Solo los socios Gold pueden generar el cupón">
-            Solo Gold
-          </span>
-        )}
-        {benefit.pdfUrl && (
-          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold bg-red-50 text-red-600 border border-red-200 uppercase tracking-wider" title="Contiene documento PDF adjunto">
-            PDF
-          </span>
-        )}
+        {benefit.isPremiumOnly && <span class="badge badge-dark" title="Solo los socios Gold pueden generar el cupón">Solo Gold</span>}
+        {benefit.pdfUrl && <span class="badge badge-muted" title="Tiene un PDF adjunto">PDF</span>}
         {!hasCoordinates(benefit) && (
-          <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600" title="No aparece en el mapa hasta que cargues sus coordenadas">
-            <LuMapPinOff class="w-3 h-3" /> Sin ubicación
+          <span class="badge badge-muted" title="No aparece en el mapa hasta que cargues sus coordenadas">
+            <LuMapPinOff class="h-3 w-3" /> Sin ubicación
           </span>
         )}
         {expires && (
-          <span class="inline-flex items-center rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[11px] font-bold text-sky-900">
-            Vence {expires}
+          <span
+            class={[
+              "badge",
+              validity === "vencido" ? "bg-red-50 text-red-800 ring-1 ring-inset ring-red-200" : validity === "vence-pronto" ? "bg-amber-100 text-amber-900" : "badge-muted",
+            ]}
+          >
+            {validity === "vencido" ? `Venció ${expires}` : `Vence ${expires}`}
           </span>
         )}
       </>
@@ -1032,7 +1412,7 @@ export default component$(() => {
   const renderStatusToggle = (benefit: AdminBenefitRow) => {
     const isActive = !isDraftBenefit(benefit.validUntil);
     return (
-      <label class="relative inline-flex items-center cursor-pointer">
+      <label class="relative inline-flex min-h-10 cursor-pointer items-center">
         <input
           type="checkbox"
           role="switch"
@@ -1044,119 +1424,61 @@ export default component$(() => {
             // The row only reflects the server; undo the visual flip if the change failed.
             if ((result.value as { failed?: boolean } | undefined)?.failed) el.checked = !el.checked;
           }}
-          class="sr-only peer"
+          class="peer sr-only"
         />
-        <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-brand-navy peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-navy"></div>
-        <span class="ml-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 min-w-[50px] text-left">
-          {isActive ? "Activo" : "Borrador"}
+        <span class="relative h-5 w-9 bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:bg-white after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:opacity-50" />
+        <span class="ml-2 min-w-[4.75rem] text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+          {isActive ? "Publicado" : "Borrador"}
         </span>
       </label>
     );
   };
 
   const renderRowActions = (benefit: AdminBenefitRow) => (
-    <div class="flex items-center justify-center gap-1">
-      <button
-        type="button"
-        onClick$={() => openEditBenefit$(benefit)}
-        class="p-2.5 text-brand-navy hover:text-brand-navy-light hover:bg-emerald-50 rounded-full transition-all cursor-pointer"
-        title="Editar Beneficio"
-        aria-label={`Editar beneficio ${benefit.titulo}`}
-      >
-        <LuPencil class="w-4 h-4" />
+    <div class="flex items-center justify-end gap-0.5">
+      <button type="button" onClick$={() => openForm$("edit", benefit)} class={iconButtonClass} title="Editar" aria-label={`Editar ${benefit.titulo}`}>
+        <LuPencil class="h-4 w-4" />
       </button>
-      <button
-        type="button"
-        onClick$={() => duplicateBenefit$(benefit)}
-        class="p-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
-        title="Duplicar como borrador"
-        aria-label={`Duplicar beneficio ${benefit.titulo}`}
-      >
-        <LuCopy class="w-4 h-4" />
+      <button type="button" onClick$={() => openForm$("create", benefit)} class={iconButtonClass} title="Duplicar como borrador" aria-label={`Duplicar ${benefit.titulo}`}>
+        <LuCopy class="h-4 w-4" />
       </button>
+      <a href={`/beneficio/${benefit.slug}/`} target="_blank" rel="noopener" class={iconButtonClass} title="Ver en el sitio" aria-label={`Ver ${benefit.titulo} en el sitio (se abre en otra pestaña)`}>
+        <LuExternalLink class="h-4 w-4" />
+      </a>
       <button
         type="button"
         onClick$={() => openDeleteDialog$({ id: benefit.id, titulo: benefit.titulo, couponCount: benefit.couponCount })}
-        class="p-2.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-all cursor-pointer"
-        title="Eliminar Beneficio"
-        aria-label={`Eliminar beneficio ${benefit.titulo}`}
+        class={`${iconButtonClass} text-red-700 hover:bg-red-50 hover:text-red-800`}
+        title="Eliminar"
+        aria-label={`Eliminar ${benefit.titulo}`}
       >
-        <LuTrash2 class="w-4 h-4" />
+        <LuTrash2 class="h-4 w-4" />
       </button>
     </div>
   );
 
+  const renderThumb = (benefit: AdminBenefitRow, size: "sm" | "md") => (
+    <span class={["flex shrink-0 items-center justify-center overflow-hidden bg-slate-100", size === "sm" ? "h-12 w-16" : "h-12 w-[4.5rem]"]}>
+      {benefit.imagen ? (
+        <img src={previewSrc(benefit.imagen)} alt="" loading="lazy" width={80} height={56} class="h-full w-full object-cover" />
+      ) : (
+        <LuImage class="h-5 w-5 text-slate-400" />
+      )}
+    </span>
+  );
+
+  const chipClass = (active: boolean) => [
+    "inline-flex min-h-11 items-center gap-2 border px-3 text-sm font-semibold transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+    active ? "border-primary bg-primary text-white" : "border-line bg-white text-slate-700 hover:border-primary",
+  ];
+
   return (
-    <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
-      <dialog
-        ref={filterDialog}
-        aria-labelledby="benefit-filter-title"
-        class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-800 shadow-xl backdrop:bg-slate-950/50"
-        preventdefault:cancel
-        onCancel$={() => { if (!createBenefitFilterAction.isRunning) filterDialog.value?.close(); }}
-        onClose$={() => { filterTarget.value = null; }}
-      >
-        <Form
-          action={createBenefitFilterAction}
-          class="space-y-5"
-          onSubmitCompleted$={() => {
-            const result = createBenefitFilterAction.value;
-            const target = filterTarget.value;
-            if (!result?.success) {
-              filterError.value = result?.message || result?.fieldErrors?.descripcion || "Revisá el nombre e intentá de nuevo.";
-              return;
-            }
-            if (!target) return;
-            const option = result.option;
-            if (target.context === "create") {
-              createFilterSelection[target.type] = String(option.id);
-              if (target.type === "categorias") createPreviewCategory.value = option.descripcion;
-              if (target.type === "ubicaciones") createPreviewLocation.value = option.descripcion;
-            } else if (editingBenefit.value) {
-              editFilterSelection[target.type] = String(option.id);
-              if (target.type === "categorias") editPreviewCategory.value = option.descripcion;
-              if (target.type === "ubicaciones") editPreviewLocation.value = option.descripcion;
-            }
-            filterNotice.value = `“${option.descripcion}” está disponible y quedó seleccionada en el beneficio.`;
-            filterDialog.value?.close();
-          }}
-        >
-          <h2 id="benefit-filter-title" class="text-lg font-bold text-brand-navy-dark">
-            {filterTarget.value ? filterEditorLabels[filterTarget.value.type].title : "Agregar opción"}
-          </h2>
-          <p class="text-sm text-slate-500">La opción quedará disponible para todos los beneficios.</p>
-          <input type="hidden" name="type" value={filterTarget.value?.type || "categorias"} />
-          <div class="space-y-2">
-            <label for="benefit-filter-description" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Nombre</label>
-            <input
-              id="benefit-filter-description"
-              name="descripcion"
-              type="text"
-              value={filterDescription.value}
-              onInput$={(_, el) => { filterDescription.value = el.value; filterError.value = ""; }}
-              aria-invalid={Boolean(filterError.value)}
-              aria-describedby={filterError.value ? "benefit-filter-error" : undefined}
-              required
-              maxLength={100}
-              autoFocus
-              placeholder={filterTarget.value ? filterEditorLabels[filterTarget.value.type].placeholder : ""}
-              class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base sm:text-sm focus:border-brand-navy focus:bg-white focus:outline-none"
-            />
-          </div>
-          {filterError.value && <p id="benefit-filter-error" role="alert" class="text-sm text-red-600">{filterError.value}</p>}
-          <div class="flex justify-end gap-3">
-            <button type="button" disabled={createBenefitFilterAction.isRunning} onClick$={() => filterDialog.value?.close()} class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold disabled:opacity-50 cursor-pointer">Cancelar</button>
-            <button type="submit" disabled={createBenefitFilterAction.isRunning} class="rounded-2xl bg-brand-navy px-4 py-3 text-sm font-bold text-white hover:bg-brand-navy-light disabled:opacity-50 cursor-pointer">
-              {createBenefitFilterAction.isRunning ? "Guardando..." : "Guardar y seleccionar"}
-            </button>
-          </div>
-        </Form>
-      </dialog>
+    <div class="relative flex w-full flex-1 flex-col space-y-6 overflow-y-auto px-4 pt-8 text-left font-sans text-slate-800 sm:px-10 sm:pt-10">
       <dialog
         ref={deleteDialog}
         aria-labelledby="benefit-delete-title"
         aria-describedby="benefit-delete-description"
-        class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-800 shadow-xl backdrop:bg-slate-950/50"
+        class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md border-t-4 border-red-600 bg-white p-6 text-slate-800 shadow-xl backdrop:bg-brand-ink/60"
         preventdefault:cancel
         onCancel$={() => { if (!deleteBenefitAction.isRunning) deleteDialog.value?.close(); }}
         onClose$={() => { deleteTarget.value = null; }}
@@ -1178,26 +1500,27 @@ export default component$(() => {
               deleteNotice.value = result.deletedCoupons
                 ? `“${target.titulo}” se eliminó junto con ${couponLabel(result.deletedCoupons)}.`
                 : `“${target.titulo}” se eliminó.`;
+              if (form.source?.id === target.id) form.open = false;
             }
             deleteDialog.value?.close();
           }}
         >
-          <h2 id="benefit-delete-title" class="text-lg font-bold text-brand-navy-dark">Eliminar beneficio</h2>
+          <h2 id="benefit-delete-title" class="heading-display text-xl text-primary">Eliminar beneficio</h2>
           <p id="benefit-delete-description" class="text-sm text-slate-600">
             “{deleteTarget.value?.titulo}” se eliminará de forma permanente.
           </p>
           {!!deleteTarget.value?.couponCount && (
-            <p class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p class="border-l-4 border-accent bg-amber-50 px-4 py-3 text-sm text-amber-900">
               Tiene <strong>{deleteTarget.value.couponCount === 1 ? "1 cupón emitido" : `${deleteTarget.value.couponCount} cupones emitidos`}</strong>. También se borrarán y los socios dejarán de verlos en su historial.
             </p>
           )}
           <input type="hidden" name="id" value={deleteTarget.value?.id ?? ""} />
           <input type="hidden" name="includeCoupons" value={deleteTarget.value?.couponCount ? "true" : "false"} />
           <input type="hidden" name="expectedCouponCount" value={String(deleteTarget.value?.couponCount ?? 0)} />
-          {deleteError.value && <p role="alert" class="text-sm text-red-600">{deleteError.value}</p>}
-          <div class="flex justify-end gap-3">
-            <button type="button" disabled={deleteBenefitAction.isRunning} onClick$={() => deleteDialog.value?.close()} class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold disabled:opacity-50 cursor-pointer">Cancelar</button>
-            <button type="submit" disabled={deleteBenefitAction.isRunning} class="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer">
+          {deleteError.value && <p role="alert" class="text-sm font-semibold text-red-700">{deleteError.value}</p>}
+          <div class="flex flex-wrap justify-end gap-3">
+            <button type="button" disabled={deleteBenefitAction.isRunning} onClick$={() => deleteDialog.value?.close()} class="btn btn-outline btn-sm">Cancelar</button>
+            <button type="submit" disabled={deleteBenefitAction.isRunning} class="btn btn-sm border-red-700 bg-red-700 text-white hover:bg-red-800">
               {deleteBenefitAction.isRunning
                 ? "Eliminando..."
                 : deleteTarget.value?.couponCount
@@ -1207,829 +1530,177 @@ export default component$(() => {
           </div>
         </Form>
       </dialog>
-      {/* Dynamic Header Area (No duplication) */}
-      <div class="flex flex-col border-b border-slate-200 pb-7 gap-5">
-        <div class="w-full min-w-0 space-y-1.5 text-left">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
-            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
-              Administración / Catálogo
-            </span>
-          </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
-            Gestión de Beneficios
-          </h1>
-          <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
-            Creá, editá y elegí los beneficios que se muestran en la portada.
-          </p>
-        </div>
 
-        <div class="flex w-full min-w-0 flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
-          {/* Search Input Box */}
-          <div class="relative w-full sm:w-64 sm:flex-1 sm:min-w-56">
-            <input
-              type="search"
-              aria-label="Buscar beneficios"
-              placeholder="Buscar por título, resumen o descripción..."
-              value={searchQuery.value}
-              onInput$={(ev) => {
-                searchQuery.value = (ev.target as HTMLInputElement).value;
-              }}
-              class="w-full bg-slate-50 text-slate-800 text-base sm:text-xs px-4 py-3 pl-9 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
-            />
-            <LuSearch class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            {searchQuery.value && (
-              <button
-                type="button"
-                onClick$={() => {
-                  searchQuery.value = "";
-                }}
-                aria-label="Limpiar búsqueda"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-sm"
-              >
-                &times;
-              </button>
-            )}
-          </div>
+      <AdminPageHeader eyebrow="Catálogo" title="Beneficios" description="Creá, editá y elegí los beneficios que se muestran en la portada y en el listado.">
+        <button
+          type="button"
+          onClick$={() => (form.open && form.mode === "create" && !form.source ? closeForm$() : openForm$("create", null))}
+          aria-expanded={form.open && form.mode === "create" && !form.source}
+          class="btn btn-dark"
+        >
+          <LuPlus class="h-4 w-4" />
+          Nuevo beneficio
+        </button>
+      </AdminPageHeader>
 
+      {deleteNotice.value && <Notice>{deleteNotice.value}</Notice>}
+      {saveNotice.value && !form.open && (
+        <Notice>
+          {saveNotice.value.text}{" "}
+          {saveNotice.value.slug && (
+            <a href={`/beneficio/${saveNotice.value.slug}/`} target="_blank" rel="noopener" class="underline">
+              Ver ficha<span class="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          )}
+        </Notice>
+      )}
+      <ActionFeedback value={toggleBenefitActiveAction.value} success={toggleNotice.value} />
 
+      {form.open && (
+        <BenefitForm
+          key={`${form.mode}-${form.source?.id ?? "new"}-${form.key}`}
+          mode={form.mode}
+          source={form.source}
+          prefill={form.prefill}
+          onClose$={closeForm$}
+          onSaved$={(notice) => { saveNotice.value = notice; }}
+          onEditOther$={(row) => openForm$("edit", row)}
+        />
+      )}
 
-          <button
-            type="button"
-            aria-pressed={goldFilterActive.value}
-            onClick$={() => { goldFilterActive.value = !goldFilterActive.value; }}
-            class={`inline-flex shrink-0 items-center justify-center gap-2 px-4 py-3 rounded-2xl border text-xs font-bold whitespace-nowrap cursor-pointer ${goldFilterActive.value ? "bg-amber-50 border-amber-300 text-amber-900" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-          >
-            <LuSparkles class="w-4 h-4" /> Solo destacados
-          </button>
-
-          {/* Status Filter */}
-          <div class="relative w-full sm:w-44 sm:shrink-0">
-            <select
-              value={statusFilter.value}
-              onChange$={(ev, el) => {
-                statusFilter.value = el.value as any;
-              }}
-              class="w-full bg-white text-slate-700 text-base sm:text-xs px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:outline-none transition-all cursor-pointer font-bold shadow-sm"
-            >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activos</option>
-              <option value="inactive">Borradores</option>
-            </select>
-          </div>
-
-          <button
-            type="button"
-            aria-expanded={isCreateBenefitOpen.value}
-            onClick$={async () => {
-              const opening = !isCreateBenefitOpen.value;
-              await closeEditBenefit$();
-              await resetCreateState$();
-              isCreateBenefitOpen.value = opening;
-              if (opening) revealForm("benefit-create-form");
-            }}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
-          >
-            <LuPlus class="w-4 h-4" />
-            <span>{isCreateBenefitOpen.value ? "Cerrar Formulario" : "Crear Beneficio"}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="space-y-6 animate-in fade-in duration-300 text-left">
-        {/* Action Feedback alerts */}
-        {filterNotice.value && (
-          <div role="status" class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
-            {filterNotice.value}
-          </div>
-        )}
-        {deleteNotice.value && (
-          <div role="status" class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
-            {deleteNotice.value}
-          </div>
-        )}
-        {createBenefitAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-fade-in">
-            ✓ Beneficio creado exitosamente e integrado en el catálogo general.
-          </div>
-        )}
-
-        {editBenefitAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-fade-in">
-            ✓ Beneficio modificado exitosamente y actualizado en el catálogo.
-          </div>
-        )}
-
-        <ActionFeedback value={toggleBenefitActiveAction.value} success={toggleNotice.value} />
-        <datalist id="benefit-resumen-suggestions">
-          {resumenSuggestions.value.map((suggestion) => (
-            <option key={suggestion} value={suggestion} />
-          ))}
-        </datalist>
-
-        {/* Form Modal Panel */}
-        {isCreateBenefitOpen.value && (
-          <Form id="benefit-create-form" key={`create-${createFormKey.value}`} action={createBenefitAction} enctype="multipart/form-data" class="scroll-mt-6 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
-            <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              {createSourceTitle.value ? "Duplicar beneficio" : "Nuevo Beneficio Propio"}
-            </h4>
-            {createSourceTitle.value && (
-              <p class="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                Copia de «{createSourceTitle.value}». Se guarda como borrador: revisá los datos antes de publicarla.
-              </p>
-            )}
-            {createBenefitAction.value?.failed && (
-              <p role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {createBenefitAction.value.message || Object.values(createBenefitAction.value.fieldErrors || {}).join(" ") || "No se pudo crear el beneficio. Revisá los datos e intentá de nuevo."}
-              </p>
-            )}
-            <input type="hidden" name="copiedImage" value={createCopiedImage.value} />
-            <input type="hidden" name="copiedMobileImage" value={createCopiedMobileImage.value} />
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="space-y-1">
-                <label for="create-titulo" class={fieldLabelClass}>Título</label>
-                <input
-                  id="create-titulo"
-                  type="text"
-                  name="titulo"
-                  required
-                  minLength={3}
-                  value={createPreviewTitulo.value}
-                  placeholder="Ej: Spa Platense Masajes"
-                  onInput$={(_, el) => { createPreviewTitulo.value = el.value; }}
-                  class={fieldClass}
-                />
-                {createDuplicate.value && (
-                  <p role="status" class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    Ya existe «{createDuplicate.value.titulo}» ({isDraftBenefit(createDuplicate.value.validUntil) ? "Borrador" : "Activo"}).{" "}
-                    <button type="button" onClick$={() => createDuplicate.value && openEditBenefit$(createDuplicate.value)} class="font-bold underline cursor-pointer">
-                      Editar ese beneficio
-                    </button>
-                  </p>
-                )}
-              </div>
-
-              <ResumenField id="create-resumen" value={createPreviewResumen} offer={createOfferDescription.value} listId="benefit-resumen-suggestions" />
-            </div>
-
-            <div class="space-y-1">
-              <label for="create-descripcion" class={fieldLabelClass}>Descripción Detallada</label>
-              <textarea
-                id="create-descripcion"
-                name="descripcion"
-                required
-                minLength={5}
-                rows={3}
-                value={createPreviewDescripcion.value}
-                placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
-                onInput$={(_, el) => { createPreviewDescripcion.value = el.value; }}
-                class={fieldClass}
+      <section aria-labelledby="benefit-list-title" class="space-y-4">
+        <h2 id="benefit-list-title" class="sr-only">Listado de beneficios</h2>
+        <div class="space-y-3 border border-line bg-white p-4">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div class="relative min-w-0 flex-1">
+              <label for="benefit-search" class={fieldLabelClass}>Buscar</label>
+              <LuSearch class="pointer-events-none absolute bottom-3.5 left-3 h-4 w-4 text-slate-500" />
+              <input
+                id="benefit-search"
+                type="search"
+                placeholder="Título, badge, descripción o dirección"
+                value={searchQuery.value}
+                onInput$={(_, el) => { searchQuery.value = el.value; }}
+                class="field pl-9"
               />
             </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div class="space-y-1">
-                <FilterFieldLabel id="create-categoryId" label="Categoría" onAdd$={() => openFilterEditor$("categorias", "create")} />
-                <select
-                  id="create-categoryId"
-                  name="categoryId"
-                  required
-                  value={createFilterSelection.categorias || String(adminFilters.value.categorias[0]?.id ?? "")}
-                  onChange$={(e, el) => { createFilterSelection.categorias = el.value; createPreviewCategory.value = el.options[el.selectedIndex].text; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.descripcion}
-                    </option>
-                  ))}
+            <div class="grid grid-cols-2 gap-3 lg:flex">
+              <div class="lg:w-44">
+                <label for="benefit-status-filter" class={fieldLabelClass}>Estado</label>
+                <select id="benefit-status-filter" value={statusFilter.value} onChange$={(_, el) => { statusFilter.value = el.value as StatusFilter; }} class="field cursor-pointer">
+                  <option value="all" selected={statusFilter.value === "all"}>Todos</option>
+                  <option value="published" selected={statusFilter.value === "published"}>Publicados</option>
+                  <option value="draft" selected={statusFilter.value === "draft"}>Borradores</option>
                 </select>
               </div>
-
-              <div class="space-y-1">
-                <FilterFieldLabel id="create-locationId" label="Ubicación" onAdd$={() => openFilterEditor$("ubicaciones", "create")} />
-                <select
-                  id="create-locationId"
-                  name="locationId"
-                  required
-                  value={createFilterSelection.ubicaciones || String(adminFilters.value.ubicaciones[0]?.id ?? "")}
-                  onChange$={(e, el) => { createFilterSelection.ubicaciones = el.value; createPreviewLocation.value = el.options[el.selectedIndex].text; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.ubicaciones.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.descripcion}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div class="space-y-1">
-                <FilterFieldLabel id="create-offerId" label="Oferta / Descuento" onAdd$={() => openFilterEditor$("ofertas", "create")} />
-                <select
-                  id="create-offerId"
-                  name="offerId"
-                  required
-                  value={createFilterSelection.ofertas || String(adminFilters.value.ofertas[0]?.id ?? "")}
-                  onChange$={(e, el) => { createFilterSelection.ofertas = el.value; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.ofertas.map((off) => (
-                    <option key={off.id} value={off.id}>
-                      {off.descripcion}
-                    </option>
-                  ))}
+              <div class="lg:w-48">
+                <label for="benefit-validity-filter" class={fieldLabelClass}>Vigencia</label>
+                <select id="benefit-validity-filter" value={validityFilter.value} onChange$={(_, el) => { validityFilter.value = el.value as ValidityFilter; }} class="field cursor-pointer">
+                  <option value="all" selected={validityFilter.value === "all"}>Cualquiera</option>
+                  <option value="vencido" selected={validityFilter.value === "vencido"}>Vencidos</option>
+                  <option value="vence-pronto" selected={validityFilter.value === "vence-pronto"}>{`Vencen en ${EXPIRING_SOON_DAYS} días`}</option>
                 </select>
               </div>
             </div>
-
-            <ValidityFields
-              idPrefix="create"
-              validUntil={createValidity.value.validUntil}
-              terms={createValidity.value.terms}
-              isPremiumOnly={createValidity.value.isPremiumOnly}
-              couponCode={createValidity.value.couponCode}
-            />
-
-            <CoordinateFields idPrefix="create" latitud={createLatitud} longitud={createLongitud} />
-
-            {/* Imagen Destacada y Documentación PDF */}
-            <div class="border-t border-slate-100 pt-5 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Imagen Ilustrativa del Beneficio */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuImage class="w-4 h-4 text-brand-navy" />
-                  Imagen Desktop (16:9)
-                </h4>
-                <input type="hidden" name="optimizedImage" value={createOptimizedImageBase64.value} />
-                <div class="space-y-2">
-                  <span class={fieldLabelClass}>Subir Imagen Desktop</span>
-                  <div class="flex items-center gap-4">
-                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                      {createImagePreviewUrl.value ? (
-                        <img src={previewSrc(createImagePreviewUrl.value)} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
-                      ) : (
-                        <LuImage class="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
-                    <div class="flex flex-col gap-2">
-                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                        <LuImage class="w-4 h-4 text-brand-navy" />
-                        Seleccionar
-                        <input
-                          id="create-image-file-input"
-                          type="file"
-                          name="imageFile"
-                          accept="image/*"
-                          onChange$={handleCreateImageChange}
-                          class="hidden"
-                        />
-                      </label>
-                      {createImagePreviewUrl.value && (
-                        <button
-                          type="button"
-                          onClick$={() => {
-                            createImagePreviewUrl.value = null;
-                            createOptimizedImageBase64.value = "";
-                            createCopiedImage.value = "";
-                            const input = document.getElementById("create-image-file-input") as HTMLInputElement;
-                            if (input) input.value = "";
-                          }}
-                          class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-600 text-[11px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-medium">PNG, JPG o WebP. Auto-optimizado.</p>
-                </div>
-              </div>
-
-              {/* Imagen Ilustrativa Mobile */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuSmartphone class="w-4 h-4 text-brand-navy" />
-                  Imagen Mobile (Vertical)
-                </h4>
-                <input type="hidden" name="optimizedMobileImage" value={createOptimizedMobileImageBase64.value} />
-                <div class="space-y-2">
-                  <span class={fieldLabelClass}>Subir Imagen Mobile</span>
-                  <div class="flex items-center gap-4">
-                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                      {createImageMobilePreviewUrl.value ? (
-                        <img src={previewSrc(createImageMobilePreviewUrl.value)} alt="Vista previa móvil" class="w-full h-full object-cover" width={80} height={80} />
-                      ) : (
-                        <LuSmartphone class="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
-                    <div class="flex flex-col gap-2">
-                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                        <LuSmartphone class="w-4 h-4 text-brand-navy" />
-                        Seleccionar
-                        <input
-                          id="create-image-mobile-file-input"
-                          type="file"
-                          name="imageMobileFile"
-                          accept="image/*"
-                          onChange$={handleCreateMobileImageChange}
-                          class="hidden"
-                        />
-                      </label>
-                      {createImageMobilePreviewUrl.value && (
-                        <button
-                          type="button"
-                          onClick$={() => {
-                            createImageMobilePreviewUrl.value = null;
-                            createOptimizedMobileImageBase64.value = "";
-                            createCopiedMobileImage.value = "";
-                            const input = document.getElementById("create-image-mobile-file-input") as HTMLInputElement;
-                            if (input) input.value = "";
-                          }}
-                          class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-600 text-[11px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-medium">Relación vertical/cuadrada recomendada.</p>
-                </div>
-              </div>
-
-              {/* Documentación PDF Widget */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-                  </svg>
-                  Documentación / Catálogo (PDF)
-                </h4>
-                <div class="space-y-2">
-                  <label for="create-pdf-file-input" class={fieldLabelClass}>Subir Archivo PDF</label>
-                  <input
-                    id="create-pdf-file-input"
-                    type="file"
-                    name="pdfFile"
-                    accept="application/pdf"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
-                  />
-                  <p class="text-[11px] text-slate-500 font-medium">Subí la lista de precios, menú o bases y condiciones.</p>
-                </div>
-              </div>
-            </div>
-
-            <BenefitPreview
-              title={createPreviewTitulo.value || "Nombre del Comercio"}
-              summary={createPreviewResumen.value || "20% de descuento"}
-              description={createPreviewDescripcion.value || "Breve descripción de las condiciones del beneficio..."}
-              image={createImagePreviewUrl.value ? previewSrc(createImagePreviewUrl.value) : null}
-              mobileImage={createImageMobilePreviewUrl.value ? previewSrc(createImageMobilePreviewUrl.value) : null}
-              category={createPreviewCategory.value}
-              location={createPreviewLocation.value}
-            />
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-1">
-              <p><strong>Beneficios destacados:</strong> la portada muestra hasta 6 beneficios activos marcados, empezando por los más recientes.</p>
-              <p><strong>Nuevos beneficios:</strong> muestra los 6 activos más recientes por fecha de creación. Un beneficio puede aparecer en ambas secciones.</p>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="isFeatured"
-                  name="isFeatured"
-                  checked={createPreviewIsFeatured.value}
-                  onChange$={(e, el) => { createPreviewIsFeatured.value = el.checked; }}
-                  class="rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4"
-                />
-                <label for="isFeatured" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuSparkles class="w-4 h-4 text-brand-gold fill-brand-gold animate-pulse" />
-                  <span>Mostrar en Beneficios destacados</span>
-                </label>
-              </div>
-
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  name="isActive"
-                  checked={createIsActive.value}
-                  class="rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4"
-                />
-                <label for="isActive" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <span class="w-2.5 h-2.5 rounded-full bg-brand-navy"></span>
-                  <span>Publicar (Activo)</span>
-                </label>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={createBenefitAction.isRunning}
-              class="py-3 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
-            >
-              {createBenefitAction.isRunning ? "Creando..." : "Crear Beneficio"}
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" aria-pressed={featuredOnly.value} onClick$={() => { featuredOnly.value = !featuredOnly.value; }} class={chipClass(featuredOnly.value)}>
+              <LuSparkles class="h-4 w-4" /> Solo destacados
             </button>
-          </Form>
-        )}
+            <button type="button" aria-pressed={withoutLocationOnly.value} onClick$={() => { withoutLocationOnly.value = !withoutLocationOnly.value; }} class={chipClass(withoutLocationOnly.value)}>
+              <LuMapPinOff class="h-4 w-4" /> Sin ubicación
+            </button>
+            <p class="ml-auto text-sm text-slate-600" aria-live="polite">
+              {filteredBenefits.value.length === 1 ? "1 beneficio" : `${filteredBenefits.value.length} beneficios`}
+              {filtersActive && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick$={() => {
+                      searchQuery.value = "";
+                      featuredOnly.value = false;
+                      withoutLocationOnly.value = false;
+                      statusFilter.value = "all";
+                      validityFilter.value = "all";
+                    }}
+                    class="font-bold text-primary underline cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
 
-        {/* Form Modal Panel for Edit */}
-        {editingBenefit.value && (
-          <Form id="benefit-edit-form" key={editingBenefit.value.id} action={editBenefitAction} enctype="multipart/form-data" class="scroll-mt-6 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300">
-            <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Modificar Beneficio Propio</h4>
-            {editBenefitAction.value?.failed && (
-              <p role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {editBenefitAction.value.message || Object.values(editBenefitAction.value.fieldErrors || {}).join(" ") || "No se pudieron guardar los cambios. Revisá los datos e intentá de nuevo."}
-              </p>
-            )}
-            <input type="hidden" name="id" value={editingBenefit.value.id} />
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="space-y-1">
-                <label for="edit-titulo" class={fieldLabelClass}>Título</label>
-                <input
-                  id="edit-titulo"
-                  type="text"
-                  name="titulo"
-                  required
-                  minLength={3}
-                  value={editingBenefit.value.titulo}
-                  placeholder="Ej: Spa Platense Masajes"
-                  onInput$={(_, el) => { editPreviewTitulo.value = el.value; }}
-                  class={fieldClass}
-                />
-                {editDuplicate.value && (
-                  <p role="status" class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    Ya existe otro «{editDuplicate.value.titulo}» ({isDraftBenefit(editDuplicate.value.validUntil) ? "Borrador" : "Activo"}).
-                  </p>
-                )}
-              </div>
-
-              <ResumenField id="edit-resumen" value={editPreviewResumen} offer={editOfferDescription.value} listId="benefit-resumen-suggestions" />
-            </div>
-
-            <div class="space-y-1">
-              <label for="edit-descripcion" class={fieldLabelClass}>Descripción Detallada</label>
-              <textarea
-                id="edit-descripcion"
-                name="descripcion"
-                required
-                minLength={5}
-                rows={3}
-                value={editingBenefit.value.descripcion}
-                placeholder="Escribí los detalles completos del descuento, dirección y condiciones..."
-                onInput$={(_, el) => { editPreviewDescripcion.value = el.value; }}
-                class={fieldClass}
-              />
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div class="space-y-1">
-                <FilterFieldLabel id="edit-categoryId" label="Categoría" onAdd$={() => openFilterEditor$("categorias", "edit")} />
-                <select
-                  id="edit-categoryId"
-                  name="categoryId"
-                  required
-                  value={editFilterSelection.categorias}
-                  onChange$={(e, el) => { editFilterSelection.categorias = el.value; editPreviewCategory.value = el.options[el.selectedIndex].text; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.descripcion}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div class="space-y-1">
-                <FilterFieldLabel id="edit-locationId" label="Ubicación" onAdd$={() => openFilterEditor$("ubicaciones", "edit")} />
-                <select
-                  id="edit-locationId"
-                  name="locationId"
-                  required
-                  value={editFilterSelection.ubicaciones}
-                  onChange$={(e, el) => { editFilterSelection.ubicaciones = el.value; editPreviewLocation.value = el.options[el.selectedIndex].text; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.ubicaciones.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.descripcion}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div class="space-y-1">
-                <FilterFieldLabel id="edit-offerId" label="Oferta / Descuento" onAdd$={() => openFilterEditor$("ofertas", "edit")} />
-                <select
-                  id="edit-offerId"
-                  name="offerId"
-                  required
-                  value={editFilterSelection.ofertas}
-                  onChange$={(e, el) => { editFilterSelection.ofertas = el.value; }}
-                  class={`${fieldClass} cursor-pointer`}
-                >
-                  {adminFilters.value.ofertas.map((off) => (
-                    <option key={off.id} value={off.id}>
-                      {off.descripcion}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <ValidityFields
-              idPrefix="edit"
-              validUntil={dateInputValue(editingBenefit.value.validUntil)}
-              terms={editingBenefit.value.terms || ""}
-              isPremiumOnly={editingBenefit.value.isPremiumOnly}
-              couponCode={editingBenefit.value.couponCode || ""}
-            />
-
-            <CoordinateFields idPrefix="edit" latitud={editLatitud} longitud={editLongitud} />
-
-            {/* Imagen Destacada y Documentación PDF */}
-            <div class="border-t border-slate-100 pt-5 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Imagen Ilustrativa Desktop */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuImage class="w-4 h-4 text-brand-navy" />
-                  Imagen Desktop (16:9)
-                </h4>
-                <input type="hidden" name="optimizedImage" value={editOptimizedImageBase64.value} />
-                <input type="hidden" name="clearImage" value={editIsImageDeleted.value ? "true" : "false"} />
-                <div class="space-y-2">
-                  <span class={fieldLabelClass}>Subir Nueva Imagen</span>
-                  <div class="flex items-center gap-4">
-                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                      {editImagePreviewUrl.value && !editIsImageDeleted.value ? (
-                        <img src={previewSrc(editImagePreviewUrl.value)} alt="Vista previa" class="w-full h-full object-cover" width={80} height={80} />
-                      ) : (
-                        <LuImage class="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
-                    <div class="flex flex-col gap-2">
-                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                        <LuImage class="w-4 h-4 text-brand-navy" />
-                        Seleccionar
-                        <input
-                          id="edit-image-file-input"
-                          type="file"
-                          name="imageFile"
-                          accept="image/*"
-                          onChange$={handleEditImageChange}
-                          class="hidden"
-                        />
-                      </label>
-                      {editImagePreviewUrl.value && !editIsImageDeleted.value && (
-                        <button
-                          type="button"
-                          onClick$={() => {
-                            editIsImageDeleted.value = true;
-                            editOptimizedImageBase64.value = "";
-                            const input = document.getElementById("edit-image-file-input") as HTMLInputElement;
-                            if (input) input.value = "";
-                          }}
-                          class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-600 text-[11px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-medium">Recomendado horizontal (800x450 px).</p>
-                </div>
-              </div>
-
-              {/* Imagen Ilustrativa Mobile */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuSmartphone class="w-4 h-4 text-brand-navy" />
-                  Imagen Mobile (Vertical)
-                </h4>
-                <input type="hidden" name="optimizedMobileImage" value={editOptimizedMobileImageBase64.value} />
-                <input type="hidden" name="clearMobileImage" value={editIsMobileImageDeleted.value ? "true" : "false"} />
-                <div class="space-y-2">
-                  <span class={fieldLabelClass}>Subir Imagen Mobile</span>
-                  <div class="flex items-center gap-4">
-                    <div class="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
-                      {editImageMobilePreviewUrl.value && !editIsMobileImageDeleted.value ? (
-                        <img src={previewSrc(editImageMobilePreviewUrl.value)} alt="Vista previa móvil" class="w-full h-full object-cover" width={80} height={80} />
-                      ) : (
-                        <LuSmartphone class="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
-                    <div class="flex flex-col gap-2">
-                      <label class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-                        <LuSmartphone class="w-4 h-4 text-brand-navy" />
-                        Seleccionar
-                        <input
-                          id="edit-image-mobile-file-input"
-                          type="file"
-                          name="imageMobileFile"
-                          accept="image/*"
-                          onChange$={handleEditMobileImageChange}
-                          class="hidden"
-                        />
-                      </label>
-                      {editImageMobilePreviewUrl.value && !editIsMobileImageDeleted.value && (
-                        <button
-                          type="button"
-                          onClick$={() => {
-                            editIsMobileImageDeleted.value = true;
-                            editOptimizedMobileImageBase64.value = "";
-                            const input = document.getElementById("edit-image-mobile-file-input") as HTMLInputElement;
-                            if (input) input.value = "";
-                          }}
-                          class="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-600 text-[11px] font-extrabold rounded-xl transition-all inline-flex items-center justify-center shadow-sm"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-medium">Recomendado vertical/cuadrada (600x600 px).</p>
-                </div>
-              </div>
-
-              {/* Documentación PDF Widget */}
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 6H10v1.5H8.5V9H7v5h1.5v-2H10v2h1.5V9H9.5zm5 2c0-.55-.45-1-1-1H12v5h1.5v-1.5h1c.55 0 1-.45 1-1V11zm-1.5 1.5V11h1v2h-1zm5-2.5h-2.5v5H17v-2h1.5v-1.5H17V11h2.5V9z"/>
-                  </svg>
-                  Documentación / Catálogo (PDF)
-                </h4>
-                <input type="hidden" name="clearPdf" value={editIsPdfDeleted.value ? "true" : "false"} />
-                <div class="space-y-2">
-                  <label for="edit-pdf-file-input" class={fieldLabelClass}>Subir Nuevo PDF</label>
-                  <div class="flex flex-col gap-2">
-                    <input
-                      id="edit-pdf-file-input"
-                      type="file"
-                      name="pdfFile"
-                      accept="application/pdf"
-                      onChange$={() => {
-                        editIsPdfDeleted.value = false;
-                      }}
-                      class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all cursor-pointer font-medium"
-                    />
-
-                    {editingBenefit.value.pdfUrl && !editIsPdfDeleted.value && (
-                      <div class="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                        <span class="text-xs font-semibold text-slate-600 truncate max-w-[200px]" title={editingBenefit.value.pdfUrl.split('/').pop()}>
-                          📄 {editingBenefit.value.pdfUrl.split('/').pop()}
-                        </span>
-                        <button
-                          type="button"
-                          onClick$={() => {
-                            editIsPdfDeleted.value = true;
-                            const input = document.getElementById("edit-pdf-file-input") as HTMLInputElement;
-                            if (input) input.value = "";
-                          }}
-                          class="text-[11px] text-red-600 hover:underline font-bold"
-                        >
-                          Eliminar PDF
-                        </button>
-                      </div>
-                    )}
-                    {editingBenefit.value.pdfUrl && editIsPdfDeleted.value && (
-                      <p class="text-[11px] font-bold text-amber-800">El PDF se va a quitar al guardar.</p>
-                    )}
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-medium">Subí la lista de precios o menú.</p>
-                </div>
-              </div>
-            </div>
-
-            <BenefitPreview
-              title={editPreviewTitulo.value}
-              summary={editPreviewResumen.value}
-              description={editPreviewDescripcion.value}
-              image={editIsImageDeleted.value || !editImagePreviewUrl.value ? null : previewSrc(editImagePreviewUrl.value)}
-              mobileImage={editIsMobileImageDeleted.value || !editImageMobilePreviewUrl.value ? null : previewSrc(editImageMobilePreviewUrl.value)}
-              category={editPreviewCategory.value}
-              location={editPreviewLocation.value}
-            />
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-1">
-              <p><strong>Beneficios destacados:</strong> la portada muestra hasta 6 beneficios activos marcados, empezando por los más recientes.</p>
-              <p><strong>Nuevos beneficios:</strong> muestra los 6 activos más recientes por fecha de creación. Un beneficio puede aparecer en ambas secciones.</p>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="edit_isFeatured"
-                  name="isFeatured"
-                  checked={editPreviewIsFeatured.value}
-                  onChange$={(e, el) => { editPreviewIsFeatured.value = el.checked; }}
-                  class="rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4"
-                />
-                <label for="edit_isFeatured" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <LuSparkles class="w-4 h-4 text-brand-gold fill-brand-gold animate-pulse" />
-                  <span>Mostrar en Beneficios destacados</span>
-                </label>
-              </div>
-
-              <div class="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="edit_isActive"
-                  name="isActive"
-                  defaultChecked={!isDraftBenefit(editingBenefit.value.validUntil)}
-                  class="rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4"
-                />
-                <label for="edit_isActive" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                  <span class="w-2.5 h-2.5 rounded-full bg-brand-navy"></span>
-                  <span>Publicar (Activo)</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2 pt-2">
-              <button
-                type="submit"
-                disabled={editBenefitAction.isRunning}
-                class="py-3 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
-              >
-                {editBenefitAction.isRunning ? "Guardando..." : "Guardar Cambios"}
-              </button>
-              <button
-                type="button"
-                onClick$={closeEditBenefit$}
-                class="py-3 px-6 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold shadow-sm transition-all duration-300 cursor-pointer"
-              >
-                Cancelar
-              </button>
-            </div>
-          </Form>
-        )}
-
-        {/* List of custom benefits: cards on phones, table from `sm` up */}
-        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden">
+        {/* Cards up to `xl`, where the table has room for every column next to the sidebar */}
+        <div class="border border-line bg-white">
           {paginatedBenefits.value.length === 0 ? (
-            <div class="px-6 py-12 text-center text-sm text-slate-500">
-              <div class="flex items-center justify-center gap-2">
-                <LuTicket class="w-5 h-5 text-purple-400" />
-                <span>{benefits.value.length ? "No hay beneficios que coincidan con los filtros." : 'Aún no has creado beneficios propios. Hacé clic en "Crear Beneficio" para registrar el primero.'}</span>
-              </div>
+            <div class="flex items-center justify-center gap-2 px-6 py-12 text-center text-sm text-slate-600">
+              <LuTicket class="h-5 w-5 text-slate-400" />
+              <span>{benefits.value.length ? "No hay beneficios que coincidan con los filtros." : "Todavía no hay beneficios. Tocá “Nuevo beneficio” para cargar el primero."}</span>
             </div>
           ) : (
             <>
-              <ul class="divide-y divide-slate-100 sm:hidden">
+              <ul class="divide-y divide-line xl:hidden">
                 {paginatedBenefits.value.map((benefit) => {
                   const filters = describeFilters(benefit);
                   return (
                     <li key={benefit.id} class="space-y-3 p-4">
-                      <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0 space-y-1.5">
-                          <p class="font-bold text-slate-800 break-words">{benefit.titulo}</p>
-                          <div class="flex flex-wrap gap-1.5">{renderBadges(benefit)}</div>
+                      <div class="flex items-start gap-3">
+                        {renderThumb(benefit, "sm")}
+                        <div class="min-w-0 flex-1 space-y-1">
+                          <p class="break-words font-bold text-primary">{benefit.titulo}</p>
+                          <p class="text-sm text-slate-700">{benefit.resumen}</p>
+                          <p class="text-xs text-slate-600">
+                            <span class="font-bold">{filters.category}</span> · {filters.location} · {couponLabel(benefit.couponCount)}
+                          </p>
                         </div>
+                      </div>
+                      <div class="flex flex-wrap gap-1.5">{renderBadges(benefit)}</div>
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        {renderStatusToggle(benefit)}
                         {renderRowActions(benefit)}
                       </div>
-                      <p class="text-sm text-slate-600">{benefit.resumen}</p>
-                      <p class="text-xs text-slate-500">
-                        <span class="font-bold">{filters.category}</span> · {filters.location}
-                      </p>
-                      {renderStatusToggle(benefit)}
                     </li>
                   );
                 })}
               </ul>
 
-              <div class="hidden sm:block overflow-x-auto">
-                <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <div class="hidden overflow-x-auto xl:block">
+                <table class="w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                      <th class="px-6 py-4">Título</th>
-                      <th class="px-6 py-4">Resumen / Desc.</th>
-                      <th class="px-6 py-4">Filtros (Categoría/Ubicación)</th>
-                      <th class="px-6 py-4 text-center">Estado</th>
-                      <th class="px-6 py-4 text-center">Acciones</th>
+                    <tr class="border-b border-line bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <th scope="col" class="py-3 pl-4 pr-2"><span class="sr-only">Imagen</span></th>
+                      <th scope="col" class="px-3 py-3">Beneficio</th>
+                      <th scope="col" class="px-3 py-3">Categoría</th>
+                      <th scope="col" class="px-3 py-3 text-right">Cupones</th>
+                      <th scope="col" class="px-3 py-3">Estado</th>
+                      <th scope="col" class="py-3 pl-3 pr-4 text-right"><span class="sr-only">Acciones</span></th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-slate-100 font-medium">
+                  <tbody class="divide-y divide-line">
                     {paginatedBenefits.value.map((benefit) => {
                       const filters = describeFilters(benefit);
                       return (
-                        <tr key={benefit.id} class="hover:bg-slate-50 transition-colors">
-                          <td class="px-6 py-4 font-bold text-slate-800">
-                            <div class="flex flex-wrap items-center gap-2">
-                              <span>{benefit.titulo}</span>
-                              {renderBadges(benefit)}
-                            </div>
+                        <tr key={benefit.id} class="align-top hover:bg-slate-50">
+                          <td class="py-3 pl-4 pr-2">{renderThumb(benefit, "md")}</td>
+                          <td class="px-3 py-3">
+                            <p class="font-bold text-primary">{benefit.titulo}</p>
+                            <p class="text-slate-600">{benefit.resumen}</p>
+                            <div class="mt-1.5 flex flex-wrap gap-1.5">{renderBadges(benefit)}</div>
                           </td>
-                          <td class="px-6 py-4 text-slate-500">{benefit.resumen}</td>
-                          <td class="px-6 py-4 text-slate-500 font-bold">
-                            {filters.category} <span class="text-slate-300 mx-1">|</span> <span class="font-normal text-slate-500">{filters.location}</span>
+                          <td class="px-3 py-3 text-slate-700">
+                            <span class="font-semibold">{filters.category}</span>
+                            <span class="block text-slate-600">{filters.location}</span>
                           </td>
-                          <td class="px-6 py-4 text-center">
-                            <div class="flex items-center justify-center">{renderStatusToggle(benefit)}</div>
+                          <td class="px-3 py-3 text-right font-display text-lg font-semibold tabular-nums text-primary">
+                            {benefit.couponCount}
+                            <span class="sr-only"> {benefit.couponCount === 1 ? "cupón" : "cupones"}</span>
                           </td>
-                          <td class="px-6 py-4 text-center">{renderRowActions(benefit)}</td>
+                          <td class="px-3 py-3">{renderStatusToggle(benefit)}</td>
+                          <td class="py-3 pl-3 pr-4">{renderRowActions(benefit)}</td>
                         </tr>
                       );
                     })}
@@ -2039,34 +1710,25 @@ export default component$(() => {
             </>
           )}
 
-          {/* Pagination Controls */}
           {totalPages.value > 1 && (
-            <div class="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50/50">
-              <span class="text-xs text-slate-500">
-                Página <span class="font-bold text-slate-800">{currentPage.value}</span> de <span class="font-bold text-slate-800">{totalPages.value}</span> ({filteredBenefits.value.length} beneficios)
+            <div class="flex items-center justify-between border-t border-line bg-slate-50 px-4 py-3">
+              <span class="text-sm text-slate-600">
+                Página <span class="font-bold text-primary">{currentPage.value}</span> de <span class="font-bold text-primary">{totalPages.value}</span>
               </span>
               <div class="flex items-center gap-1">
-                <button
-                  onClick$={() => changePage(currentPage.value - 1)}
-                  disabled={currentPage.value === 1}
-                  class="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-slate-600"
-                  title="Página Anterior"
-                >
-                  <LuChevronLeft class="w-4 h-4" />
+                <button type="button" onClick$={() => changePage(currentPage.value - 1)} disabled={currentPage.value === 1} class={`${iconButtonClass} border border-line bg-white disabled:opacity-40`} aria-label="Página anterior">
+                  <LuChevronLeft class="h-4 w-4" />
                 </button>
-                <button
-                  onClick$={() => changePage(currentPage.value + 1)}
-                  disabled={currentPage.value === totalPages.value}
-                  class="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-slate-600"
-                  title="Página Siguiente"
-                >
-                  <LuChevronRight class="w-4 h-4" />
+                <button type="button" onClick$={() => changePage(currentPage.value + 1)} disabled={currentPage.value === totalPages.value} class={`${iconButtonClass} border border-line bg-white disabled:opacity-40`} aria-label="Página siguiente">
+                  <LuChevronRight class="h-4 w-4" />
                 </button>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </section>
+      {/* Bottom room as an element, not padding: padding would lift the sticky save bar. */}
+      <div aria-hidden="true" class="h-12 shrink-0" />
     </div>
   );
 });

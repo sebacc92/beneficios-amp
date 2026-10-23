@@ -1,5 +1,5 @@
 import type { RequestEventBase } from "@builder.io/qwik-city";
-import { asc, count, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { getDB } from "~/db";
 import { events, merchantRequests, raffles, suggestions } from "~/db/schema";
 import {
@@ -11,8 +11,9 @@ import {
 import { isSuggestionStatus, type SuggestionInput, type SuggestionStatus } from "~/utils/suggestions";
 
 export type ClubEvent = typeof events.$inferSelect;
-export type ClubEventInput = Omit<ClubEvent, "id" | "createdAt">;
-export type RaffleInput = Omit<typeof raffles.$inferSelect, "id" | "createdAt">;
+// Fields added later are optional so older callers keep compiling.
+export type ClubEventInput = Omit<ClubEvent, "id" | "createdAt" | "kind" | "registrationUrl"> & Partial<Pick<ClubEvent, "kind" | "registrationUrl">>;
+export type RaffleInput = Omit<typeof raffles.$inferSelect, "id" | "createdAt" | "status" | "requirements"> & Partial<Pick<typeof raffles.$inferSelect, "status" | "requirements">>;
 export type Raffle = typeof raffles.$inferSelect;
 export type MerchantRequest = typeof merchantRequests.$inferSelect;
 export type Suggestion = typeof suggestions.$inferSelect;
@@ -22,9 +23,16 @@ export async function getAgenda(event: RequestEventBase, now = new Date()) {
   return splitEventsByDay(rows, now);
 }
 
+/** Drafts stay in the admin panel; only published raffles reach /sorteos. */
 export async function getRaffleBoard(event: RequestEventBase, now = new Date()) {
-  const rows = await getDB(event).select().from(raffles).orderBy(asc(raffles.drawDate));
+  const rows = await getDB(event).select().from(raffles).where(eq(raffles.status, "published")).orderBy(asc(raffles.drawDate));
   return splitRafflesByDrawDate(rows, now);
+}
+
+/** Upcoming events, so the main navigation can hide "Agenda" while it would be empty. */
+export async function countUpcomingEvents(event: RequestEventBase, now = new Date()): Promise<number> {
+  const { upcoming } = await getAgenda(event, now);
+  return upcoming.length;
 }
 
 export async function countPendingMerchantRequests(event: RequestEventBase): Promise<number> {
@@ -66,12 +74,14 @@ export async function saveSuggestion(event: RequestEventBase, values: Suggestion
   });
 }
 
+/** Pending items oldest first (the longest waiting go on top); the other views newest first. */
 export async function getSuggestionInbox(event: RequestEventBase, status: SuggestionStatus | "all") {
   const db = getDB(event);
+  const order = status === "pending" ? asc(suggestions.createdAt) : desc(suggestions.createdAt);
   const [rows, totals] = await Promise.all([
     status === "all"
-      ? db.select().from(suggestions).orderBy(desc(suggestions.createdAt))
-      : db.select().from(suggestions).where(eq(suggestions.status, status)).orderBy(desc(suggestions.createdAt)),
+      ? db.select().from(suggestions).orderBy(order)
+      : db.select().from(suggestions).where(eq(suggestions.status, status)).orderBy(order),
     db.select({ status: suggestions.status, total: count() }).from(suggestions).groupBy(suggestions.status),
   ]);
   const counts = { pending: 0, reviewed: 0, discarded: 0, all: 0 };
@@ -82,23 +92,34 @@ export async function getSuggestionInbox(event: RequestEventBase, status: Sugges
   return { suggestions: rows, counts };
 }
 
-export async function setSuggestionStatus(event: RequestEventBase, id: string, status: string): Promise<boolean> {
+/**
+ * Restoring a previous state (the inbox "Deshacer") passes its `contactedAt` back
+ * explicitly; otherwise the contact date follows the status.
+ */
+interface StatusChangeOptions {
+  contactedAt?: string | null;
+  now?: Date;
+}
+
+export async function setSuggestionStatus(event: RequestEventBase, id: string, status: string, options: StatusChangeOptions = {}): Promise<boolean> {
   if (!isSuggestionStatus(status)) return false;
+  const now = (options.now ?? new Date()).toISOString();
   const updated = await getDB(event)
     .update(suggestions)
-    .set({ status })
+    .set({ status, updatedAt: now, ...(options.contactedAt !== undefined ? { contactedAt: options.contactedAt } : {}) })
     .where(eq(suggestions.id, id))
     .returning({ id: suggestions.id });
   return updated.length > 0;
 }
 
-/** Newest first, plus the per-status totals the inbox tabs show. */
+/** Pending items oldest first, plus the per-status totals the inbox tabs show. */
 export async function getMerchantRequestInbox(event: RequestEventBase, status: MerchantRequestStatus | "all") {
   const db = getDB(event);
+  const order = status === "pending" ? asc(merchantRequests.createdAt) : desc(merchantRequests.createdAt);
   const [rows, totals] = await Promise.all([
     status === "all"
-      ? db.select().from(merchantRequests).orderBy(desc(merchantRequests.createdAt))
-      : db.select().from(merchantRequests).where(eq(merchantRequests.status, status)).orderBy(desc(merchantRequests.createdAt)),
+      ? db.select().from(merchantRequests).orderBy(order)
+      : db.select().from(merchantRequests).where(eq(merchantRequests.status, status)).orderBy(order),
     db.select({ status: merchantRequests.status, total: count() }).from(merchantRequests).groupBy(merchantRequests.status),
   ]);
   const counts = { pending: 0, contacted: 0, discarded: 0, all: 0 };
@@ -109,14 +130,77 @@ export async function getMerchantRequestInbox(event: RequestEventBase, status: M
   return { requests: rows, counts };
 }
 
-/** Returns false when the request no longer exists or the status is unknown. */
-export async function setMerchantRequestStatus(event: RequestEventBase, id: string, status: string): Promise<boolean> {
+/**
+ * Returns false when the request no longer exists or the status is unknown.
+ * "Contactado" stamps the first contact date; going back to pending clears it.
+ */
+export async function setMerchantRequestStatus(event: RequestEventBase, id: string, status: string, options: StatusChangeOptions = {}): Promise<boolean> {
   if (!isMerchantRequestStatus(status)) return false;
+  const now = (options.now ?? new Date()).toISOString();
+  const contactedAt =
+    options.contactedAt !== undefined
+      ? options.contactedAt
+      : status === "contacted"
+        ? sql`coalesce(${merchantRequests.contactedAt}, ${now})`
+        : status === "pending"
+          ? null
+          : undefined;
   const updated = await getDB(event)
     .update(merchantRequests)
-    .set({ status })
+    .set({ status, updatedAt: now, ...(contactedAt !== undefined ? { contactedAt } : {}) })
     .where(eq(merchantRequests.id, id))
     .returning({ id: merchantRequests.id });
+  return updated.length > 0;
+}
+
+export async function getMerchantRequest(event: RequestEventBase, id: string): Promise<MerchantRequest | undefined> {
+  const [row] = await getDB(event).select().from(merchantRequests).where(eq(merchantRequests.id, id)).limit(1);
+  return row;
+}
+
+export async function getSuggestion(event: RequestEventBase, id: string): Promise<Suggestion | undefined> {
+  const [row] = await getDB(event).select().from(suggestions).where(eq(suggestions.id, id)).limit(1);
+  return row;
+}
+
+/** Internal follow-up: who handles it and free notes. Empty text is stored as null. */
+export interface FollowUpInput {
+  notes: string;
+  assignedTo: string;
+  /** Suggestions only: whether someone already answered the member. */
+  contacted?: boolean;
+}
+
+const MAX_NOTES_CHARS = 2000;
+
+function cleanFollowUp(values: FollowUpInput) {
+  return {
+    notes: values.notes.trim().slice(0, MAX_NOTES_CHARS) || null,
+    assignedTo: values.assignedTo.trim().slice(0, 120) || null,
+  };
+}
+
+export async function saveMerchantRequestFollowUp(event: RequestEventBase, id: string, values: FollowUpInput, now = new Date()): Promise<boolean> {
+  const updated = await getDB(event)
+    .update(merchantRequests)
+    .set({ ...cleanFollowUp(values), updatedAt: now.toISOString() })
+    .where(eq(merchantRequests.id, id))
+    .returning({ id: merchantRequests.id });
+  return updated.length > 0;
+}
+
+/** Keeps the first contact date when the "ya le respondimos" box stays checked. */
+export async function saveSuggestionFollowUp(event: RequestEventBase, id: string, values: FollowUpInput, now = new Date()): Promise<boolean> {
+  const iso = now.toISOString();
+  const updated = await getDB(event)
+    .update(suggestions)
+    .set({
+      ...cleanFollowUp(values),
+      contactedAt: values.contacted ? sql`coalesce(${suggestions.contactedAt}, ${iso})` : null,
+      updatedAt: iso,
+    })
+    .where(eq(suggestions.id, id))
+    .returning({ id: suggestions.id });
   return updated.length > 0;
 }
 

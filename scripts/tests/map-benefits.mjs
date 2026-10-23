@@ -23,6 +23,12 @@ const {
   formatDistance,
   filterMapBenefits,
   rankMapBenefits,
+  merchantDetails,
+  directionsUrl,
+  instagramUrl,
+  websiteUrl,
+  merchantWhatsappUrl,
+  benefitImageUrl,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(outputFiles[0].contents).toString("base64")}`
 );
@@ -166,4 +172,62 @@ test("equal-distance merchants have a stable ID ordering", () => {
     rankMapBenefits(identical, laPlata).map((item) => item.benefit.id),
     [0, 2],
   );
+});
+
+const legacyHtml =
+  '<p>Promo</p><p><b>DIRECCIÓN</b>: Calle 47 N° 512, La Plata</p><p><b>WHATSAPP</b>: 221 555-1234</p>' +
+  '<p><b>HORARIO</b>: Lun a vie de 9 a 18</p><a href="https://instagram.com/flakos.lp">IG</a>' +
+  '<a href="javascript:alert(1)">x</a>';
+test("legacy descriptions still provide merchant details", () => {
+  const details = merchantDetails({ descripcion: legacyHtml });
+  assert.equal(details.address, "Calle 47 N° 512, La Plata");
+  assert.equal(details.whatsapp, "221 555-1234");
+  assert.equal(details.hours, "Lun a vie de 9 a 18");
+  assert.equal(details.instagram, "https://www.instagram.com/flakos.lp/");
+  assert.equal(details.website, null, "only http(s) links become the website");
+});
+test("structured columns win over the description", () => {
+  const details = merchantDetails({
+    descripcion: legacyHtml,
+    address: "Calle 50 N° 720",
+    instagram: "@goodlife",
+    website: "goodlife.com.ar",
+  });
+  assert.equal(details.address, "Calle 50 N° 720");
+  assert.equal(details.instagram, "https://www.instagram.com/goodlife/");
+  assert.equal(details.website, "https://goodlife.com.ar/");
+  assert.equal(details.whatsapp, "221 555-1234", "empty columns fall back to the description");
+});
+test("a CEL number is offered on WhatsApp for older entries", () =>
+  assert.equal(merchantDetails({ descripcion: "<b>CEL</b>: 221-444-5566" }).whatsapp, "221-444-5566"));
+test("instagram and website reject unsafe values", () => {
+  assert.equal(instagramUrl("https://evil.example/x"), null);
+  assert.equal(instagramUrl("no válido"), null);
+  assert.equal(websiteUrl("javascript:alert(1)"), null);
+  assert.equal(websiteUrl("/relativo"), null);
+});
+test("local WhatsApp numbers get the Argentine mobile prefix", () => {
+  assert.match(merchantWhatsappUrl("221 555-1234"), /^https:\/\/wa\.me\/5492215551234\?text=/);
+  assert.match(merchantWhatsappUrl("+54 9 221 555-1234"), /^https:\/\/wa\.me\/5492215551234\?/);
+  assert.equal(merchantWhatsappUrl("123"), null);
+});
+test("directions prefer coordinates and fall back to the address", () => {
+  assert.equal(
+    directionsUrl({ latitud: "-34.91", longitud: "-57.95", address: "Calle 47" }),
+    "https://www.google.com/maps/dir/?api=1&destination=-34.91%2C-57.95",
+  );
+  assert.equal(
+    directionsUrl({ address: "Calle 47 N° 512", locality: "La Plata" }),
+    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent("Calle 47 N° 512, La Plata")}`,
+  );
+  assert.equal(
+    directionsUrl({ address: "Calle 47, La Plata", locality: "La Plata" }),
+    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent("Calle 47, La Plata")}`,
+  );
+  assert.equal(directionsUrl({ latitud: null, longitud: null }), null);
+});
+test("legacy image names point to the previous portal", () => {
+  assert.equal(benefitImageUrl("foto.jpg"), "https://beneficios.lprc.ar/files/foto.jpg");
+  assert.equal(benefitImageUrl("/media/x.webp"), "/media/x.webp");
+  assert.equal(benefitImageUrl(null), null);
 });

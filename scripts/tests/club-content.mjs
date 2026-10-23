@@ -149,6 +149,59 @@ try {
     assert.equal(all.requests.length, 3);
   });
 
+  await test("pending requests come oldest first and contacting stamps, keeps and restores the contact date", async () => {
+    await db.insert(backend.merchantRequests).values({
+      id: "req-0",
+      businessName: "Comercio viejo",
+      category: "Gastronomía",
+      contactName: "Contacto",
+      email: "viejo@example.com",
+      phone: "0221 489-5777",
+      proposal: "Descuento para socios",
+      status: "pending",
+      createdAt: "2026-10-01T12:00:00.000Z",
+    });
+    const pending = await backend.getMerchantRequestInbox(event(), "pending");
+    assert.deepEqual(pending.requests.map((row) => row.id), ["req-0", "req-2"], "the longest waiting first");
+
+    const first = new Date("2026-10-23T15:00:00.000Z");
+    assert.equal(await backend.setMerchantRequestStatus(event(), "req-0", "contacted", { now: first }), true);
+    let row = await backend.getMerchantRequest(event(), "req-0");
+    assert.equal(row.contactedAt, first.toISOString());
+    assert.equal(row.updatedAt, first.toISOString());
+
+    // Marking it contacted again (e.g. after discarding) keeps the first contact date.
+    await backend.setMerchantRequestStatus(event(), "req-0", "discarded", { now: new Date("2026-10-24T10:00:00.000Z") });
+    await backend.setMerchantRequestStatus(event(), "req-0", "contacted", { now: new Date("2026-10-25T10:00:00.000Z") });
+    row = await backend.getMerchantRequest(event(), "req-0");
+    assert.equal(row.contactedAt, first.toISOString());
+    assert.equal(row.updatedAt, "2026-10-25T10:00:00.000Z");
+
+    // "Deshacer" restores the exact previous state, contact date included.
+    await backend.setMerchantRequestStatus(event(), "req-0", "pending", { contactedAt: null });
+    row = await backend.getMerchantRequest(event(), "req-0");
+    assert.equal(row.status, "pending");
+    assert.equal(row.contactedAt, null);
+    await backend.setMerchantRequestStatus(event(), "req-0", "contacted", { contactedAt: first.toISOString() });
+    assert.equal((await backend.getMerchantRequest(event(), "req-0")).contactedAt, first.toISOString());
+    await backend.setMerchantRequestStatus(event(), "req-0", "pending");
+    assert.equal((await backend.getMerchantRequest(event(), "req-0")).contactedAt, null, "back to pending clears it");
+  });
+
+  await test("merchant follow-up stores trimmed notes and owner, and empty text as null", async () => {
+    const now = new Date("2026-10-23T18:00:00.000Z");
+    assert.equal(await backend.saveMerchantRequestFollowUp(event(), "req-0", { notes: "  Llamar el lunes ", assignedTo: " Admin Local " }, now), true);
+    let row = await backend.getMerchantRequest(event(), "req-0");
+    assert.equal(row.notes, "Llamar el lunes");
+    assert.equal(row.assignedTo, "Admin Local");
+    assert.equal(row.updatedAt, now.toISOString());
+    await backend.saveMerchantRequestFollowUp(event(), "req-0", { notes: "  ", assignedTo: "" }, now);
+    row = await backend.getMerchantRequest(event(), "req-0");
+    assert.equal(row.notes, null);
+    assert.equal(row.assignedTo, null);
+    assert.equal(await backend.saveMerchantRequestFollowUp(event(), "missing", { notes: "x", assignedTo: "" }), false);
+  });
+
   await test("suggestion form validation trims, requires a known motivo and limits lengths", async () => {
     const valid = backend.validateSuggestion({
       nombre: "  Socia Prueba ",
@@ -173,7 +226,7 @@ try {
     assert.equal(backend.isSuggestionType("Problema"), false);
   });
 
-  await test("suggestions are saved, listed newest first and their status feeds the inbox badge", async () => {
+  await test("suggestions are saved, pending listed oldest first and their status feeds the inbox badge", async () => {
     const base = { nombre: "Socia Prueba", email: "socia@example.com", telefono: "", tipo: "Problema Comercio", comercio: "", mensaje: "Mensaje de prueba largo" };
     await backend.saveSuggestion(event(), { ...base, comercio: "Café Central" });
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -181,16 +234,17 @@ try {
 
     const pending = await backend.getSuggestionInbox(event(), "pending");
     assert.equal(pending.suggestions.length, 2);
-    assert.equal(pending.suggestions[0].tipo, "Consulta General", "newest first");
-    assert.equal(pending.suggestions[0].telefono, "0221 489-5777");
-    assert.equal(pending.suggestions[1].comercio, "Café Central");
-    assert.equal(pending.suggestions[0].comercio, null, "empty optional fields are stored as null");
+    assert.equal(pending.suggestions[1].tipo, "Consulta General", "pending: the longest waiting first");
+    assert.equal(pending.suggestions[1].telefono, "0221 489-5777");
+    assert.equal(pending.suggestions[0].comercio, "Café Central");
+    assert.equal(pending.suggestions[1].comercio, null, "empty optional fields are stored as null");
+    assert.deepEqual((await backend.getSuggestionInbox(event(), "all")).suggestions.map((row) => row.tipo), ["Consulta General", "Problema Comercio"], "other views: newest first");
     assert.equal(await backend.countPendingSuggestions(event()), 2);
 
     const merchantsPending = await backend.countPendingMerchantRequests(event());
     assert.equal(await backend.countPendingInbox(event()), merchantsPending + 2);
 
-    const id = pending.suggestions[1].id;
+    const id = pending.suggestions[0].id;
     assert.equal(await backend.setSuggestionStatus(event(), id, "reviewed"), true);
     assert.equal(await backend.setSuggestionStatus(event(), id, "contacted"), false, "merchant statuses do not apply");
     assert.equal(await backend.setSuggestionStatus(event(), "missing", "discarded"), false);
@@ -198,6 +252,25 @@ try {
     assert.deepEqual(reviewed.suggestions.map((row) => row.id), [id]);
     assert.deepEqual(reviewed.counts, { pending: 1, reviewed: 1, discarded: 0, all: 2 });
     assert.equal(await backend.countPendingInbox(event()), merchantsPending + 1);
+  });
+
+  await test("suggestion follow-up records when the member was answered and status changes stamp updatedAt", async () => {
+    const [item] = (await backend.getSuggestionInbox(event(), "pending")).suggestions;
+    const first = new Date("2026-10-23T12:00:00.000Z");
+    await backend.saveSuggestionFollowUp(event(), item.id, { notes: "Le escribimos por mail", assignedTo: "Admin Local", contacted: true }, first);
+    await backend.saveSuggestionFollowUp(event(), item.id, { notes: "Respondió", assignedTo: "Admin Local", contacted: true }, new Date("2026-10-24T12:00:00.000Z"));
+    let row = await backend.getSuggestion(event(), item.id);
+    assert.equal(row.contactedAt, first.toISOString(), "the first answer date stays");
+    assert.equal(row.notes, "Respondió");
+    await backend.saveSuggestionFollowUp(event(), item.id, { notes: "", assignedTo: "", contacted: false });
+    row = await backend.getSuggestion(event(), item.id);
+    assert.equal(row.contactedAt, null);
+
+    const later = new Date("2026-10-25T09:00:00.000Z");
+    assert.equal(await backend.setSuggestionStatus(event(), item.id, "discarded", { now: later }), true);
+    row = await backend.getSuggestion(event(), item.id);
+    assert.equal(row.status, "discarded");
+    assert.equal(row.updatedAt, later.toISOString());
   });
 
   for (const result of tests) {

@@ -1,33 +1,221 @@
 @import "tailwindcss";
 
 
+/*
+ * Brand tokens follow lprc.com.ar: navy #0a1128, yellow #FFD700, Oswald for headings,
+ * Inter for text and square corners. The radius scale is flattened on purpose, so every
+ * rounded-* utility stays within a few pixels; rounded-full is kept for true circles only.
+ */
 @theme {
-  --color-primary: #0B1526;
-  --color-secondary: #1E2B45;
-  --color-accent: #F5C800;
-  --color-accent-hover: #D6AE00;
-  --color-text-primary: #0B1526;
+  --color-primary: #0a1128;
+  --color-secondary: #162456;
+  --color-accent: #FFD700;
+  --color-accent-hover: #E6C200;
+  --color-text-primary: #0a1128;
   --color-text-secondary: #475569;
-  --color-background: #F8FAFC;
+  --color-background: #F9FAFB;
   --color-surface: #FFFFFF;
-  --color-surface-muted: #F1F5F9;
-  --color-line: #DBE3EE;
-  --color-borde: #DBE3EE;
+  --color-surface-muted: #F3F4F6;
+  --color-line: #E5E7EB;
+  --color-borde: #E5E7EB;
 
-  --color-brand-navy-dark: #0B1526;
-  --color-brand-navy: #1E2B45;
-  --color-brand-navy-light: #2c3e5f;
-  --color-brand-gold-dark: #D6AE00;
-  --color-brand-gold: #F5C800;
-  --color-brand-gold-light: #FFE033;
-  
+  --color-brand-navy-dark: #0a1128;
+  --color-brand-navy: #162456;
+  --color-brand-navy-light: #22336f;
+  --color-brand-ink: #020617;
+  --color-brand-gold-dark: #D3AC00;
+  --color-brand-gold: #FFD700;
+  --color-brand-gold-light: #FFE030;
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
+  --radius-4xl: 4px;
+
   --font-display: "Oswald", sans-serif;
   --font-sans: "Inter", sans-serif;
   --font-oswald: "Oswald", sans-serif;
   --font-inter: "Inter", sans-serif;
-  
+
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/*
+ * Shared LPRC building blocks. Buttons copy the club's "HACETE SOCIO" button:
+ * rectangular, Oswald, uppercase and tracked. Combine `btn` with one variant.
+ */
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  &:disabled,
+  &[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-sm {
+  min-height: 2.25rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+}
+
+@utility btn-primary {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+  &:hover:not(:disabled) {
+    background-color: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+}
+
+@utility btn-dark {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  &:hover:not(:disabled) {
+    background-color: var(--color-secondary);
+    border-color: var(--color-secondary);
+  }
+}
+
+@utility btn-outline {
+  background-color: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  &:hover:not(:disabled) {
+    background-color: var(--color-primary);
+    color: #fff;
+  }
+}
+
+/* The dark, outlined companion button lprc.com.ar uses over photos and navy blocks. */
+@utility btn-outline-light {
+  background-color: rgb(2 6 23 / 0.45);
+  border-color: rgb(255 255 255 / 0.85);
+  color: #fff;
+  &:hover:not(:disabled) {
+    background-color: #fff;
+    color: var(--color-primary);
+  }
+}
+
+/* Small tracked label above headings ("ÚLTIMO PARTIDO" in the club site). */
+@utility eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+@utility heading-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+}
+
+/* Short yellow rule under big headings, as in the lprc.com.ar hero. */
+@utility title-bar {
+  display: block;
+  width: 3.5rem;
+  height: 4px;
+  background-color: var(--color-accent);
+}
+
+@utility badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@utility badge-accent {
+  background-color: var(--color-accent);
+  color: var(--color-primary);
+}
+
+@utility badge-dark {
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+@utility badge-muted {
+  background-color: var(--color-surface-muted);
+  color: var(--color-primary);
+}
+
+@utility card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+}
+
+@utility field {
+  width: 100%;
+  background-color: #fff;
+  color: var(--color-primary);
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  &::placeholder {
+    color: #64748b;
+  }
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgb(255 215 0 / 0.55);
+  }
+  &[aria-invalid="true"] {
+    border-color: #dc2626;
+  }
+}
+
+@utility field-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /*
@@ -70,7 +258,7 @@ html {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-secondary);
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -92,19 +280,13 @@ html {
   border: 1px solid rgba(30, 43, 69, 0.6);
 }
 
+/* Static panel: it used to lift and glow on hover, which made non-interactive boxes look clickable. */
 .glass-card {
-  background: rgba(30, 43, 69, 0.4);
+  background: rgba(22, 36, 86, 0.4);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(30, 43, 69, 0.5);
+  border: 1px solid rgba(22, 36, 86, 0.5);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(245, 200, 0, 0.15);
-  border-color: rgba(245, 200, 0, 0.3);
 }
 
 .text-gradient-brand {
@@ -279,7 +461,7 @@ html {
     display: block !important;
     border: 2px dashed var(--color-accent) !important;
     padding: 2rem !important;
-    border-radius: 1rem !important;
+    border-radius: 0 !important;
     margin: 1.5rem auto !important;
     max-width: 550px !important;
     page-break-inside: avoid !important;
@@ -315,32 +497,18 @@ html {
 /* Premium digital credential card styles */
 .credential-card {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%) !important;
-  border: 1px solid rgba(245, 200, 0, 0.3) !important; /* Subtle yellow border */
-  box-shadow: 0 10px 30px rgba(4, 8, 17, 0.4) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 1px solid rgba(255, 215, 0, 0.35) !important; /* Subtle yellow border */
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.4) !important;
   color: #ffffff !important;
 }
 
-.credential-card:hover {
-  transform: translateY(-4px) !important;
-  box-shadow: 0 15px 40px rgba(245, 200, 0, 0.2) !important;
-  border-color: rgba(245, 200, 0, 0.6) !important;
-}
-
 .credential-card-locked {
-  background: linear-gradient(135deg, rgba(11, 21, 38, 0.85) 0%, rgba(30, 43, 69, 0.95) 100%) !important;
+  background: linear-gradient(135deg, rgba(10, 17, 40, 0.85) 0%, rgba(22, 36, 86, 0.95) 100%) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
   border: 1px dashed rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 10px 30px rgba(4, 8, 17, 0.25) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.25) !important;
   color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.credential-card-locked:hover {
-  transform: translateY(-4px) !important;
-  box-shadow: 0 15px 40px rgba(4, 8, 17, 0.3) !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

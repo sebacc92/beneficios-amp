@@ -54,7 +54,7 @@ export async function generateMemberCoupon(
   }
   const premiumActive = user.role === "premium" && (!user.premiumExpiresAt || Date.parse(user.premiumExpiresAt) > Date.now());
   if (benefit.isPremiumOnly && user.role !== "admin" && !premiumActive) {
-    throw new CouponGenerationError(403, "Este beneficio requiere Pase Premium vigente.");
+    throw new CouponGenerationError(403, "Este beneficio es exclusivo para socios Gold con la membresía vigente.");
   }
 
   const [existing] = await db.select().from(coupons).where(and(

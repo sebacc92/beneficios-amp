@@ -186,13 +186,13 @@ try {
       for (const invalid of ["", " ", "0", "-1", "NaN", "Infinity", "1.5", "1e2", "9007199254740992", String(maxSeedId + 100000), null]) {
         await assert.rejects(
           backend.validateBenefitFilterSelection(event(), { ...selection, [field]: invalid }),
-          (error) => error instanceof backend.BenefitFilterValidationError,
+          (error) => error instanceof backend.BenefitFilterValidationError && error.field === field,
         );
       }
       const wrongType = field === "categoryId" ? saved.ubicaciones.id : saved.categorias.id;
       await assert.rejects(
         backend.validateBenefitFilterSelection(event(), { ...selection, [field]: String(wrongType) }),
-        (error) => error instanceof backend.BenefitFilterValidationError,
+        (error) => error instanceof backend.BenefitFilterValidationError && error.field === field,
       );
     }
     assert.equal(queries.slice(start).some((query) => /^(insert|update)\b/i.test(query)), false);

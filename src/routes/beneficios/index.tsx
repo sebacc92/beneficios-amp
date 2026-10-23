@@ -1,59 +1,134 @@
-import { $, component$, useComputed$, useSignal } from "@builder.io/qwik";
+import { $, component$ } from "@builder.io/qwik";
 import {
   routeLoader$,
   Link,
   useNavigate,
   type DocumentHead,
 } from "@builder.io/qwik-city";
-import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
+import { LuMapPin, LuNavigation, LuSearch, LuX } from "@qwikest/icons/lucide";
+import {
+  searchBenefits,
+  getFilters,
+  type Benefit,
+  type SearchParams,
+} from "~/server/cache";
 import { getSettings } from "~/server/chatbotDb";
-import { CAMPAIGN_DEFAULTS, campaignTerms } from "~/utils/home-benefits";
+import {
+  CAMPAIGN_DEFAULTS,
+  CATALOG_SORTS,
+  campaignTerms,
+  commonLocation,
+  offerLabel,
+  parseCatalogSort,
+  sortCatalog,
+  withLiveCounts,
+} from "~/utils/home-benefits";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/ui/BenefitCard";
-import { LuList, LuMap } from "@qwikest/icons/lucide";
+import { SectionHeading } from "~/components/section-heading/section-heading";
 
-// Server Loader to retrieve benefits and filters
+const PAGE_SIZE = 12;
+// Larger than the catalog: results are sorted here, after filtering, and paged afterwards.
+const WHOLE_CATALOG = 10_000;
+const FORM_KEYS = [
+  "buscar",
+  "categoria",
+  "ubicacion",
+  "oferta",
+  "gold",
+  "campana",
+  "orden",
+];
+
+function positiveId(value: string | null): number | undefined {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
+
 export const useBenefitsData = routeLoader$(async (event) => {
-  const url = new URL(event.url);
-  const query = url.searchParams.get("buscar") || "";
-  const categoryId = url.searchParams.get("categoria")
-    ? Number(url.searchParams.get("categoria"))
-    : undefined;
-  const locationId = url.searchParams.get("ubicacion")
-    ? Number(url.searchParams.get("ubicacion"))
-    : undefined;
-  const offerId = url.searchParams.get("oferta")
-    ? Number(url.searchParams.get("oferta"))
-    : undefined;
-  const page = url.searchParams.get("page")
-    ? Number(url.searchParams.get("page"))
-    : 1;
-
-  const isMap = url.searchParams.get("vista") === "mapa";
-  const gold = url.searchParams.get("gold") === "1";
-  // "Ver todos" of the home campaign: same keywords, same matching, same order as the home block.
-  const campaign = url.searchParams.get("campana") === "1";
+  const params = event.url.searchParams;
+  const query = (params.get("buscar") || "").trim();
+  const categoryId = positiveId(params.get("categoria"));
+  const locationId = positiveId(params.get("ubicacion"));
+  const offerId = positiveId(params.get("oferta"));
+  const page = positiveId(params.get("page")) ?? 1;
+  const sort = parseCatalogSort(params.get("orden"));
+  const gold = params.get("gold") === "1";
+  // "Ver todos" of the home campaign: the admin's hand-picked benefits, or the same keyword match.
+  const campaign = params.get("campana") === "1";
   const settings = campaign ? await getSettings(event) : null;
+  const campaignSlugs = settings?.campaignBenefitSlugs ?? [];
 
-  const searchResult = await searchBenefits({
+  const base: SearchParams = {
     query,
     categoryId,
     locationId,
     offerId,
-    page,
-    limit: isMap ? 1000 : 12,
+    page: 1,
+    limit: WHOLE_CATALOG,
     requestEvent: event,
     isPremiumOnly: gold || undefined,
-    campaignTerms: settings ? campaignTerms(settings.campaignQuery) : undefined,
-  });
+    campaignTerms:
+      settings && !campaignSlugs.length
+        ? campaignTerms(settings.campaignQuery)
+        : undefined,
+  };
+  const inCampaign = (items: Benefit[]) =>
+    campaignSlugs.length
+      ? items.filter((item) => campaignSlugs.includes(item.url))
+      : items;
 
-  const filters = await getFilters(event);
+  // Each group counts its options with the other filters applied, so no chip leads to an empty page.
+  const [results, byCategory, byLocation, byOffer, savedFilters] =
+    await Promise.all([
+      searchBenefits(base),
+      searchBenefits({ ...base, categoryId: undefined }),
+      searchBenefits({ ...base, locationId: undefined }),
+      searchBenefits({ ...base, offerId: undefined }),
+      getFilters(event),
+    ]);
+  const filters = {
+    categorias: withLiveCounts(savedFilters, inCampaign(byCategory.data))
+      .categorias,
+    ubicaciones: withLiveCounts(savedFilters, inCampaign(byLocation.data))
+      .ubicaciones,
+    ofertas: withLiveCounts(savedFilters, inCampaign(byOffer.data)).ofertas,
+  };
+
+  const matches = inCampaign(results.data);
+  const ordered =
+    campaignSlugs.length && !sort
+      ? [...matches].sort(
+          (a, b) => campaignSlugs.indexOf(a.url) - campaignSlugs.indexOf(b.url),
+        )
+      : sortCatalog(matches, sort);
+  const total = ordered.length;
+  const sharedLocation = commonLocation(ordered);
 
   return {
-    searchResult,
+    searchResult: {
+      data: ordered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+      total,
+      totalPages: Math.ceil(total / PAGE_SIZE),
+      page,
+      limit: PAGE_SIZE,
+    },
     filters,
-    campaignTitle: settings ? settings.campaignTitle || CAMPAIGN_DEFAULTS.title : null,
+    campaignTitle: settings
+      ? settings.campaignTitle || CAMPAIGN_DEFAULTS.title
+      : null,
+    // Cards skip the city most results share; a single note above the grid says it once.
+    location: sharedLocation
+      ? {
+          name: sharedLocation,
+          everywhere: ordered.every(
+            (item) =>
+              item.ubicacion[0]?.descripcion?.trim().toLowerCase() ===
+              sharedLocation.toLowerCase(),
+          ),
+        }
+      : null,
     activeFilters: {
       query,
       categoryId,
@@ -61,30 +136,32 @@ export const useBenefitsData = routeLoader$(async (event) => {
       offerId,
       gold,
       campaign,
+      sort,
     },
   };
 });
 
 export default component$(() => {
   const data = useBenefitsData();
-  const filtersOpen = useSignal(false);
   const navigate = useNavigate();
 
-  const { searchResult, filters, activeFilters, campaignTitle } = data.value;
+  const { searchResult, filters, activeFilters, campaignTitle, location } =
+    data.value;
   const { data: benefits, total, totalPages, page, limit } = searchResult;
-  const hasActiveFilters =
+  const hasActiveFilters = Boolean(
     activeFilters.query ||
-    activeFilters.categoryId ||
-    activeFilters.locationId ||
-    activeFilters.offerId ||
-    activeFilters.gold ||
-    activeFilters.campaign;
+      activeFilters.categoryId ||
+      activeFilters.locationId ||
+      activeFilters.offerId ||
+      activeFilters.gold ||
+      activeFilters.campaign,
+  );
 
   // Search and dropdowns navigate in place (no full reload); the form still works without JS.
   const applyFilters = $((form: HTMLFormElement) => {
     const formData = new FormData(form);
     const params = new URLSearchParams();
-    for (const key of ["buscar", "categoria", "ubicacion", "oferta", "gold", "campana"]) {
+    for (const key of FORM_KEYS) {
       const value = String(formData.get(key) ?? "").trim();
       if (value) params.set(key, value);
     }
@@ -92,126 +169,154 @@ export default component$(() => {
     return navigate(`/beneficios/${query ? `?${query}` : ""}`);
   });
 
-  const displayBenefits = benefits;
-  const firstResult = displayBenefits.length > 0 ? (page - 1) * limit + 1 : 0;
-  const lastResult = Math.min(firstResult + displayBenefits.length - 1, total);
-  const isPageOutOfRange = total > 0 && displayBenefits.length === 0;
+  const firstResult = benefits.length > 0 ? (page - 1) * limit + 1 : 0;
+  const lastResult = Math.min(firstResult + benefits.length - 1, total);
+  const isPageOutOfRange = total > 0 && benefits.length === 0;
 
-  // Calculate dynamic Map URL
-  const mapHref = useComputed$(() => {
-    const params = new URLSearchParams();
-    if (activeFilters.query) params.set("buscar", activeFilters.query);
-    if (activeFilters.categoryId)
-      params.set("categoria", String(activeFilters.categoryId));
-    if (activeFilters.locationId)
-      params.set("ubicacion", String(activeFilters.locationId));
-    if (activeFilters.offerId)
-      params.set("oferta", String(activeFilters.offerId));
-    return `/mapa?${params.toString()}`;
-  });
-
-  // Construct URL string helper
   const getFilterUrl = (params: {
     buscar?: string;
     categoria?: number | null;
     ubicacion?: number | null;
     oferta?: number | null;
     page?: number;
-    ver?: string | null;
     gold?: boolean;
     campana?: boolean;
   }) => {
     const searchParams = new URLSearchParams();
-
     const q = params.buscar !== undefined ? params.buscar : activeFilters.query;
     if (q) searchParams.set("buscar", q);
-
     const cat =
       params.categoria !== undefined
         ? params.categoria
         : activeFilters.categoryId;
     if (cat) searchParams.set("categoria", String(cat));
-
     const loc =
       params.ubicacion !== undefined
         ? params.ubicacion
         : activeFilters.locationId;
     if (loc) searchParams.set("ubicacion", String(loc));
-
     const off =
       params.oferta !== undefined ? params.oferta : activeFilters.offerId;
     if (off) searchParams.set("oferta", String(off));
-
     if (params.gold ?? activeFilters.gold) searchParams.set("gold", "1");
-    if (params.campana ?? activeFilters.campaign) searchParams.set("campana", "1");
-
-    const p = params.page !== undefined ? params.page : 1;
+    if (params.campana ?? activeFilters.campaign)
+      searchParams.set("campana", "1");
+    if (activeFilters.sort) searchParams.set("orden", activeFilters.sort);
+    const p = params.page ?? 1;
     if (p > 1) searchParams.set("page", String(p));
-
     const query = searchParams.toString();
     return `/beneficios/${query ? `?${query}` : ""}`;
   };
 
+  // The map sorts by distance from the visitor, keeping the same filters.
+  const mapParams = new URLSearchParams();
+  if (activeFilters.query) mapParams.set("buscar", activeFilters.query);
+  if (activeFilters.categoryId)
+    mapParams.set("categoria", String(activeFilters.categoryId));
+  if (activeFilters.locationId)
+    mapParams.set("ubicacion", String(activeFilters.locationId));
+  if (activeFilters.offerId)
+    mapParams.set("oferta", String(activeFilters.offerId));
+  const mapQuery = mapParams.toString();
+  const mapHref = `/mapa/${mapQuery ? `?${mapQuery}` : ""}`;
+
+  // A group with nothing to pick (e.g. a search without matches) is left out entirely.
+  const available = <T extends { id: number; beneficios_count?: number }>(
+    options: T[],
+    activeId?: number,
+  ) =>
+    options.filter(
+      (option) => (option.beneficios_count || 0) > 0 || option.id === activeId,
+    );
+  const locations = available(filters.ubicaciones, activeFilters.locationId);
+  const hasCategories =
+    available(filters.categorias, activeFilters.categoryId).length > 0;
+  const hasOffers =
+    available(filters.ofertas, activeFilters.offerId).length > 0;
+  const activeOffer = filters.ofertas.find(
+    (offer) => offer.id === activeFilters.offerId,
+  );
+  const activeChips = [
+    activeFilters.query && {
+      key: "buscar",
+      label: `"${activeFilters.query}"`,
+      href: getFilterUrl({ buscar: "" }),
+    },
+    activeFilters.categoryId && {
+      key: "categoria",
+      label:
+        filters.categorias.find(
+          (category) => category.id === activeFilters.categoryId,
+        )?.descripcion || "Rubro",
+      href: getFilterUrl({ categoria: null }),
+    },
+    activeFilters.offerId && {
+      key: "oferta",
+      label: activeOffer ? offerLabel(activeOffer.descripcion) : "Descuento",
+      href: getFilterUrl({ oferta: null }),
+    },
+    activeFilters.locationId && {
+      key: "ubicacion",
+      label:
+        filters.ubicaciones.find(
+          (place) => place.id === activeFilters.locationId,
+        )?.descripcion || "Ubicación",
+      href: getFilterUrl({ ubicacion: null }),
+    },
+    activeFilters.gold && {
+      key: "gold",
+      label: "Solo Gold",
+      href: getFilterUrl({ gold: false }),
+    },
+    activeFilters.campaign && {
+      key: "campana",
+      label: `Campaña: ${campaignTitle}`,
+      href: getFilterUrl({ campana: false }),
+    },
+  ].filter((chip): chip is { key: string; label: string; href: string } =>
+    Boolean(chip),
+  );
+
+  // Saved locations are often typed in capitals ("LA PLATA"); prose reads better in title case.
+  const locationName = location
+    ? location.name === location.name.toUpperCase()
+      ? location.name
+          .toLowerCase()
+          .replace(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
+      : location.name
+    : "";
+
+  const pageButton =
+    "flex h-11 w-11 items-center justify-center border text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
   return (
     <div class="relative min-h-screen bg-background text-primary">
-      {/* Search Header Info */}
-      <section class="hidden md:block max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 print:hidden text-left">
-        {/* Beautiful Horizontal Category Slider Bar */}
-        <div class="relative mb-4 pb-2 border-b border-line">
-          <CategorySlider
-            categorias={filters.categorias}
-            activeCategoryId={activeFilters.categoryId}
-            sliderId="category-scroll-container"
-            filterEmpty={true}
-          />
-        </div>
-
-        {/* Beautiful Horizontal Offer Slider Bar */}
-        <div class="relative mb-5 pb-2 border-b border-line">
-          <OfferSlider
-            ofertas={filters.ofertas}
-            activeOfferId={activeFilters.offerId}
-            sliderId="offer-scroll-container"
-            filterEmpty={true}
-          />
-        </div>
-      </section>
-
-      {/* Main Catalog View Container */}
-      <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6 print:hidden">
-        <div class="flex items-center justify-between border-b border-line pb-3 mb-4 md:pb-5 md:mb-6 gap-3 text-left">
-          <div class="min-w-0">
-            <h1 class="text-2xl md:text-3xl font-display font-extrabold text-primary tracking-tight leading-none flex items-center">
-              <span class="md:hidden">Beneficios</span>
-              <span class="hidden md:inline">Todos los beneficios</span>
-            </h1>
-            <p role="status" class="text-slate-600 text-sm mt-2 font-medium">
-              {`${total} ${total === 1 ? "beneficio encontrado" : "beneficios encontrados"}`}
-              {displayBenefits.length > 0 && totalPages > 1 && (
-                <span class="block text-xs mt-1">
-                  {`Mostrando ${firstResult}–${lastResult} · Página ${page} de ${totalPages}`}
-                </span>
-              )}
-            </p>
-          </div>
-
-          <div class="flex items-center gap-3 flex-wrap">
-            {/* List/Map View Mode Toggle Button */}
-            <div class="flex items-center bg-surface p-1 rounded-2xl border border-line shadow-inner z-20 select-none">
-              <div class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-accent text-primary shadow-sm border border-accent/20 flex items-center gap-2">
-                <LuList class="w-4 h-4 stroke-[2]" />
-                <span class="hidden sm:inline">Listado</span>
-              </div>
-              <Link
-                href={mapHref.value}
-                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-primary"
-              >
-                <LuMap class="w-4 h-4 stroke-[2]" />
-                <span>Mapa</span>
-              </Link>
-            </div>
-          </div>
-        </div>
+      <div class="mx-auto max-w-[90rem] px-4 py-8 text-left sm:px-6 md:py-10 lg:px-8 print:hidden">
+        <SectionHeading
+          as="h1"
+          eyebrow={activeFilters.campaign ? "Campaña" : "Catálogo para socios"}
+          title={
+            activeFilters.campaign && campaignTitle
+              ? campaignTitle
+              : "Todos los beneficios"
+          }
+          size="lg"
+        >
+          <p role="status" class="mt-4 text-sm font-medium text-slate-600">
+            {`${total} ${total === 1 ? "beneficio" : "beneficios"} ${
+              hasActiveFilters
+                ? total === 1
+                  ? "encontrado"
+                  : "encontrados"
+                : total === 1
+                  ? "vigente"
+                  : "vigentes"
+            }`}
+            {benefits.length > 0 &&
+              totalPages > 1 &&
+              ` · Mostrando ${firstResult}–${lastResult}, página ${page} de ${totalPages}`}
+          </p>
+        </SectionHeading>
 
         <form
           action="/beneficios/"
@@ -220,15 +325,26 @@ export default component$(() => {
           aria-label="Buscar y filtrar beneficios"
           preventdefault:submit
           onSubmit$={(_, form) => applyFilters(form)}
-          class="mb-4 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left shadow-md md:mb-6 md:gap-5 md:rounded-[2rem] md:p-6"
+          class="mt-8 space-y-5 border-t border-line pt-6"
         >
+          {/* Chips are links; these keep their filters when the form is submitted. */}
+          {activeFilters.categoryId && (
+            <input
+              type="hidden"
+              name="categoria"
+              value={activeFilters.categoryId}
+            />
+          )}
+          {activeFilters.offerId && (
+            <input type="hidden" name="oferta" value={activeFilters.offerId} />
+          )}
           {activeFilters.gold && <input type="hidden" name="gold" value="1" />}
-          {activeFilters.campaign && <input type="hidden" name="campana" value="1" />}
-          <div>
-            <label
-              for="catalog-search-input"
-              class="mb-2 block text-xs font-bold text-slate-700"
-            >
+          {activeFilters.campaign && (
+            <input type="hidden" name="campana" value="1" />
+          )}
+
+          <div class="max-w-3xl">
+            <label for="catalog-search-input" class="field-label">
               Buscá por beneficio o comercio
             </label>
             <div class="flex gap-2">
@@ -238,256 +354,181 @@ export default component$(() => {
                 name="buscar"
                 placeholder="Ej: gimnasio, hotel, heladería..."
                 value={activeFilters.query}
-                class="min-w-0 flex-1 rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary placeholder-slate-500 focus:border-accent focus:outline-none"
+                class="field min-w-0 flex-1 text-base sm:text-sm"
               />
-              <button
-                type="submit"
-                class="min-h-11 shrink-0 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-              >
-                Buscar
+              <button type="submit" class="btn btn-dark shrink-0 px-4 sm:px-6">
+                <LuSearch class="h-4 w-4" aria-hidden="true" />
+                <span class="sr-only sm:not-sr-only">Buscar</span>
               </button>
             </div>
           </div>
-          <button
-            type="button"
-            aria-expanded={filtersOpen.value}
-            aria-controls="catalog-filters"
-            aria-label={
-              filtersOpen.value
-                ? "Ocultar filtros"
-                : "Mostrar filtros de categoría, ubicación y descuento"
-            }
-            onClick$={() => (filtersOpen.value = !filtersOpen.value)}
-            class="flex min-h-11 items-center justify-between rounded-xl border border-line px-3 text-sm font-bold text-slate-700 md:hidden"
-          >
-            <span>{filtersOpen.value ? "Ocultar filtros" : "Filtros"}</span>
-            <span aria-hidden="true" class="ml-2 text-amber-900">
-              {filtersOpen.value ? "−" : "+"}
-            </span>
-          </button>
-          <div
-            id="catalog-filters"
-            class={`${filtersOpen.value ? "grid" : "hidden"} grid-cols-1 gap-3 md:grid md:grid-cols-3 md:gap-4`}
-          >
+
+          {hasCategories && (
             <div>
-              <label
-                for="catalog-category"
-                class="mb-2 block text-xs font-bold text-slate-700"
-              >
-                Categoría
-              </label>
-              <select
-                id="catalog-category"
-                name="categoria"
-                onChange$={(_, select) => select.form && applyFilters(select.form)}
-                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
-              >
-                <option value="">Todas las categorías</option>
-                {filters.categorias.map((category) => (
-                  <option
-                    key={category.id}
-                    value={category.id}
-                    selected={activeFilters.categoryId === category.id}
-                  >
-                    {category.descripcion}
-                  </option>
-                ))}
-              </select>
+              <p class="field-label" aria-hidden="true">
+                Rubro
+              </p>
+              <CategorySlider
+                variant="chips"
+                title="Filtrar por rubro"
+                categorias={filters.categorias}
+                activeCategoryId={activeFilters.categoryId}
+                sliderId="catalog-category-chips"
+                filterEmpty={true}
+              />
             </div>
+          )}
+
+          {hasOffers && (
             <div>
-              <label
-                for="catalog-location"
-                class="mb-2 block text-xs font-bold text-slate-700"
-              >
-                Ubicación
-              </label>
-              <select
-                id="catalog-location"
-                name="ubicacion"
-                onChange$={(_, select) => select.form && applyFilters(select.form)}
-                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
-              >
-                <option value="">Todas las ubicaciones</option>
-                {filters.ubicaciones.map((place) => (
-                  <option
-                    key={place.id}
-                    value={place.id}
-                    selected={activeFilters.locationId === place.id}
-                  >
-                    {place.descripcion}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label
-                for="catalog-offer"
-                class="mb-2 block text-xs font-bold text-slate-700"
-              >
+              <p class="field-label" aria-hidden="true">
                 Descuento
+              </p>
+              <OfferSlider
+                variant="chips"
+                title="Filtrar por descuento"
+                ofertas={filters.ofertas}
+                activeOfferId={activeFilters.offerId}
+                sliderId="catalog-offer-chips"
+                filterEmpty={true}
+              />
+            </div>
+          )}
+
+          <div class="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+            {(locations.length > 1 || activeFilters.locationId) && (
+              <div class="sm:w-60">
+                <label for="catalog-location" class="field-label">
+                  Ubicación
+                </label>
+                <select
+                  id="catalog-location"
+                  name="ubicacion"
+                  onChange$={(_, select) =>
+                    select.form && applyFilters(select.form)
+                  }
+                  class="field min-h-11 text-base sm:text-sm"
+                >
+                  <option value="">Todas</option>
+                  {locations.map((place) => (
+                    <option
+                      key={place.id}
+                      value={place.id}
+                      selected={activeFilters.locationId === place.id}
+                    >
+                      {`${place.descripcion} (${place.beneficios_count || 0})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div class="sm:w-60">
+              <label for="catalog-sort" class="field-label">
+                Ordenar por
               </label>
               <select
-                id="catalog-offer"
-                name="oferta"
-                onChange$={(_, select) => select.form && applyFilters(select.form)}
-                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
+                id="catalog-sort"
+                name="orden"
+                onChange$={(_, select) =>
+                  select.form && applyFilters(select.form)
+                }
+                class="field min-h-11 text-base sm:text-sm"
               >
-                <option value="">Todos los descuentos</option>
-                {filters.ofertas.map((offer) => (
+                {CATALOG_SORTS.map((option) => (
                   <option
-                    key={offer.id}
-                    value={offer.id}
-                    selected={activeFilters.offerId === offer.id}
+                    key={option.value}
+                    value={option.value}
+                    selected={activeFilters.sort === option.value}
                   >
-                    {offer.descripcion}
+                    {option.label}
                   </option>
                 ))}
               </select>
             </div>
+            <Link
+              href={mapHref}
+              class="btn btn-outline col-span-2 sm:col-span-1"
+            >
+              <LuNavigation class="h-4 w-4" aria-hidden="true" />
+              Ordenar por cercanía
+              <span class="sr-only"> (abre el mapa)</span>
+            </Link>
             {/* With JS the dropdowns apply on change; this button is only for no-JS visits. */}
             <noscript>
-              <button
-                type="submit"
-                class="min-h-11 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary md:col-span-3 md:justify-self-end"
-              >
-                Aplicar filtros
+              <button type="submit" class="btn btn-dark">
+                Aplicar
               </button>
             </noscript>
           </div>
         </form>
 
-        {/* Active filters pill list */}
-        {hasActiveFilters && (
-          <div class="mb-4 flex flex-wrap items-center gap-2 md:mb-6">
-            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider mr-1">
-              Filtros activos:
-            </span>
-
-            {activeFilters.query && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Buscar: "{activeFilters.query}"
+        {activeChips.length > 0 && (
+          <div class="mt-6 flex flex-wrap items-center gap-2">
+            <span class="eyebrow mr-1 text-slate-600">Filtros activos</span>
+            {activeChips.map((chip) => (
+              <span
+                key={chip.key}
+                class="inline-flex max-w-full items-center border border-primary bg-surface pl-3 text-sm font-semibold text-primary"
+              >
+                <span class="truncate">{chip.label}</span>
                 <Link
-                  href={getFilterUrl({ buscar: "" })}
-                  aria-label="Quitar búsqueda"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
+                  href={chip.href}
+                  aria-label={`Quitar filtro ${chip.label}`}
+                  class="ml-1 flex h-10 w-10 shrink-0 items-center justify-center transition-colors hover:bg-primary hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
-                  &times;
+                  <LuX class="h-4 w-4" aria-hidden="true" />
                 </Link>
               </span>
-            )}
-
-            {activeFilters.categoryId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Categoría:{" "}
-                {
-                  filters.categorias.find(
-                    (c) => c.id === activeFilters.categoryId,
-                  )?.descripcion
-                }
-                <Link
-                  href={getFilterUrl({ categoria: null })}
-                  aria-label="Quitar categoría"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
-                >
-                  &times;
-                </Link>
-              </span>
-            )}
-
-            {activeFilters.locationId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Ubicación:{" "}
-                {
-                  filters.ubicaciones.find(
-                    (u) => u.id === activeFilters.locationId,
-                  )?.descripcion
-                }
-                <Link
-                  href={getFilterUrl({ ubicacion: null })}
-                  aria-label="Quitar ubicación"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
-                >
-                  &times;
-                </Link>
-              </span>
-            )}
-
-            {activeFilters.offerId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Descuento:{" "}
-                {
-                  filters.ofertas.find((o) => o.id === activeFilters.offerId)
-                    ?.descripcion
-                }
-                <Link
-                  href={getFilterUrl({ oferta: null })}
-                  aria-label="Quitar descuento"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
-                >
-                  &times;
-                </Link>
-              </span>
-            )}
-
-            {activeFilters.gold && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Solo Gold
-                <Link
-                  href={getFilterUrl({ gold: false })}
-                  aria-label="Quitar filtro Solo Gold"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
-                >
-                  &times;
-                </Link>
-              </span>
-            )}
-
-            {activeFilters.campaign && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
-                Campaña: {campaignTitle}
-                <Link
-                  href={getFilterUrl({ campana: false })}
-                  aria-label="Quitar filtro de campaña"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
-                >
-                  &times;
-                </Link>
-              </span>
-            )}
-
+            ))}
             <Link
-              href="/beneficios/"
-              class="inline-flex min-h-9 items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors duration-200"
+              href={
+                activeFilters.sort
+                  ? `/beneficios/?orden=${activeFilters.sort}`
+                  : "/beneficios/"
+              }
+              class="inline-flex min-h-10 items-center px-2 text-sm font-semibold text-secondary underline underline-offset-4 hover:text-primary"
             >
               Limpiar todo
             </Link>
           </div>
         )}
 
-        {displayBenefits.length === 0 ? (
-          <div class="flex flex-col items-center justify-center py-20 bg-surface border border-line rounded-[2.5rem] text-center p-8 max-w-xl mx-auto shadow-sm">
-            <span aria-hidden="true" class="text-4xl mb-4">
-              🔍
+        {location && benefits.length > 0 && (
+          <p class="mt-6 flex items-center gap-1.5 text-sm text-slate-600">
+            <LuMapPin
+              class="h-4 w-4 shrink-0 text-secondary"
+              aria-hidden="true"
+            />
+            {location.everywhere
+              ? `Todos en ${locationName}.`
+              : `En ${locationName}, salvo que la tarjeta indique otra ubicación.`}
+          </p>
+        )}
+
+        {benefits.length === 0 ? (
+          <div class="card mx-auto mt-8 max-w-xl p-8 text-center">
+            <span class="mx-auto flex h-12 w-12 items-center justify-center bg-accent text-primary">
+              <LuSearch class="h-6 w-6" aria-hidden="true" />
             </span>
-            <h3 class="text-lg font-black text-primary uppercase tracking-wider mb-2">
+            <h2 class="heading-display mt-4 text-2xl text-primary">
               {isPageOutOfRange
                 ? "Esta página no tiene beneficios"
                 : hasActiveFilters
                   ? "No se encontraron resultados"
                   : "Pronto habrá nuevos beneficios"}
-            </h3>
-            <p class="text-sm text-slate-600 font-medium leading-relaxed mb-6">
+            </h2>
+            <p class="mt-3 text-sm leading-relaxed text-slate-600">
               {isPageOutOfRange
                 ? "Volvé a la primera página para ver los resultados disponibles con tus filtros actuales."
                 : hasActiveFilters
                   ? "Probá con otro nombre o quitá algún filtro para ampliar los resultados."
                   : "Estamos preparando más propuestas para vos. Podés sugerir un comercio que te gustaría encontrar acá."}
             </p>
-            <div class="flex flex-wrap justify-center gap-3">
+            <div class="mt-6 flex flex-wrap justify-center gap-3">
               {activeFilters.query && !isPageOutOfRange && (
                 <Link
                   href={getFilterUrl({ buscar: "" })}
-                  class="inline-flex min-h-11 items-center justify-center px-5 py-3 rounded-full border border-accent text-amber-900 text-xs font-bold hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  class="btn btn-outline"
                 >
                   Quitar búsqueda
                 </Link>
@@ -497,10 +538,10 @@ export default component$(() => {
                   isPageOutOfRange
                     ? getFilterUrl({ page: 1 })
                     : hasActiveFilters
-                      ? "/beneficios"
-                      : "/sugerencias"
+                      ? "/beneficios/"
+                      : "/sugerencias/"
                 }
-                class="inline-flex min-h-11 items-center justify-center px-6 py-3 rounded-full bg-accent hover:bg-accent-hover text-primary text-xs font-black uppercase tracking-wider shadow-md transition-transform active:scale-95 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                class="btn btn-primary"
               >
                 {isPageOutOfRange
                   ? "Volver a la primera página"
@@ -511,106 +552,89 @@ export default component$(() => {
             </div>
           </div>
         ) : (
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
-            {displayBenefits.map((benefit: Benefit, idx: number) => {
-              const isLocked = false;
-              return (
-                <div
-                  key={benefit.id}
-                  class={`animate-fade-in-up animate-stagger-${Math.min(idx + 1, 8)}`}
-                >
-                  <BenefitCard benefit={benefit} isLocked={isLocked} />
-                </div>
-              );
-            })}
+          <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {benefits.map((benefit: Benefit, idx: number) => (
+              <div
+                key={benefit.id}
+                class={`animate-fade-in-up animate-stagger-${Math.min(idx + 1, 8)}`}
+              >
+                <BenefitCard
+                  benefit={benefit}
+                  commonLocation={location?.name}
+                />
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Pagination Controls */}
         {totalPages > 1 && (
           <nav
             aria-label="Páginas del catálogo de beneficios"
-            class="flex flex-wrap items-center justify-center gap-3 mt-12 pt-8 border-t border-line print:hidden select-none"
+            class="mt-12 flex flex-wrap items-center justify-center gap-2 border-t border-line pt-8 select-none print:hidden"
           >
             <Link
               href={page > 1 ? getFilterUrl({ page: page - 1 }) : undefined}
               aria-disabled={page <= 1 ? "true" : undefined}
               tabIndex={page <= 1 ? -1 : undefined}
-              class={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-semibold transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+              class={`${pageButton} ${
                 page > 1
-                  ? "border-line bg-surface text-slate-700 hover:bg-surface-muted hover:text-primary active:scale-95 cursor-pointer"
-                  : "border-line/40 bg-surface/40 text-slate-600 pointer-events-none"
+                  ? "border-primary bg-surface text-primary hover:bg-primary hover:text-white"
+                  : "pointer-events-none border-line bg-surface text-slate-400"
               }`}
               aria-label="Página anterior"
             >
               <svg
-                class="w-4 h-4 stroke-current fill-none stroke-2"
+                class="h-4 w-4 fill-none stroke-current stroke-2"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 19l-7-7 7-7"
-                />
+                <path stroke-linecap="square" d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
 
-            <div class="flex flex-wrap items-center justify-center gap-1.5 max-w-full px-2">
+            <div class="flex max-w-full flex-wrap items-center justify-center gap-1.5 px-2">
               {(() => {
                 // Smart pagination subset to avoid rendering a long strip of 20+ buttons
-                const range = [];
+                const range: (number | "...")[] = [];
                 const maxVisible = 5;
                 let start = Math.max(1, page - Math.floor(maxVisible / 2));
                 const end = Math.min(totalPages, start + maxVisible - 1);
-
-                if (end - start + 1 < maxVisible) {
+                if (end - start + 1 < maxVisible)
                   start = Math.max(1, end - maxVisible + 1);
-                }
-
                 if (start > 1) {
                   range.push(1);
                   if (start > 2) range.push("...");
                 }
-
-                for (let i = start; i <= end; i++) {
-                  range.push(i);
-                }
-
+                for (let i = start; i <= end; i++) range.push(i);
                 if (end < totalPages) {
                   if (end < totalPages - 1) range.push("...");
                   range.push(totalPages);
                 }
 
-                return range.map((p, idx) => {
-                  if (p === "...") {
-                    return (
-                      <span
-                        key={`dots-${idx}`}
-                        class="w-8 text-center text-slate-500 font-bold select-none"
-                      >
-                        ...
-                      </span>
-                    );
-                  }
-
-                  const pNum = p as number;
-                  const isCurrent = pNum === page;
-                  return (
+                return range.map((p, idx) =>
+                  p === "..." ? (
+                    <span
+                      key={`dots-${idx}`}
+                      class="w-8 text-center font-bold text-slate-500 select-none"
+                    >
+                      ...
+                    </span>
+                  ) : (
                     <Link
-                      key={`page-${pNum}`}
-                      href={getFilterUrl({ page: pNum })}
-                      aria-current={isCurrent ? "page" : undefined}
-                      aria-label={`Página ${pNum}`}
-                      class={`w-11 h-11 flex items-center justify-center rounded-xl text-sm font-extrabold border transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                        isCurrent
-                          ? "bg-accent border-accent text-primary shadow-accent/10"
-                          : "bg-surface border-line text-slate-700 hover:bg-surface-muted hover:border-slate-500 active:scale-95 cursor-pointer"
+                      key={`page-${p}`}
+                      href={getFilterUrl({ page: p })}
+                      aria-current={p === page ? "page" : undefined}
+                      aria-label={`Página ${p}`}
+                      class={`${pageButton} ${
+                        p === page
+                          ? "border-primary bg-primary text-white"
+                          : "border-line bg-surface text-primary hover:border-primary"
                       }`}
                     >
-                      {pNum}
+                      {p}
                     </Link>
-                  );
-                });
+                  ),
+                );
               })()}
             </div>
 
@@ -620,22 +644,19 @@ export default component$(() => {
               }
               aria-disabled={page >= totalPages ? "true" : undefined}
               tabIndex={page >= totalPages ? -1 : undefined}
-              class={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-semibold transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+              class={`${pageButton} ${
                 page < totalPages
-                  ? "border-line bg-surface text-slate-700 hover:bg-surface-muted hover:text-primary active:scale-95 cursor-pointer"
-                  : "border-line/40 bg-surface/40 text-slate-600 pointer-events-none"
+                  ? "border-primary bg-surface text-primary hover:bg-primary hover:text-white"
+                  : "pointer-events-none border-line bg-surface text-slate-400"
               }`}
               aria-label="Próxima página"
             >
               <svg
-                class="w-4 h-4 stroke-current fill-none stroke-2"
+                class="h-4 w-4 fill-none stroke-current stroke-2"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M9 5l7 7-7 7"
-                />
+                <path stroke-linecap="square" d="M9 5l7 7-7 7" />
               </svg>
             </Link>
           </nav>
@@ -645,15 +666,13 @@ export default component$(() => {
   );
 });
 
-export const head: DocumentHead = () => {
-  return {
-    title: "Todos los Beneficios - LPRC",
-    meta: [
-      {
-        name: "description",
-        content:
-          "Explorá el catálogo completo de beneficios, descuentos exclusivos y locales adheridos de La Plata Rugby Club.",
-      },
-    ],
-  };
+export const head: DocumentHead = {
+  title: "Todos los beneficios - La Plata Rugby Club",
+  meta: [
+    {
+      name: "description",
+      content:
+        "Catálogo de beneficios para socios de La Plata Rugby Club: buscá por comercio, rubro, descuento o ubicación y generá tu cupón.",
+    },
+  ],
 };

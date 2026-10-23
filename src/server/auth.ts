@@ -17,6 +17,8 @@ export interface AuthenticatedUser {
   avatarUrl: string | null;
   premiumExpiresAt: string | null;
   createdAt: string;
+  /** Admin accounts created or reset with a temporary password must replace it first. */
+  mustChangePassword: boolean;
 }
 
 function isSecureRequest(event: RequestEventBase): boolean {
@@ -40,6 +42,10 @@ export async function createSession(event: RequestEventBase, userId: string): Pr
     userId,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + SESSION_TTL_SECONDS * 1000).toISOString(),
+  });
+  // "Último acceso" in the admin lists; a failure here must not block the login.
+  await db.update(users).set({ lastLoginAt: now.toISOString() }).where(eq(users.id, userId)).catch((err) => {
+    console.error("Failed to record last login:", err);
   });
 
   event.cookie.set(SESSION_COOKIE, token, {
@@ -81,6 +87,7 @@ export async function resolveSessionUser(event: RequestEventBase): Promise<Authe
     avatarUrl: user.avatarUrl,
     premiumExpiresAt: user.premiumExpiresAt,
     createdAt: user.createdAt,
+    mustChangePassword: Boolean(user.mustChangePassword),
   };
 }
 

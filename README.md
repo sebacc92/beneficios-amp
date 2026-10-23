@@ -46,7 +46,28 @@ El guardado valida que cada opción exista y corresponda al campo seleccionado. 
 
 Cada beneficio tiene en el panel los campos **Válido hasta**, **Condiciones** y **Solo socios Gold**; la página pública muestra la vigencia y las condiciones, y editar un beneficio conserva los datos que el formulario no muestra. Si se dejan vacías la latitud y la longitud, el beneficio queda sin ubicación y no aparece en el mapa; también se pueden completar pegando un link de Google Maps.
 
-La Agenda (`/admin/eventos`), los Sorteos (`/admin/sorteos`) y las solicitudes de comercios de "Sumate al Club" (`/admin/solicitudes`) se administran desde el panel. Un sorteo figura como vigente hasta que termina su día de sorteo en hora de Argentina. Las sugerencias y reclamos de `/sugerencias` se guardan y aparecen en la misma bandeja de Solicitudes. Ejecutar `pnpm migrate` antes de publicar para crear las tablas `raffles` y `suggestions`; los sorteos anteriores no se migran y se cargan desde el panel.
+La Agenda (`/admin/eventos`), los Sorteos (`/admin/sorteos`) y las solicitudes de comercios de "Sumá tu comercio" (`/admin/solicitudes`) se administran desde el panel. Un sorteo figura como vigente hasta que termina su día de sorteo en hora de Argentina. Las sugerencias y reclamos de `/sugerencias` se guardan y aparecen en la misma bandeja de Solicitudes. Ejecutar `pnpm migrate` antes de publicar para crear las tablas `raffles` y `suggestions`; los sorteos anteriores no se migran y se cargan desde el panel.
+
+## Identidad LPRC
+
+El portal sigue la estética de [lprc.com.ar](https://lprc.com.ar): azul noche `#0a1128`, amarillo `#FFD700`, títulos en Oswald en mayúscula, textos en Inter y esquinas rectas. Los tokens y las utilidades compartidas (`btn` y sus variantes, `eyebrow`, `heading-display`, `title-bar`, `badge`, `card`, `field`) están en `src/global.css`; la escala de `rounded-*` está aplanada a 0–4 px y `rounded-full` queda para círculos reales. `SectionHeading` y `HaceteSocio` (CTA "Hacete socio" por WhatsApp, igual que el sitio del club) están en `src/components/`.
+
+Los datos del club (dirección, teléfono de secretaría, WhatsApp, redes y enlaces a lprc.com.ar) se cargan sólo desde `src/utils/club.ts`. Los tomamos de lprc.com.ar; confirmar con el club la dirección y los teléfonos antes de publicar.
+
+Rutas públicas nuevas o renombradas: `/ayuda-ingreso` reúne la ayuda para socios que no pueden ingresar (`/recuperar-password` redirige ahí con 301) y `/register` pasó a ser la página "Hacete socio". "Agenda" aparece en el menú sólo mientras haya eventos próximos y "Sugerencias" está en el pie. Los beneficios vencidos (`valid_until` pasado, en hora de Argentina) salen del sitio como los borradores. `/descargar` sólo entrega PDFs propios publicados en `/uploads/` o `/media/`.
+
+### Migración de esta versión
+
+Antes de publicar, ejecutar `pnpm migrate` contra la base de producción (revisar el destino en `.env.local`). Agrega, sin tocar datos existentes:
+
+- `benefits`: `address`, `hours`, `phone`, `whatsapp`, `instagram`, `website` (ficha "El comercio", mapa y cupón).
+- `events`: `kind`, `registration_url`. `raffles`: `status` (borrador/publicado, por defecto publicado) y `requirements`.
+- `sponsors`: `is_active` (visible por defecto) y `tier` (principal, oficial o proveedor).
+- `site_settings`: `popup_starts_at`, `popup_ends_at`, `popup_audience` y `campaign_benefit_slugs` (beneficios de la campaña elegidos a mano).
+- `merchant_requests` y `suggestions`: `notes`, `assigned_to`, `contacted_at`, `updated_at`.
+- `users`: `last_login_at` y `must_change_password` (contraseñas temporales de administradores). `chat_sessions`: `reviewed_at`.
+
+Sin esta migración, el login, el panel y varias páginas públicas fallan al leer las columnas nuevas.
 
 ## Despliegue
 

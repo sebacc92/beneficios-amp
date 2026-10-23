@@ -1,6 +1,8 @@
 import { type RequestHandler } from "@builder.io/qwik-city";
 import OpenAI from "openai";
-import { getSettings, addMessageToSession } from "~/server/chatbotDb";
+import { getSettings, addMessageToSession, type ChatbotSettings } from "~/server/chatbotDb";
+import { isAdmin } from "~/server/auth";
+import { CLUB } from "~/utils/club";
 import { getBenefits } from "~/server/cache";
 import { rateLimitByIp } from "~/server/rate-limit";
 
@@ -52,6 +54,23 @@ function parseMessages(raw: unknown): { ok: true; messages: IncomingMessage[] } 
   return { ok: true, messages };
 }
 
+const PREVIEW_FIELDS = ["aiTone", "aiInstructions", "aiKnowledge", "aiCallToAction", "whatsappNumber"] as const;
+const MAX_PREVIEW_FIELD_CHARS = 20000;
+
+/**
+ * "Probar" in /admin/ai sends the unsaved form values. Only an admin session may
+ * override the prompt, and those test turns are never stored in the audit.
+ */
+function parsePreviewSettings(raw: unknown): Partial<Pick<ChatbotSettings, (typeof PREVIEW_FIELDS)[number]>> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const preview: Partial<Record<(typeof PREVIEW_FIELDS)[number], string>> = {};
+  for (const field of PREVIEW_FIELDS) {
+    const value = (raw as Record<string, unknown>)[field];
+    if (typeof value === "string") preview[field] = value.slice(0, MAX_PREVIEW_FIELD_CHARS);
+  }
+  return preview;
+}
+
 export const onGet: RequestHandler = async (requestEvent) => {
   try {
     const settings = await getSettings(requestEvent);
@@ -79,19 +98,20 @@ export const onPost: RequestHandler = async (requestEvent) => {
       return;
     }
 
-    // 2. Get Chatbot Settings
-    const settings = await getSettings(requestEvent);
-    if (!settings.aiEnabled) {
-      json(403, {
-        error: "El Chatbot se encuentra deshabilitado actualmente.",
-      });
-      return;
-    }
-
-    // 3. Parse and validate the request body
+    // 2. Parse the request body and the admin-only preview settings
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
       json(400, { error: "Petición inválida." });
+      return;
+    }
+    const preview = isAdmin(requestEvent) ? parsePreviewSettings((body as { preview?: unknown }).preview) : null;
+
+    // 3. Get Chatbot Settings (admins can test while the public assistant is off)
+    const settings = { ...(await getSettings(requestEvent)), ...preview };
+    if (!settings.aiEnabled && !preview) {
+      json(403, {
+        error: "El Chatbot se encuentra deshabilitado actualmente.",
+      });
       return;
     }
 
@@ -104,7 +124,7 @@ export const onPost: RequestHandler = async (requestEvent) => {
 
     const rawSessionId = (body as { sessionId?: unknown }).sessionId;
     const sessionId =
-      typeof rawSessionId === "string" && rawSessionId.length <= 64 ? rawSessionId : null;
+      !preview && typeof rawSessionId === "string" && rawSessionId.length <= 64 ? rawSessionId : null;
 
     // 4. Save User Message to History
     if (sessionId) {
@@ -155,7 +175,7 @@ REGLA DE ENLACES:
 Cuando recomiendes un beneficio de la lista, incluye SIEMPRE su enlace en el formato markdown exacto, por ejemplo: [Ver beneficio de NombreComercio](/beneficio/url-comercio). Esto le permite al usuario hacer clic e ir directo a la ficha del comercio.
 
 CIERRE Y LLAMADO A LA ACCIÓN (CTA):
-${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre tu credencial digital LPRC, podés contactarnos por WhatsApp:"} ${settings.whatsappNumber || "5492214895777"}`;
+${settings.aiCallToAction || "Si necesitás asistencia adicional o soporte sobre tu credencial digital LPRC, podés contactarnos por WhatsApp:"} ${settings.whatsappNumber || CLUB.whatsappNumber}`;
 
     // 7. Init OpenAI API
     const openaiApiKey = requestEvent.env.get("OPENAI_API_KEY") || process.env.OPENAI_API_KEY;

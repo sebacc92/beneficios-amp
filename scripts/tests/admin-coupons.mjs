@@ -15,7 +15,7 @@ const output = resolve(root, ".cache/test-admin-coupons/backend.mjs");
 await mkdir(dirname(output), { recursive: true });
 await build({
   stdin: {
-    contents: `export * from './src/server/admin-coupons.ts'; export * from './src/db/schema.ts';`,
+    contents: `export * from './src/server/admin-coupons.ts'; export * from './src/db/schema.ts'; export { eq } from 'drizzle-orm';`,
     resolveDir: root,
     loader: "ts",
   },
@@ -66,9 +66,9 @@ try {
   for (const row of rows) await db.insert(backend.coupons).values(row);
 
   await test("query params are parsed defensively", async () => {
-    assert.deepEqual(query(), { status: "all", search: "", page: 1 });
-    assert.deepEqual(query("?estado=used&buscar=%20cafe%20&pagina=2"), { status: "used", search: "cafe", page: 2 });
-    assert.deepEqual(query("?estado=raro&pagina=-3"), { status: "all", search: "", page: 1 });
+    assert.deepEqual(query(), { status: "all", search: "", page: 1, period: "todo", benefit: "" });
+    assert.deepEqual(query("?estado=used&buscar=%20cafe%20&pagina=2&periodo=30&beneficio=open"), { status: "used", search: "cafe", page: 2, period: "30", benefit: "open" });
+    assert.deepEqual(query("?estado=raro&pagina=-3&periodo=365"), { status: "all", search: "", page: 1, period: "todo", benefit: "" });
   });
 
   await test("pages hold 25 rows newest first and clamp out-of-range pages", async () => {
@@ -88,8 +88,12 @@ try {
     assert.equal(stats.total, 32);
     assert.equal(stats.redeemed, 1);
     assert.equal(stats.active, 30);
+    assert.equal(stats.expired, 1);
     assert.equal(stats.rate, 3);
-    assert.deepEqual(stats.topBenefits[0], { title: "Café Central", count: 31 });
+    assert.deepEqual(stats.topBenefits, [
+      { benefitId: "open", title: "Café Central", slug: "1-cafe", generated: 31, redeemed: 1 },
+      { benefitId: "past", title: "Pizzería Vieja", slug: "2-pizza", generated: 1, redeemed: 0 },
+    ], "generated and redeemed are counted apart");
     const expired = await backend.getAdminCouponPage(event(), query("?estado=expired"));
     assert.deepEqual(expired.records.map((row) => [row.code, row.status]), [["OLD001", "expired"]]);
   });
@@ -100,6 +104,32 @@ try {
     assert.equal((await backend.getAdminCouponPage(event(), query("?buscar=PIZZER"))).total, 1);
     assert.equal((await backend.getAdminCouponPage(event(), query("?buscar=socia&estado=active"))).total, 30);
     assert.equal((await backend.getAdminCouponPage(event(), query("?buscar=%25"))).total, 32, "LIKE wildcards are ignored");
+  });
+
+  await test("the period narrows metrics and list; the benefit filter narrows both too", async () => {
+    const now = new Date("2026-10-05T00:00:00.000Z");
+    const week = await backend.getAdminCouponPage(event(), query("?periodo=7"), now);
+    assert.equal(week.total, 31, "the September coupon is outside the last 7 days");
+    assert.equal(week.stats.total, 31);
+    assert.equal(week.stats.expired, 0);
+    assert.deepEqual(week.stats.topBenefits.map((row) => row.benefitId), ["open"]);
+    const all = await backend.getAdminCouponPage(event(), query("?periodo=90"), now);
+    assert.equal(all.total, 32);
+    const pizza = await backend.getAdminCouponPage(event(), query("?beneficio=past"));
+    assert.equal(pizza.total, 1);
+    assert.equal(pizza.stats.total, 1);
+    assert.deepEqual(pizza.benefitOptions, [{ id: "open", title: "Café Central" }, { id: "past", title: "Pizzería Vieja" }]);
+    assert.equal(pizza.records[0].benefitSlug, "2-pizza");
+  });
+
+  await test("the CSV export keeps the list filters, escapes cells and defuses formulas", async () => {
+    await db.insert(backend.coupons).values({ ...couponBase, id: "f1", code: "FORM01", benefitId: "open", benefitTitle: "Café Central", userName: '=HYPERLINK("x";"y")', status: "used", usedAt: "2026-10-03T13:05:00.000Z", createdAt: "2026-10-03T12:00:00.000Z" });
+    const rows = await backend.getAdminCouponExport(event(), query("?estado=used"));
+    assert.deepEqual(rows.map((row) => row.code), ["FORM01", "USED01"]);
+    const csv = backend.adminCouponsCsv(rows);
+    assert.ok(csv.startsWith("\uFEFFCódigo;Beneficio;Descuento;Socio;DNI;Estado;Generado;Canjeado\r\n"));
+    assert.ok(csv.includes(`FORM01;Café Central;10%;"'=HYPERLINK(""x"";""y"")";30111222;Canjeado;03/10/2026, 09:00;03/10/2026, 10:05`), csv);
+    await db.delete(backend.coupons).where(backend.eq(backend.coupons.id, "f1"));
   });
 
   for (const result of tests) {

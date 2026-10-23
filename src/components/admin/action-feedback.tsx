@@ -1,4 +1,4 @@
-import { component$ } from "@builder.io/qwik";
+import { component$, Slot } from "@builder.io/qwik";
 
 type ActionResult = {
   success?: boolean;
@@ -13,6 +13,15 @@ interface ActionFeedbackProps {
   success?: string;
 }
 
+const base = "border-l-4 px-5 py-4 text-sm font-semibold";
+
+/** Success line with the ActionFeedback look, for notices that do not come from an action. */
+export const Notice = component$(() => (
+  <div role="status" class={`${base} border-green-700 bg-green-50 text-green-900`}>
+    <Slot />
+  </div>
+));
+
 /** Result banner for admin actions, so no failure is silent. */
 export const ActionFeedback = component$<ActionFeedbackProps>((props) => {
   const result = props.value as ActionResult | undefined;
@@ -20,16 +29,12 @@ export const ActionFeedback = component$<ActionFeedbackProps>((props) => {
 
   if (result.failed || result.success === false) {
     return (
-      <div role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-xs font-bold text-red-700 shadow-sm">
+      <div role="alert" class={`${base} border-red-600 bg-red-50 text-red-800`}>
         {result.message || result.formErrors?.[0] || "No se pudo completar la acción. Intentá de nuevo."}
       </div>
     );
   }
 
   if (!props.success) return null;
-  return (
-    <div role="status" class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
-      {props.success}
-    </div>
-  );
+  return <Notice>{props.success}</Notice>;
 });

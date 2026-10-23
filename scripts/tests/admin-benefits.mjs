@@ -146,6 +146,59 @@ try {
     assert.equal(backend.formatValidUntil(null), null);
   });
 
+  await test("validity: last day still valid, soon within 14 days, drafts keep their date", async () => {
+    const today = "2026-10-23";
+    assert.equal(backend.benefitValidity("2026-10-22", today), "vencido");
+    assert.equal(backend.benefitValidity("2026-10-23", today), "vence-pronto", "the last day is still valid");
+    assert.equal(backend.benefitValidity("2026-11-06", today), "vence-pronto");
+    assert.equal(backend.benefitValidity("2026-11-07", today), "vigente");
+    assert.equal(backend.benefitValidity("draft|2026-01-01", today), "vencido");
+    assert.equal(backend.benefitValidity("draft", today), "sin-vencimiento");
+    assert.equal(backend.benefitValidity(null, today), "sin-vencimiento");
+    assert.equal(backend.benefitValidity("2026-10-23T02:00:00Z", today), "vencido", "ISO instants use the Argentine day");
+    assert.match(backend.argentinaDay(new Date("2026-10-24T02:30:00Z")), /^2026-10-23$/);
+  });
+
+  await test("merchant details: empty is null, links are tidied up, mistakes are explained", async () => {
+    const ok = backend.parseMerchantFields({
+      address: "  Calle 7   N° 1234, La Plata ",
+      hours: "",
+      phone: "(0221) 456-7890",
+      whatsapp: "+54 9 221 555 1234",
+      instagram: "@flakos.lp",
+      website: "flakos.com.ar",
+    });
+    assert.equal(ok.ok, true);
+    assert.deepEqual(ok.values, {
+      address: "Calle 7 N° 1234, La Plata",
+      hours: null,
+      phone: "(0221) 456-7890",
+      whatsapp: "+54 9 221 555 1234",
+      instagram: "https://www.instagram.com/flakos.lp/",
+      website: "https://flakos.com.ar/",
+    });
+    assert.equal(backend.normalizeInstagram("https://instagram.com/flakos/?hl=es"), "https://www.instagram.com/flakos/");
+    assert.equal(backend.normalizeInstagram("www.instagram.com/flakos"), "https://www.instagram.com/flakos/");
+    assert.equal(backend.normalizeWebsite("http://comercio.com"), "http://comercio.com/");
+    assert.equal(backend.normalizeWebsite("javascript:alert(1)"), null);
+    assert.equal(backend.normalizeWebsite("no es web"), null);
+    const bad = backend.parseMerchantFields({ phone: "12", whatsapp: "llamar", instagram: "mi perfil", website: "comercio" });
+    assert.equal(bad.ok, false);
+    assert.deepEqual(Object.keys(bad.errors).sort(), ["instagram", "phone", "website", "whatsapp"]);
+    assert.deepEqual(backend.parseMerchantFields({}).values, {
+      address: null, hours: null, phone: null, whatsapp: null, instagram: null, website: null,
+    });
+    for (const key of backend.MERCHANT_FIELDS)
+      assert.equal(key in backend.benefitValuesFromForm(form), false, `${key} is saved only through parseMerchantFields`);
+  });
+
+  await test("slide links: internal paths or http(s) URLs only", async () => {
+    for (const link of ["", "/", "/beneficios/", "/beneficio/b-flakos-local/?ref=hero", "https://lprc.com.ar/eventos"])
+      assert.equal(backend.isValidSiteLink(link), true, link);
+    for (const link of ["beneficios", "//evil.example", "javascript:alert(1)", "mailto:a@b.com", "https://localhost", "/con espacios"])
+      assert.equal(backend.isValidSiteLink(link), false, link);
+  });
+
   await test("an edit saved with the form values preserves coupon_code and untouched media", async () => {
     const { columns } = getTableConfig(backend.benefits);
     const definitions = columns.map(

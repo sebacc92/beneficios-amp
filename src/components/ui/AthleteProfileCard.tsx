@@ -6,105 +6,69 @@ interface AthleteProfileCardProps {
   user: AuthenticatedUser;
 }
 
+/** The signed-in member's credential, as a flat navy block with the club crest (no mockups). */
 export const AthleteProfileCard = component$<AthleteProfileCardProps>(({ user }) => {
   const isPremium = user.role === "premium" || user.role === "admin";
-  const statusLabel = isPremium ? "Socio Activo Premium" : "Socio Activo";
+  // Same labels as the credential in /perfil.
+  const statusLabel = user.role === "premium" ? "Socio Gold" : user.role === "admin" ? "Administrador" : "Socio del club";
 
-  // Format expiration date if available
   const formatExpiration = (dateStr: string | null) => {
-    if (!dateStr) return "Sin Vencimiento";
+    if (!dateStr) return "Sin vencimiento";
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "Sin Vencimiento";
+    if (isNaN(date.getTime())) return "Sin vencimiento";
     return date.toLocaleDateString("es-AR", { month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
   };
 
   return (
-    <div class="relative w-full max-w-sm mx-auto aspect-[1.6/1] rounded-[1.8rem] overflow-hidden select-none shadow-2xl transition-all duration-300 hover:scale-[1.02] border border-accent/30 group">
-
-      {/* Background Gradients and Diagonal Design Stripe */}
-      <div class="absolute inset-0 bg-gradient-to-br from-primary via-[#0B1526] to-secondary z-0"></div>
-
-      {/* Yellow Sport Accent Lines */}
-      <div class="absolute right-0 top-0 bottom-0 w-24 bg-accent/5 skew-x-12 origin-top transform translate-x-8 z-0"></div>
-      <div class="absolute right-6 top-0 w-1 bg-accent/20 h-full skew-x-12 transform z-0"></div>
-      <div class="absolute right-10 top-0 w-1.5 bg-accent/30 h-full skew-x-12 transform z-0"></div>
-
-      {/* Card Content Wrapper */}
-      <div class="relative z-10 p-6 sm:p-7 h-full flex flex-col justify-between text-white">
-
-        {/* Header: Club Identity */}
-        <div class="flex justify-between items-start">
-          <div class="space-y-0.5 text-left">
-            <span class="text-[11px] font-black text-accent tracking-[0.2em] uppercase leading-none block">
-              Credencial Digital
-            </span>
-            <span class="font-display font-black text-lg sm:text-xl tracking-wide uppercase leading-none block text-white">
-              La Plata Rugby Club
-            </span>
-          </div>
-          {/* Mock Club Shield / Badge */}
-          <div class="w-10 h-10 rounded-xl bg-accent flex items-center justify-center border border-accent/50 shadow-md">
-            <span class="font-display font-black text-primary text-base">LPRC</span>
-          </div>
+    <section aria-label="Tu credencial digital" class="w-full border-l-4 border-accent bg-primary text-white">
+      <div class="flex items-start justify-between gap-4 px-5 pt-5">
+        <div>
+          <p class="eyebrow text-accent">Credencial digital</p>
+          <p class="heading-display mt-1 text-xl">La Plata Rugby Club</p>
         </div>
+        <img src="/lprc.avif" alt="" width={40} height={44} class="h-11 w-10 shrink-0 object-contain" />
+      </div>
 
-        {/* Middle: User Identity */}
-        <div class="flex items-center space-x-4 my-auto text-left">
-          {/* Avatar or Placeholder */}
-          {user.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt={user.name}
-              class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-accent shadow-md"
-            />
-          ) : (
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-secondary border-2 border-accent/40 flex items-center justify-center font-display font-bold text-accent text-lg shadow-inner">
-              {user.name.charAt(0).toUpperCase()}
+      <div class="mt-4 flex items-center gap-4 px-5">
+        {user.avatarUrl ? (
+          <img
+            src={user.avatarUrl}
+            alt=""
+            width={52}
+            height={52}
+            class="h-13 w-13 shrink-0 border-2 border-accent object-cover"
+          />
+        ) : (
+          <div class="flex h-13 w-13 shrink-0 items-center justify-center border-2 border-accent bg-secondary font-display text-xl font-bold text-accent" aria-hidden="true">
+            {user.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div class="min-w-0">
+          <p class="heading-display truncate text-lg">{user.name}</p>
+          <p class="mt-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <span class="inline-block h-2 w-2 bg-accent" aria-hidden="true" />
+            {statusLabel}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-5 flex items-end justify-between gap-3 border-t border-secondary px-5 py-4">
+        <dl class="space-y-1 text-left">
+          <div>
+            <dt class="text-[11px] font-bold uppercase tracking-wider text-slate-400">N° de socio</dt>
+            <dd class="font-mono text-sm font-bold text-accent">{user.numeroSocio || "Sin informar"}</dd>
+          </div>
+          {isPremium && (
+            <div>
+              <dt class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Validez</dt>
+              <dd class="text-xs font-semibold text-slate-200">{formatExpiration(user.premiumExpiresAt)}</dd>
             </div>
           )}
-
-          <div class="space-y-1 overflow-hidden">
-            <h4 class="font-display font-black text-base sm:text-lg tracking-wide text-white leading-tight truncate">
-              {user.name}
-            </h4>
-            <div class="flex items-center space-x-1.5">
-              <span class={`inline-block w-1.5 h-1.5 rounded-full ${isPremium ? 'bg-accent' : 'bg-emerald-400'} animate-pulse`}></span>
-              <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                {statusLabel}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer: Metadata and the real, scannable credential */}
-        <div class="flex justify-between items-end border-t border-slate-800/80 pt-3">
-          <div class="space-y-1 text-left">
-            <div>
-              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">N° de Socio</span>
-              <span class="font-mono font-black text-accent text-sm leading-none">
-                {user.numeroSocio || "------"}
-              </span>
-            </div>
-            {isPremium && (
-              <div>
-                <span class="text-[7.5px] font-bold text-slate-500 uppercase tracking-wider block">Validez</span>
-                <span class="text-[11px] font-bold text-slate-300 leading-none">
-                  {formatExpiration(user.premiumExpiresAt)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <Link
-            href="/perfil/?credencial=1"
-            class="inline-flex min-h-11 items-center rounded-xl border border-accent/50 px-3 py-2 text-xs font-black uppercase tracking-wider text-accent hover:bg-accent hover:text-primary transition-colors"
-          >
-            Mostrar QR
-          </Link>
-
-        </div>
-
+        </dl>
+        <Link href="/perfil/?credencial=1" class="btn btn-outline-light btn-sm">
+          Mostrar QR
+        </Link>
       </div>
-    </div>
+    </section>
   );
 });

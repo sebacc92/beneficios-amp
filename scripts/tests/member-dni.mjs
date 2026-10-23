@@ -124,6 +124,52 @@ try {
     assert.ok(plan.rows.every((row) => !String(row.detail).includes("SCAN users")));
   });
 
+  await test("padrón CSV: header in any order, quotes, semicolons and an optional email", async () => {
+    const withHeader = backend.parseMemberCsv('﻿DNI;Nombre y apellido;Correo\r\n30.111.222;"Pérez; Juan";JUAN@EXAMPLE.TEST\r\n\r\n 28 999 111 ;Ana Gómez;\r\n');
+    assert.equal(withHeader.error, undefined);
+    assert.deepEqual(withHeader.rows, [
+      { line: 2, name: "Pérez; Juan", email: "juan@example.test", dni: "30111222" },
+      { line: 4, name: "Ana Gómez", email: "", dni: "28999111" },
+    ]);
+    const twoColumns = backend.parseMemberCsv("Luis Díaz,40111222\nSin Dni,");
+    assert.deepEqual(twoColumns.rows.map((row) => [row.name, row.email, row.dni]), [["Luis Díaz", "", "40111222"], ["Sin Dni", "", ""]]);
+    const threeColumns = backend.parseMemberCsv('"Díaz, Luis",luis@example.test,40.111.222');
+    assert.deepEqual(threeColumns.rows[0], { line: 1, name: "Díaz, Luis", email: "luis@example.test", dni: "40111222" });
+    assert.ok(backend.parseMemberCsv("").error);
+    assert.ok(backend.parseMemberCsv("solo una columna\notra").error);
+    assert.ok(backend.parseMemberCsv("dni,email\n12345678,a@b.test").error, "a header without nombre is rejected");
+  });
+
+  await test("import preview separates valid, duplicate and wrong rows, and only valid ones are created", async () => {
+    const { rows } = backend.parseMemberCsv([
+      "nombre,email,dni",
+      "Socia Nueva,nueva@example.test,31.222.333",
+      "Repetida en archivo,,31222333",
+      "Ya registrada,,12.345.678",
+      "Email tomado,legacy@example.test,32111000",
+      "X,,33111000",
+      "DNI malo,,12AB",
+      "Mail malo,no-es-mail,34111000",
+      "Sin Email,,35111000",
+    ].join("\n"));
+    const classified = await backend.classifyMemberImport(event, rows);
+    assert.deepEqual(classified.map((row) => row.status), ["valid", "duplicate", "duplicate", "duplicate", "error", "error", "error", "valid"]);
+    assert.match(classified[1].reason, /fila 2/);
+    assert.match(classified[2].reason, /Ya está registrado/);
+
+    const created = await backend.importMembers(event, classified, "fixture");
+    assert.equal(created, 2);
+    const [imported] = await backend.findUsersByDni(event, "35.111.000");
+    assert.equal(imported.name, "Sin Email");
+    assert.equal(imported.role, "member");
+    assert.equal(backend.isPlaceholderEmail(imported.email), true, "members without email get the reserved placeholder");
+    assert.equal(imported.email, backend.placeholderEmail("35.111.000"));
+    assert.equal(backend.isPlaceholderEmail("nueva@example.test"), false);
+
+    const again = await backend.classifyMemberImport(event, rows.slice(0, 1));
+    assert.equal(again[0].status, "duplicate", "a second import does not duplicate members");
+  });
+
   console.log(`${checked}/${checked} checks passed; SQLite in memory; network forbidden.`);
 } finally {
   globalThis.fetch = originalFetch;

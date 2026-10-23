@@ -25,6 +25,12 @@ export const siteSettings = sqliteTable("site_settings", {
   campaignEmoji: text("campaign_emoji"),
   campaignTag: text("campaign_tag"),
   campaignQuery: text("campaign_query"),
+  // JSON array of benefit slugs picked by hand; when present it replaces the keyword match.
+  campaignBenefitSlugs: text("campaign_benefit_slugs"),
+  // Optional schedule (ISO strings) and audience: "all" | "members" | "guests".
+  popupStartsAt: text("popup_starts_at"),
+  popupEndsAt: text("popup_ends_at"),
+  popupAudience: text("popup_audience").default("all"),
   updatedAt: text("updated_at"), // Store ISO timestamps as string for full edge-compatibility
 });
 
@@ -33,6 +39,7 @@ export const chatSessions = sqliteTable("chat_sessions", {
   id: text("id").primaryKey(),
   createdAt: text("created_at").notNull(), // ISO Date strings
   lastActive: text("last_active").notNull(), // ISO Date strings
+  reviewedAt: text("reviewed_at"), // Set when an admin marks the conversation as reviewed
 });
 
 // --- Chat Messages ---
@@ -58,6 +65,9 @@ export const users = sqliteTable("users", {
     .notNull(),
   avatarUrl: text("avatar_url"),
   premiumExpiresAt: text("premium_expires_at"), // ISO Date string
+  lastLoginAt: text("last_login_at"), // ISO Date string
+  // Set when an admin account gets a generated temporary password.
+  mustChangePassword: integer("must_change_password", { mode: "boolean" }).default(false).notNull(),
   createdAt: text("created_at").notNull(),
 }, () => [
   index("idx_users_dni_normalized").on(sql.raw(normalizedDniExpression)),
@@ -120,6 +130,13 @@ export const benefits = sqliteTable("benefits", {
   pdfUrl: text("pdf_url"),
   latitud: text("latitud"),
   longitud: text("longitud"),
+  // Structured merchant details. Older benefits keep them inside `descripcion`.
+  address: text("address"),
+  hours: text("hours"),
+  phone: text("phone"),
+  whatsapp: text("whatsapp"),
+  instagram: text("instagram"),
+  website: text("website"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -143,6 +160,8 @@ export const events = sqliteTable("events", {
   date: text("date").notNull(),
   location: text("location").notNull(),
   image: text("image"),
+  kind: text("kind"), // torneo | clinica | social | partido | otro
+  registrationUrl: text("registration_url"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -157,6 +176,8 @@ export const raffles = sqliteTable("raffles", {
   prizeDetail: text("prize_detail").notNull(),
   terms: text("terms").notNull(),
   winners: text("winners"),
+  status: text("status", { enum: ["draft", "published"] }).default("published").notNull(),
+  requirements: text("requirements"), // Who takes part, shown on /sorteos
   createdAt: text("created_at").notNull(),
 });
 
@@ -179,6 +200,8 @@ export const sponsors = sqliteTable("sponsors", {
   y: integer("y").default(0).notNull(), // Starting row (0+)
   w: integer("w").default(2).notNull(), // Width span (1 to 6)
   h: integer("h").default(2).notNull(), // Height span (1+)
+  isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
+  tier: text("tier", { enum: ["principal", "oficial", "proveedor"] }).default("oficial").notNull(),
   createdAt: text("created_at").notNull(),
 });
 
@@ -207,6 +230,10 @@ export const merchantRequests = sqliteTable("merchant_requests", {
   phone: text("phone").notNull(),
   proposal: text("proposal").notNull(),
   status: text("status").default("pending").notNull(),
+  notes: text("notes"), // Internal follow-up notes
+  assignedTo: text("assigned_to"),
+  contactedAt: text("contacted_at"),
+  updatedAt: text("updated_at"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -220,6 +247,10 @@ export const suggestions = sqliteTable("suggestions", {
   comercio: text("comercio"),
   mensaje: text("mensaje").notNull(),
   status: text("status").default("pending").notNull(), // pending | reviewed | discarded
+  notes: text("notes"),
+  assignedTo: text("assigned_to"),
+  contactedAt: text("contacted_at"),
+  updatedAt: text("updated_at"),
   createdAt: text("created_at").notNull(),
 });
 

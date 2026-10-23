@@ -2,6 +2,7 @@ import type { RequestEventBase } from "@builder.io/qwik-city";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import { getDB } from "~/db";
 import { siteSettings, chatSessions, chatMessages } from "~/db/schema";
+import { CLUB } from "~/utils/club";
 
 export interface ChatbotSettings {
   id: number;
@@ -19,13 +20,28 @@ export interface ChatbotSettings {
   popupImageUrl: string | null;
   popupButtonText: string | null;
   popupButtonLink: string | null;
+  popupStartsAt: string | null;
+  popupEndsAt: string | null;
+  popupAudience: "all" | "members" | "guests";
   campaignActive: boolean;
   campaignTitle: string | null;
   campaignSubtitle: string | null;
   campaignEmoji: string | null;
   campaignTag: string | null;
   campaignQuery: string | null;
+  /** Benefit slugs chosen by hand for the home campaign, in display order. */
+  campaignBenefitSlugs: string[];
   updatedAt: string | null;
+}
+
+function parseSlugList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value.filter((slug): slug is string => typeof slug === "string" && slug.length > 0) : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface ChatMessage {
@@ -39,6 +55,8 @@ export interface ChatSession {
   id: string;
   createdAt: string;
   lastActive: string;
+  /** When an admin marked the conversation as reviewed in the audit. */
+  reviewedAt?: string | null;
   messages: ChatMessage[];
 }
 
@@ -49,12 +67,12 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   aiInstructions:
     "1. TRATO NEUTRO Y RESPETUOSO: Dirígete cordialmente como socio.\n2. CERO ALUCINACIONES: Si un usuario consulta por un beneficio que no está en la base de datos o por información confidencial de la LPRC, invítalo amablemente a comunicarse con soporte o revisar las secciones oficiales de la web.",
   aiKnowledge:
-    "- Identidad: Somos el Portal de Beneficios de la La Plata Rugby Club (LPRC). Our portal offers benefits exclusively to the members of the LPRC.\n- Credencial Digital: Para usar los beneficios se debe presentar la credencial digital a través de la app oficial de la LPRC.",
+    "- Identidad: Somos el Portal de Beneficios de La Plata Rugby Club (LPRC), el primer club de rugby de la ciudad (desde 1934). Los beneficios son para socios del club.\n- Cómo se usa un beneficio: el socio abre la ficha del beneficio, ingresa con su DNI, genera un cupón con código y QR y lo muestra en el comercio antes de pagar. Los cupones quedan en Mi perfil > Mis cupones. Guía completa en /como-funciona/.\n- Hacerse socio: por WhatsApp al club.",
   aiInitialGreeting:
     "¡Hola! Soy el asistente virtual del Club de Beneficios de la La Plata Rugby Club. ¿En qué puedo ayudarte hoy?",
   aiCallToAction:
     "Para más consultas sobre tu credencial digital LPRC o el estado de tu membresía del club, recordá que podés escribirnos al WhatsApp oficial:",
-  whatsappNumber: "5492214895777",
+  whatsappNumber: CLUB.whatsappNumber,
   aiAvatarUrl: null,
   popupActive: false,
   popupTitle: null,
@@ -62,6 +80,9 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   popupImageUrl: null,
   popupButtonText: null,
   popupButtonLink: null,
+  popupStartsAt: null,
+  popupEndsAt: null,
+  popupAudience: "all",
   campaignActive: true,
   // Empty campaign fields stay null; the home and the admin preview fall back to CAMPAIGN_DEFAULTS.
   campaignTitle: null,
@@ -69,6 +90,7 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   campaignEmoji: null,
   campaignTag: null,
   campaignQuery: null,
+  campaignBenefitSlugs: [],
   updatedAt: null,
 };
 
@@ -93,7 +115,7 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
     if (!settings) {
       // If no settings exist in DB yet, create the default record
       const settingsToSave = { ...DEFAULT_SETTINGS, id: 1, updatedAt: new Date().toISOString() };
-      await db.insert(siteSettings).values(settingsToSave);
+      await db.insert(siteSettings).values({ ...settingsToSave, campaignBenefitSlugs: null });
       requestEvent.sharedMap.set(SETTINGS_KEY, settingsToSave);
       return settingsToSave;
     }
@@ -105,7 +127,7 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       aiKnowledge: settings.aiKnowledge || "",
       aiInitialGreeting: settings.aiInitialGreeting || "",
       aiCallToAction: settings.aiCallToAction || "",
-      whatsappNumber: settings.whatsappNumber || "5492214895777",
+      whatsappNumber: settings.whatsappNumber || CLUB.whatsappNumber,
       aiAvatarUrl: settings.aiAvatarUrl,
       popupActive: settings.popupActive ?? false,
       popupTitle: settings.popupTitle,
@@ -113,12 +135,16 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       popupImageUrl: settings.popupImageUrl,
       popupButtonText: settings.popupButtonText,
       popupButtonLink: settings.popupButtonLink,
+      popupStartsAt: settings.popupStartsAt || null,
+      popupEndsAt: settings.popupEndsAt || null,
+      popupAudience: settings.popupAudience === "members" || settings.popupAudience === "guests" ? settings.popupAudience : "all",
       campaignActive: settings.campaignActive ?? true,
       campaignTitle: settings.campaignTitle || null,
       campaignSubtitle: settings.campaignSubtitle || null,
       campaignEmoji: settings.campaignEmoji || null,
       campaignTag: settings.campaignTag || null,
       campaignQuery: settings.campaignQuery || null,
+      campaignBenefitSlugs: parseSlugList(settings.campaignBenefitSlugs),
       updatedAt: settings.updatedAt,
     };
     requestEvent.sharedMap.set(SETTINGS_KEY, resolved);
@@ -147,12 +173,16 @@ export async function saveSettings(requestEvent: RequestEventBase, settings: Cha
     popupImageUrl: settings.popupImageUrl,
     popupButtonText: settings.popupButtonText,
     popupButtonLink: settings.popupButtonLink,
+    popupStartsAt: settings.popupStartsAt,
+    popupEndsAt: settings.popupEndsAt,
+    popupAudience: settings.popupAudience,
     campaignActive: settings.campaignActive,
     campaignTitle: settings.campaignTitle,
     campaignSubtitle: settings.campaignSubtitle,
     campaignEmoji: settings.campaignEmoji,
     campaignTag: settings.campaignTag,
     campaignQuery: settings.campaignQuery,
+    campaignBenefitSlugs: settings.campaignBenefitSlugs.length ? JSON.stringify(settings.campaignBenefitSlugs) : null,
     updatedAt: new Date().toISOString(),
   };
 
@@ -198,6 +228,7 @@ export async function getSessions(requestEvent: RequestEventBase): Promise<ChatS
       id: s.id,
       createdAt: s.createdAt,
       lastActive: s.lastActive,
+      reviewedAt: s.reviewedAt,
       messages: messagesBySession.get(s.id) ?? [],
     }));
   } catch (err) {
@@ -222,6 +253,7 @@ export async function getSessionById(requestEvent: RequestEventBase, id: string)
       id: session.id,
       createdAt: session.createdAt,
       lastActive: session.lastActive,
+      reviewedAt: session.reviewedAt,
       messages: messages.map((m) => ({
         id: m.id,
         role: m.role,
@@ -292,4 +324,56 @@ export async function deleteSession(requestEvent: RequestEventBase, id: string):
     console.error(`Drizzle: Failed to delete session ${id}:`, err);
     return false;
   }
+}
+
+/** Marks (or unmarks) a conversation as reviewed; false when it no longer exists. */
+export async function setSessionReviewed(requestEvent: RequestEventBase, id: string, reviewed: boolean): Promise<boolean> {
+  const updated = await getDB(requestEvent)
+    .update(chatSessions)
+    .set({ reviewedAt: reviewed ? new Date().toISOString() : null })
+    .where(eq(chatSessions.id, id))
+    .returning({ id: chatSessions.id });
+  return updated.length > 0;
+}
+
+/** Neighbours in the audit list order (latest activity first), for "anterior / siguiente". */
+export async function getSessionNeighbors(requestEvent: RequestEventBase, id: string) {
+  const rows = await getDB(requestEvent)
+    .select({ id: chatSessions.id })
+    .from(chatSessions)
+    .orderBy(desc(chatSessions.lastActive), desc(chatSessions.id));
+  const index = rows.findIndex((row) => row.id === id);
+  return {
+    newerId: index > 0 ? rows[index - 1].id : null,
+    olderId: index >= 0 && index < rows.length - 1 ? rows[index + 1].id : null,
+    position: index + 1,
+    total: rows.length,
+  };
+}
+
+/** The first thing the person asked: how the audit names a conversation instead of its id. */
+export function firstUserMessage(messages: ChatMessage[]): string | null {
+  return messages.find((message) => message.role === "user")?.content.trim() || null;
+}
+
+/**
+ * Whether the assistant sent the person to WhatsApp: a wa.me / api.whatsapp link
+ * or one of the given numbers (spaces and dashes ignored) in any reply.
+ */
+export function referredToWhatsapp(messages: ChatMessage[], numbers: string[]): boolean {
+  const tails = numbers.map((number) => number.replace(/\D/g, "").slice(-10)).filter((tail) => tail.length >= 8);
+  return messages.some((message) => {
+    if (message.role !== "assistant") return false;
+    if (/wa\.me\/|api\.whatsapp\.com|whatsapp\.com\/send/i.test(message.content)) return true;
+    const digits = message.content.replace(/[\s().-]/g, "");
+    return tails.some((tail) => digits.includes(tail));
+  });
+}
+
+/** Appends a reviewed answer to the assistant's knowledge base ("Copiar a la base de conocimientos"). */
+export async function appendToKnowledge(requestEvent: RequestEventBase, entry: string): Promise<void> {
+  const settings = await getSettings(requestEvent);
+  const current = settings.aiKnowledge.trim();
+  const addition = entry.replace(/\r\n?/g, "\n").trim();
+  await saveSettings(requestEvent, { ...settings, aiKnowledge: current ? `${current}\n${addition}` : addition });
 }

@@ -10,7 +10,15 @@ export interface BenefitFilterOption {
   descripcion: string;
 }
 
-export class BenefitFilterValidationError extends Error {}
+export class BenefitFilterValidationError extends Error {
+  /** Form field the message belongs to, so the admin form can show it next to that select. */
+  readonly field?: string;
+
+  constructor(message: string, field?: string) {
+    super(message);
+    this.field = field;
+  }
+}
 
 export const BENEFIT_FILTERS_CACHE_KEY = "__benefit_filters";
 const SAVED_FILTERS_CACHE_KEY = "__saved_benefit_filters";
@@ -52,7 +60,7 @@ export async function validateBenefitFilterSelection(
   for (const field of fields) {
     const value = selection[field];
     if (typeof value !== "string" || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
-      throw new BenefitFilterValidationError(SELECTION_FIELDS[field].message);
+      throw new BenefitFilterValidationError(SELECTION_FIELDS[field].message, field);
     }
   }
 
@@ -64,7 +72,7 @@ export async function validateBenefitFilterSelection(
     const { type, message } = SELECTION_FIELDS[field];
     const id = Number(selection[field]);
     if (!filters[type].some((option) => option.id === id) && !saved.some((option) => option.type === type && option.id === id)) {
-      throw new BenefitFilterValidationError(message);
+      throw new BenefitFilterValidationError(message, field);
     }
   }
 }

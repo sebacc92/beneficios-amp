@@ -4,6 +4,7 @@ import {
   noSerialize,
   useComputed$,
   useSignal,
+  useStyles$,
   useTask$,
   useVisibleTask$,
   type NoSerialize,
@@ -16,15 +17,25 @@ import {
 } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters } from "~/server/cache";
 import {
+  MAP_PIN_STYLES,
+  benefitImageUrl,
+  directionsUrl,
   filterMapBenefits,
   formatDistance,
+  mapPinIcon,
+  merchantDetails,
   parseCoordinates,
   rankMapBenefits,
   type UserPosition,
 } from "~/utils/map-benefits";
+import { CLUB } from "~/utils/club";
+import { SectionHeading } from "~/components/section-heading/section-heading";
 import {
+  LuArrowRight,
+  LuMap,
   LuMapPin,
   LuList,
+  LuNavigation,
   LuSearch,
   LuFilter,
   LuRefreshCw,
@@ -46,6 +57,7 @@ export const useBenefitsMapData = routeLoader$(async (event) => {
 });
 
 export default component$(() => {
+  useStyles$(MAP_PIN_STYLES);
   const location = useLocation();
   const data = useBenefitsMapData();
   const searchQuery = useSignal(location.url.searchParams.get("buscar") || "");
@@ -67,6 +79,11 @@ export default component$(() => {
     Number(location.url.searchParams.get("oferta")) || null,
   );
   const filtersOpen = useSignal(false);
+  // Phones show the list or the map, not both stacked; desktop always shows both.
+  const mobileView = useSignal<"mapa" | "lista">(
+    location.url.searchParams.get("vista") === "lista" ? "lista" : "mapa",
+  );
+  const viewSwitchRef = useSignal<HTMLElement>();
   const selectedBenefit = useSignal<number | null>(null);
   const selectionAttempt = useSignal(0);
   const userPosition = useSignal<UserPosition | null>(null);
@@ -235,7 +252,30 @@ export default component$(() => {
       scrollWheelZoom: false,
       zoomControl: false,
     }).setView([-34.9214, -57.9545], 13);
-    L.control.zoom({ position: "bottomright" }).addTo(map);
+    // Top right keeps the zoom buttons clear of the floating chat button.
+    L.control.zoom({ position: "topright" }).addTo(map);
+    const clubPopup = document.createElement("div");
+    clubPopup.className = "min-w-[200px] max-w-[260px] text-slate-800";
+    const clubTitle = document.createElement("h3");
+    clubTitle.className = "font-display text-base font-bold uppercase leading-tight text-primary";
+    clubTitle.textContent = `${CLUB.name} — Sede Gonnet`;
+    const clubAddress = document.createElement("p");
+    clubAddress.className = "!my-1.5 text-sm";
+    clubAddress.textContent = `${CLUB.address}, ${CLUB.locality}. ${CLUB.memberAccess}.`;
+    const clubLink = document.createElement("a");
+    clubLink.className = "text-sm font-bold !text-primary underline underline-offset-2";
+    clubLink.href = CLUB.mapsUrl;
+    clubLink.target = "_blank";
+    clubLink.rel = "noopener";
+    clubLink.textContent = "Cómo llegar";
+    [clubTitle, clubAddress, clubLink].forEach((node) => clubPopup.appendChild(node));
+    L.marker([CLUB.coordinates.lat, CLUB.coordinates.lng], {
+      icon: L.divIcon(mapPinIcon("club")),
+      title: `${CLUB.name} — Sede Gonnet`,
+      zIndexOffset: 500,
+    })
+      .bindPopup(clubPopup)
+      .addTo(map);
     mapRef.value = noSerialize(map);
     markersGroupRef.value = noSerialize(L.featureGroup().addTo(map));
     markersRef.value = noSerialize(new Map());
@@ -291,34 +331,54 @@ export default component$(() => {
     const group = markersGroupRef.value;
     group.clearLayers();
     markersRef.value.clear();
+    const selectedId = selectedBenefit.value;
     benefits.forEach((benefit) => {
       const coordinates = parseCoordinates(benefit.latitud, benefit.longitud)!;
+      const address = merchantDetails(benefit).address;
       // Text nodes prevent merchant content from becoming executable popup HTML.
       const popup = document.createElement("div");
-      popup.className = "font-sans text-slate-800 min-w-[180px] max-w-[240px]";
+      popup.className = "min-w-[200px] max-w-[260px] text-slate-800";
+      const discount = document.createElement("p");
+      discount.className = "badge badge-accent !m-0 whitespace-normal";
+      discount.textContent = benefit.resumen || "Beneficio para socios";
       const title = document.createElement("h3");
-      title.className = "font-bold text-base mb-2";
+      title.className = "mt-2 font-display text-base font-bold uppercase leading-tight text-primary";
       title.textContent = benefit.titulo;
-      const summary = document.createElement("p");
-      summary.className = "text-sm mb-3";
-      summary.textContent =
-        benefit.resumen || "Beneficio exclusivo para socios";
+      popup.appendChild(discount);
+      popup.appendChild(title);
+      if (address) {
+        const place = document.createElement("p");
+        place.className = "!my-1.5 text-sm";
+        place.textContent = address;
+        popup.appendChild(place);
+      } else {
+        const directions = directionsUrl({ latitud: benefit.latitud, longitud: benefit.longitud });
+        if (directions) {
+          const directionsLink = document.createElement("a");
+          directionsLink.className = "mt-1.5 inline-block text-sm font-bold !text-primary underline underline-offset-2";
+          directionsLink.href = directions;
+          directionsLink.target = "_blank";
+          directionsLink.rel = "noopener";
+          directionsLink.textContent = "Ver cómo llegar";
+          popup.appendChild(directionsLink);
+        }
+      }
       const link = document.createElement("a");
       link.className =
-        "block rounded-lg bg-brand-navy px-3 py-2.5 text-center font-bold !text-white";
+        "mt-3 block bg-primary px-3 py-2.5 text-center font-display text-sm font-semibold uppercase tracking-wider !text-white";
       link.href = `/beneficio/${encodeURIComponent(benefit.url)}/`;
       link.textContent = "Ver beneficio →";
-      popup.appendChild(title);
-      popup.appendChild(summary);
       popup.appendChild(link);
       const marker = L.marker([coordinates.latitude, coordinates.longitude], {
         title: benefit.titulo,
+        icon: L.divIcon(mapPinIcon("benefit")),
       })
         .bindPopup(popup)
         .on("click", () => {
           selectedBenefit.value = benefit.id;
         })
         .addTo(group);
+      if (benefit.id === selectedId) marker.getElement()?.querySelector(".lprc-pin")?.classList.add("lprc-pin--active");
       markersRef.value!.set(benefit.id, marker);
     });
     if (selectedBenefit.value && !markersRef.value.has(selectedBenefit.value))
@@ -334,10 +394,17 @@ export default component$(() => {
   useVisibleTask$(({ track }) => {
     track(() => mapReady.value);
     track(() => selectionAttempt.value);
+    track(() => mobileView.value);
     const selected = track(() => selectedBenefit.value);
-    if (!selected || !mapRef.value) return;
+    if (!mapRef.value) return;
+    markersRef.value?.forEach((item, id) =>
+      item.getElement()?.querySelector(".lprc-pin")?.classList.toggle("lprc-pin--active", id === selected),
+    );
+    if (!selected) return;
     const marker = markersRef.value?.get(selected);
     if (!marker) return;
+    // The map may have just been revealed on a phone; measure it before centring.
+    mapRef.value.invalidateSize();
     mapRef.value.setView(
       marker.getLatLng(),
       Math.max(mapRef.value.getZoom(), 14),
@@ -349,6 +416,17 @@ export default component$(() => {
         .getElementById(`map-benefit-${selected}`)
         ?.scrollIntoView({ block: "nearest" });
     }
+  });
+
+  // Leaflet cannot fit bounds while hidden, so refit when a phone switches back to the map.
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const view = track(() => mobileView.value);
+    const map = mapRef.value;
+    if (view !== "mapa" || !map) return;
+    map.invalidateSize();
+    if (!selectedBenefit.value && !userPosition.value && markersGroupRef.value?.getLayers().length)
+      map.fitBounds(markersGroupRef.value.getBounds(), { padding: [35, 35], maxZoom: 16 });
   });
 
   useVisibleTask$(({ track, cleanup }) => {
@@ -432,340 +510,365 @@ export default component$(() => {
     );
   });
 
+  const clearFilters = $(() => {
+    searchQuery.value = "";
+    searchDraft.value = "";
+    selectedCategory.value = null;
+    selectedLocation.value = null;
+    selectedOffer.value = null;
+  });
+
+  const showOnMap = $((benefitId: number) => {
+    selectedBenefit.value = benefitId;
+    selectionAttempt.value++;
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    mobileView.value = "mapa";
+    viewSwitchRef.value?.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+
+  const viewButton = (active: boolean) =>
+    `flex min-h-11 items-center justify-center gap-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors ${active ? "bg-primary text-white" : "bg-surface text-primary hover:bg-surface-muted"}`;
+
   return (
-    <div class="bg-slate-50 text-slate-800 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:h-[min(780px,calc(100dvh-128px))] lg:min-h-[620px]">
-      <section
-        aria-label="Buscar beneficios en el mapa"
-        class="relative z-10 border-b border-slate-200 bg-white p-4 lg:col-start-1 lg:row-start-1 lg:border-r"
-      >
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h1 class="text-lg font-black text-slate-900">
-              Beneficios cerca tuyo
-            </h1>
-            <p class="text-xs text-slate-500" aria-live="polite">
-              {filteredBenefits.value.length}{" "}
-              {filteredBenefits.value.length === 1
-                ? "comercio encontrado"
-                : "comercios encontrados"}
-            </p>
+    <div class="bg-background text-primary">
+      <section aria-label="Buscar beneficios en el mapa" class="relative z-10 border-b border-line bg-surface">
+        <div class="mx-auto max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <SectionHeading title="Beneficios cerca tuyo" eyebrow="Cerca mío" as="h1" size="lg" />
+            <div class="flex items-center gap-4">
+              <p class="text-sm text-slate-600" aria-live="polite">
+                <strong class="text-primary">{filteredBenefits.value.length}</strong>{" "}
+                {filteredBenefits.value.length === 1 ? "comercio en el mapa" : "comercios en el mapa"}
+              </p>
+              <Link href={listadoHref.value} class="btn btn-outline btn-sm">
+                <LuList class="h-4 w-4" aria-hidden="true" />
+                Catálogo
+              </Link>
+            </div>
           </div>
-          <Link
-            href={listadoHref.value}
-            class="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-bold hover:bg-slate-50"
-          >
-            <LuList class="h-4 w-4" />
-            Catálogo
-          </Link>
+
+          <div class="mt-5 flex flex-col gap-3">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <div class="hidden lg:block lg:flex-1">
+                <label for="map-search" class="field-label">Buscar comercio o beneficio</label>
+                <div class="relative">
+                  <LuSearch class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                  <input
+                    id="map-search"
+                    type="search"
+                    placeholder="Café, gimnasio, heladería…"
+                    value={searchDraft.value}
+                    onInput$={(_, element) => {
+                      searchDraft.value = element.value;
+                    }}
+                    class="field min-h-11 pl-9 text-base sm:text-sm"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick$={requestLocation}
+                disabled={geoState.value === "loading"}
+                class="btn btn-primary w-full lg:w-auto"
+              >
+                <LuLocateFixed class={`h-4 w-4 ${geoState.value === "loading" ? "animate-pulse" : ""}`} aria-hidden="true" />
+                {locationButtonLabel.value}
+              </button>
+              <button
+                type="button"
+                onClick$={() => {
+                  filtersOpen.value = !filtersOpen.value;
+                }}
+                aria-expanded={filtersOpen.value}
+                aria-controls="map-filters"
+                class="flex min-h-11 w-full items-center justify-between border border-line px-3 text-sm font-bold lg:hidden"
+              >
+                <span class="flex items-center gap-2">
+                  <LuFilter class="h-4 w-4" aria-hidden="true" />
+                  Buscar y filtrar
+                  {hasFilters.value && (
+                    <span class="badge badge-dark">Activos</span>
+                  )}
+                </span>
+                <LuChevronDown class={`h-4 w-4 transition-transform ${filtersOpen.value ? "rotate-180" : ""}`} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div id="map-filters" class={`${filtersOpen.value ? "grid" : "hidden"} gap-3 lg:grid lg:grid-cols-3`}>
+              <div class="lg:hidden">
+                <label for="map-search-mobile" class="field-label">Buscar comercio o beneficio</label>
+                <input
+                  id="map-search-mobile"
+                  type="search"
+                  placeholder="Café, gimnasio, heladería…"
+                  value={searchDraft.value}
+                  onInput$={(_, element) => {
+                    searchDraft.value = element.value;
+                  }}
+                  class="field min-h-11 text-base"
+                />
+              </div>
+              <div>
+                <label for="map-category" class="field-label">Categoría</label>
+                <select
+                  id="map-category"
+                  value={selectedCategory.value || ""}
+                  onChange$={(_, element) => {
+                    selectedCategory.value = Number(element.value) || null;
+                  }}
+                  class="field min-h-11 text-base sm:text-sm"
+                >
+                  <option value="">Todas</option>
+                  {data.value.filters.categorias.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.descripcion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label for="map-locality" class="field-label">Localidad</label>
+                <select
+                  id="map-locality"
+                  value={selectedLocation.value || ""}
+                  onChange$={(_, element) => {
+                    selectedLocation.value = Number(element.value) || null;
+                  }}
+                  class="field min-h-11 text-base sm:text-sm"
+                >
+                  <option value="">Todas</option>
+                  {data.value.filters.ubicaciones.map((locality) => (
+                    <option key={locality.id} value={locality.id}>
+                      {locality.descripcion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label for="map-offer" class="field-label">Descuento</label>
+                <select
+                  id="map-offer"
+                  value={selectedOffer.value || ""}
+                  onChange$={(_, element) => {
+                    selectedOffer.value = Number(element.value) || null;
+                  }}
+                  class="field min-h-11 text-base sm:text-sm"
+                >
+                  <option value="">Todos</option>
+                  {data.value.filters.ofertas.map((offer) => (
+                    <option key={offer.id} value={offer.id}>
+                      {offer.descripcion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <p role="status" class={`text-xs leading-relaxed ${geoState.value === "error" ? "font-semibold text-amber-900" : "text-slate-600"}`}>
+                <span>{geoMessage.value || "Usá tu ubicación para ordenar por cercanía, o elegí una localidad."}</span>
+                {userPosition.value && (
+                  <span> Precisión aproximada: {formatDistance(userPosition.value.accuracy / 1000)}. Distancias en línea recta.</span>
+                )}
+              </p>
+              {hasFilters.value && (
+                <button
+                  type="button"
+                  onClick$={clearFilters}
+                  class="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-primary underline-offset-4 hover:underline"
+                >
+                  <LuRefreshCw class="h-4 w-4" aria-hidden="true" />
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+      </section>
+
+      <div ref={viewSwitchRef} role="group" aria-label="Ver comercios como" class="scroll-mt-36 grid grid-cols-2 border-b border-primary lg:hidden">
         <button
           type="button"
-          onClick$={requestLocation}
-          disabled={geoState.value === "loading"}
-          class="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-black text-brand-navy-dark disabled:opacity-60"
-        >
-          <LuLocateFixed
-            class={`h-4 w-4 ${geoState.value === "loading" ? "animate-pulse" : ""}`}
-          />
-          <span>{locationButtonLabel.value}</span>
-        </button>
-        <p
-          role="status"
-          class={`mt-2 text-xs leading-relaxed ${geoState.value === "error" ? "text-amber-800" : "text-slate-500"}`}
-        >
-          {geoMessage.value ||
-            "Usá tu ubicación o elegí una localidad en los filtros."}
-        </p>
-        {userPosition.value && (
-          <p class="mt-1 text-xs leading-relaxed text-slate-500">
-            Precisión aproximada:{" "}
-            {formatDistance(userPosition.value.accuracy / 1000)}. Distancias en
-            línea recta.
-          </p>
-        )}
-        <button
-          type="button"
+          aria-pressed={mobileView.value === "lista"}
           onClick$={() => {
-            filtersOpen.value = !filtersOpen.value;
+            mobileView.value = "lista";
           }}
-          aria-expanded={filtersOpen.value}
-          aria-controls="map-filters"
-          class="mt-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-200 px-3 text-sm font-bold lg:hidden"
+          class={viewButton(mobileView.value === "lista")}
         >
-          <span class="flex items-center gap-2">
-            <LuFilter class="h-4 w-4" />
-            Filtros{" "}
-            {hasFilters.value && (
-              <span class="h-2 w-2 rounded-full bg-brand-navy" />
-            )}
-          </span>
-          <LuChevronDown
-            class={`h-4 w-4 transition-transform ${filtersOpen.value ? "rotate-180" : ""}`}
-          />
+          <LuList class="h-4 w-4" aria-hidden="true" />
+          Lista ({nearbyBenefits.value.length})
         </button>
-        <div
-          id="map-filters"
-          class={`${filtersOpen.value ? "block" : "hidden"} mt-3 space-y-3 lg:block`}
+        <button
+          type="button"
+          aria-pressed={mobileView.value === "mapa"}
+          onClick$={() => {
+            mobileView.value = "mapa";
+          }}
+          class={viewButton(mobileView.value === "mapa")}
         >
-          <div>
-            <label
-              for="map-search"
-              class="mb-1 block text-xs font-bold text-slate-600"
-            >
-              Buscar comercio o beneficio
-            </label>
-            <div class="relative">
-              <LuSearch class="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-              <input
-                id="map-search"
-                type="search"
-                placeholder="Café, gimnasio, heladería…"
-                value={searchDraft.value}
-                onInput$={(_, element) => {
-                  searchDraft.value = element.value;
-                }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base sm:text-sm focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
-              />
-            </div>
+          <LuMap class="h-4 w-4" aria-hidden="true" />
+          Mapa
+        </button>
+      </div>
+
+      <div class="lg:grid lg:h-[calc(100dvh-11rem)] lg:min-h-[560px] lg:grid-cols-[26rem_minmax(0,1fr)]">
+        <section
+          aria-label="Comercios del mapa"
+          class={`${mobileView.value === "lista" ? "block" : "hidden"} min-h-0 bg-surface lg:block lg:overflow-y-auto lg:border-r lg:border-line`}
+        >
+          <div class="border-b border-line px-4 py-3">
+            <h2 class="eyebrow text-amber-900">
+              {userPosition.value ? "Ordenados por cercanía" : "Comercios en el mapa"}
+            </h2>
+            <p class="mt-1 text-xs text-slate-600">Tocá un comercio para verlo en el mapa.</p>
           </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label
-                for="map-category"
-                class="mb-1 block text-xs font-bold text-slate-600"
-              >
-                Categoría
-              </label>
-              <select
-                id="map-category"
-                value={selectedCategory.value || ""}
-                onChange$={(_, element) => {
-                  selectedCategory.value = Number(element.value) || null;
-                }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
-              >
-                <option value="">Todas las categorías</option>
-                {data.value.filters.categorias.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.descripcion}
-                  </option>
-                ))}
-              </select>
+          {nearbyBenefits.value.length ? (
+            <ul class="divide-y divide-line">
+              {nearbyBenefits.value.map(({ benefit, distance }) => {
+                const thumbnail = benefitImageUrl(benefit.imagen);
+                const selected = selectedBenefit.value === benefit.id;
+                return (
+                  <li
+                    key={benefit.id}
+                    id={`map-benefit-${benefit.id}`}
+                    class={`relative flex gap-3 px-4 py-3 transition-colors ${selected ? "bg-accent/15 shadow-[inset_4px_0_0_var(--color-primary)]" : "hover:bg-surface-muted"}`}
+                  >
+                    <div class="h-16 w-16 shrink-0 overflow-hidden bg-primary">
+                      {thumbnail ? (
+                        <img src={thumbnail} alt="" width={64} height={64} loading="lazy" class="h-full w-full object-cover" />
+                      ) : (
+                        <img src="/lprc.avif" alt="" width={64} height={64} class="h-full w-full object-contain p-2" />
+                      )}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <h3 class="text-sm font-bold leading-snug text-primary">
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          onClick$={() => showOnMap(benefit.id)}
+                          class="cursor-pointer text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-primary"
+                        >
+                          {benefit.titulo}
+                          <span class="sr-only">: ver en el mapa</span>
+                        </button>
+                      </h3>
+                      <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-600">
+                        <span>{benefit.ubicacion.map((locality) => locality.descripcion).join(" · ")}</span>
+                        {distance !== null && (
+                          <span class="inline-flex items-center gap-1 font-semibold text-primary">
+                            <LuNavigation class="h-3 w-3" aria-hidden="true" />
+                            {formatDistance(distance)}
+                          </span>
+                        )}
+                      </p>
+                      <div class="mt-1.5 flex flex-wrap items-center justify-between gap-x-3">
+                        <span class="badge badge-accent whitespace-normal text-left leading-tight">
+                          {benefit.resumen || "Beneficio para socios"}
+                        </span>
+                        <Link
+                          href={`/beneficio/${benefit.url}/`}
+                          class="relative z-10 inline-flex min-h-11 items-center gap-1 text-xs font-bold text-primary underline-offset-4 hover:underline"
+                        >
+                          Ver beneficio
+                          <LuArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+                        </Link>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div class="px-5 py-10 text-center">
+              <LuMapPin class="mx-auto mb-3 h-8 w-8 text-amber-900" aria-hidden="true" />
+              <h3 class="heading-display text-xl">No encontramos comercios</h3>
+              <p class="mx-auto mt-2 max-w-xs text-sm text-slate-600">
+                {hasFilters.value
+                  ? "Ningún comercio del mapa coincide con tu búsqueda o filtros. Probá con otra categoría o localidad."
+                  : "Todavía no hay comercios con ubicación cargada."}{" "}
+                El catálogo también incluye beneficios sin dirección.
+              </p>
+              <div class="mt-5 flex flex-wrap justify-center gap-3">
+                {hasFilters.value && (
+                  <button type="button" onClick$={clearFilters} class="btn btn-dark btn-sm">
+                    Limpiar filtros
+                  </button>
+                )}
+                <Link href={listadoHref.value} class="btn btn-outline btn-sm">
+                  Ver catálogo
+                </Link>
+              </div>
             </div>
-            <div>
-              <label
-                for="map-locality"
-                class="mb-1 block text-xs font-bold text-slate-600"
-              >
-                Localidad
-              </label>
-              <select
-                id="map-locality"
-                value={selectedLocation.value || ""}
-                onChange$={(_, element) => {
-                  selectedLocation.value = Number(element.value) || null;
-                }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
-              >
-                <option value="">Todas las localidades</option>
-                {data.value.filters.ubicaciones.map((locality) => (
-                  <option key={locality.id} value={locality.id}>
-                    {locality.descripcion}
-                  </option>
-                ))}
-              </select>
+          )}
+        </section>
+
+        <section
+          aria-label="Mapa de comercios"
+          class={`${mobileView.value === "mapa" ? "block" : "hidden"} relative isolate h-[68svh] min-h-[360px] bg-surface-muted lg:block lg:h-full lg:min-h-0`}
+        >
+          <div
+            ref={mapElement}
+            class="absolute inset-0 z-0"
+            role="region"
+            aria-label="Mapa interactivo de beneficios"
+          />
+          {(libraryState.value !== "ready" || tileState.value !== "ready") && (
+            <div
+              class={`absolute left-3 right-14 top-3 z-[500] border px-3 py-2 text-center text-sm shadow-md ${libraryState.value === "error" || tileState.value === "error" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-line bg-surface text-slate-600"}`}
+              role="status"
+            >
+              {libraryState.value === "error"
+                ? "No pudimos cargar el mapa. La lista de comercios sigue disponible."
+                : libraryState.value === "loading"
+                  ? "Cargando mapa…"
+                  : tileState.value === "error"
+                    ? "Algunas partes del mapa no se cargaron. Podés seguir usando la lista."
+                    : "Cargando calles del mapa…"}
+              {(libraryState.value === "error" || tileState.value === "error") && (
+                <button
+                  type="button"
+                  class="ml-2 min-h-11 px-2 font-bold underline"
+                  onClick$={() => {
+                    if (libraryState.value === "error") libraryAttempt.value++;
+                    else {
+                      tileState.value = "loading";
+                      tilesRef.value?.redraw();
+                    }
+                  }}
+                >
+                  Reintentar
+                </button>
+              )}
             </div>
-          </div>
-          <div>
-            <label
-              for="map-offer"
-              class="mb-1 block text-xs font-bold text-slate-600"
-            >
-              Descuento
-            </label>
-            <select
-              id="map-offer"
-              value={selectedOffer.value || ""}
-              onChange$={(_, element) => {
-                selectedOffer.value = Number(element.value) || null;
-              }}
-              class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
-            >
-              <option value="">Todos los descuentos</option>
-              {data.value.filters.ofertas.map((offer) => (
-                <option key={offer.id} value={offer.id}>
-                  {offer.descripcion}
-                </option>
-              ))}
-            </select>
-          </div>
-          {hasFilters.value && (
+          )}
+          {mapReady.value && !filteredBenefits.value.length && (
+            <div class="absolute inset-x-3 top-16 z-[500] border border-line bg-surface p-4 text-center text-sm shadow-md" role="status">
+              <p class="font-semibold">No hay comercios en el mapa para estos filtros.</p>
+              {hasFilters.value && (
+                <button type="button" onClick$={clearFilters} class="btn btn-dark btn-sm mt-3">
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          )}
+          {mapReady.value && filteredBenefits.value.length > 0 && (
             <button
               type="button"
               onClick$={() => {
-                searchQuery.value = "";
-                searchDraft.value = "";
-                selectedCategory.value = null;
-                selectedLocation.value = null;
-                selectedOffer.value = null;
+                if (markersGroupRef.value?.getLayers().length)
+                  mapRef.value?.fitBounds(markersGroupRef.value.getBounds(), {
+                    padding: [35, 35],
+                    maxZoom: 16,
+                  });
               }}
-              class="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold hover:bg-slate-50"
+              class="absolute bottom-7 left-3 z-[500] inline-flex min-h-11 items-center gap-1.5 border border-primary bg-surface px-3 font-display text-xs font-semibold uppercase tracking-wider text-primary shadow-md hover:bg-surface-muted"
             >
-              <LuRefreshCw class="h-4 w-4" />
-              Limpiar filtros
+              <LuMapPin class="h-4 w-4" aria-hidden="true" />
+              Ver todos
             </button>
           )}
-        </div>
-      </section>
-
-      <section
-        aria-label="Mapa de comercios"
-        class="relative isolate h-[52svh] min-h-[340px] bg-slate-100 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full lg:min-h-0"
-      >
-        <div
-          ref={mapElement}
-          class="absolute inset-0 z-0"
-          aria-label="Mapa interactivo de beneficios"
-        />
-        {(libraryState.value !== "ready" || tileState.value !== "ready") && (
-          <div
-            class={`absolute left-3 right-3 top-3 z-[500] rounded-xl border px-3 py-2 text-center text-sm shadow-md ${libraryState.value === "error" || tileState.value === "error" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-white/95 text-slate-600"}`}
-            role="status"
-          >
-            {libraryState.value === "error"
-              ? "No pudimos cargar el mapa. La lista de comercios sigue disponible."
-              : libraryState.value === "loading"
-                ? "Cargando mapa…"
-                : tileState.value === "error"
-                  ? "Algunas partes del mapa no se cargaron. Podés seguir usando la lista."
-                  : "Cargando calles del mapa…"}
-            {(libraryState.value === "error" ||
-              tileState.value === "error") && (
-              <button
-                type="button"
-                class="ml-2 min-h-11 rounded-lg px-2 font-bold underline"
-                onClick$={() => {
-                  if (libraryState.value === "error") libraryAttempt.value++;
-                  else {
-                    tileState.value = "loading";
-                    tilesRef.value?.redraw();
-                  }
-                }}
-              >
-                Reintentar
-              </button>
-            )}
-          </div>
-        )}
-        {mapReady.value && (
-          <button
-            type="button"
-            onClick$={() => {
-              if (markersGroupRef.value?.getLayers().length)
-                mapRef.value?.fitBounds(markersGroupRef.value.getBounds(), {
-                  padding: [35, 35],
-                  maxZoom: 16,
-                });
-            }}
-            class="absolute bottom-7 left-3 z-[500] flex min-h-11 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold shadow-sm"
-          >
-            <LuMapPin class="h-4 w-4" />
-            Ver comercios
-          </button>
-        )}
-      </section>
-
-      <section
-        aria-label="Comercios del mapa"
-        class="min-h-0 border-t border-slate-200 bg-white lg:col-start-1 lg:row-start-2 lg:overflow-y-auto lg:border-r lg:border-t-0"
-      >
-        <div class="border-b border-slate-100 bg-white px-4 py-3">
-          <h2 class="text-sm font-bold">
-            {userPosition.value
-              ? "Ordenados por cercanía"
-              : "Comercios en el mapa"}
-          </h2>
-          <p class="text-xs text-slate-500">
-            Tocá “Ver en mapa” para ubicar un comercio.
-          </p>
-        </div>
-        {nearbyBenefits.value.length ? (
-          <ul class="divide-y divide-slate-100">
-            {nearbyBenefits.value.map(({ benefit, distance }) => (
-              <li
-                key={benefit.id}
-                id={`map-benefit-${benefit.id}`}
-                class={`p-4 ${selectedBenefit.value === benefit.id ? "bg-brand-navy/5 ring-2 ring-inset ring-brand-navy" : ""}`}
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <h3 class="text-sm font-black leading-snug text-slate-900">
-                    <Link
-                      href={`/beneficio/${benefit.url}/`}
-                      class="hover:underline"
-                    >
-                      {benefit.titulo}
-                    </Link>
-                  </h3>
-                  {distance !== null && (
-                    <span class="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800">
-                      {formatDistance(distance)}
-                    </span>
-                  )}
-                </div>
-                <p class="mt-1 text-xs text-slate-500">
-                  {benefit.ubicacion
-                    .map((locality) => locality.descripcion)
-                    .join(" · ") || "Ver ubicación en el mapa"}
-                </p>
-                <p class="mt-2 text-sm font-bold text-brand-navy-dark">
-                  {benefit.resumen || "Beneficio exclusivo para socios"}
-                </p>
-                <div class="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={!mapReady.value}
-                    aria-pressed={selectedBenefit.value === benefit.id}
-                    onClick$={() => {
-                      selectedBenefit.value = benefit.id;
-                      selectionAttempt.value++;
-                      if (!window.matchMedia("(min-width: 1024px)").matches)
-                        mapElement.value?.scrollIntoView({
-                          block: "center",
-                          behavior: "smooth",
-                        });
-                    }}
-                    class="flex min-h-11 items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 text-xs font-bold hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <LuMapPin class="h-4 w-4" />
-                    Ver en mapa
-                  </button>
-                  <Link
-                    href={`/beneficio/${benefit.url}/`}
-                    class="flex min-h-11 items-center justify-center rounded-lg bg-brand-navy px-2 text-xs font-bold text-white hover:bg-brand-navy-dark"
-                  >
-                    Ver beneficio
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div class="px-5 py-8 text-center">
-            <LuSearch class="mx-auto mb-3 h-7 w-7 text-slate-400" />
-            <h3 class="font-bold">No encontramos comercios</h3>
-            <p class="mt-2 text-sm text-slate-500">
-              Probá otra búsqueda, categoría o localidad. El catálogo también
-              incluye beneficios sin ubicación en el mapa.
-            </p>
-            <Link
-              href={listadoHref.value}
-              class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-brand-navy px-4 text-sm font-bold text-white"
-            >
-              Ver catálogo
-            </Link>
-          </div>
-        )}
-      </section>
+        </section>
+      </div>
     </div>
   );
 });

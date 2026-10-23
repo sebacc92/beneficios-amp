@@ -68,17 +68,29 @@ const fixture = (url, values = {}) => ({
 const slugs = (benefits) => benefits.map((benefit) => benefit.url);
 
 try {
-  await test("recent featured benefits appear in both rows without changing the source", () => {
+  await test("nuevos skip featured benefits and the catalog's first day without changing the source", () => {
     const items = [
       fixture("old", { created_at: "2025-01-01T00:00:00Z" }),
+      fixture("same-day", { created_at: "2025-01-01T20:00:00Z" }),
       fixture("featured", { created_at: "2026-10-01T00:00:00Z", isFeatured: true }),
       fixture("recent", { created_at: "2026-09-01T00:00:00Z" }),
+      fixture("undated", { created_at: "" }),
     ];
     const original = structuredClone(items);
     const rows = backend.selectHomeBenefits(items);
     assert.deepEqual(slugs(rows.gold), ["featured"]);
-    assert.deepEqual(slugs(rows.nuevos), ["featured", "recent", "old"]);
+    assert.deepEqual(slugs(rows.nuevos), ["recent"]);
     assert.deepEqual(items, original);
+  });
+
+  await test("a catalog loaded in a single day has no nuevos", () => {
+    const items = [
+      fixture("a", { created_at: "2026-10-23T09:00:00Z" }),
+      fixture("b", { created_at: "2026-10-23T12:00:00Z" }),
+      fixture("c", { created_at: "2026-10-23T15:00:00Z", isFeatured: true }),
+    ];
+    assert.deepEqual(backend.selectHomeBenefits(items).nuevos, []);
+    assert.deepEqual(backend.selectHomeBenefits([fixture("only")]).nuevos, []);
   });
 
   await test("invalid and absent dates sort last and ties use stable slugs", () => {
@@ -90,8 +102,8 @@ try {
       fixture("empty", { created_at: "" }),
     ];
     const expected = ["valid-a", "valid-b", "empty", "invalid-a", "invalid-z"];
-    assert.deepEqual(slugs(backend.selectHomeBenefits(items).nuevos), expected);
-    assert.deepEqual(slugs(backend.selectHomeBenefits([...items].reverse()).nuevos), expected);
+    assert.deepEqual(slugs(backend.sortCatalog(items, "nuevos")), expected);
+    assert.deepEqual(slugs(backend.sortCatalog([...items].reverse(), "nuevos")), expected);
   });
 
   await test("inactive benefits are absent from every homepage row", () => {
@@ -101,7 +113,8 @@ try {
       fixture("draft", { titulo: "Café borrador", isActive: false, isFeatured: true }),
     ];
     const rows = backend.selectHomeBenefits(items);
-    for (const row of Object.values(rows)) assert.deepEqual(slugs(row), ["active"]);
+    for (const row of Object.values(rows)) assert.ok(slugs(row).every((slug) => slug === "active"));
+    assert.deepEqual(slugs(rows.gold), ["active"]);
   });
 
   await test("campaign terms still match title, summary, description and category in catalog order", () => {
@@ -115,7 +128,82 @@ try {
     ];
     assert.deepEqual(slugs(backend.selectHomeBenefits(items, " especial, inexistente ").cafecitos), ["title", "summary", "description", "category"]);
     assert.deepEqual(backend.selectHomeBenefits(items, "sin coincidencias").cafecitos, []);
-    assert.deepEqual(backend.selectHomeBenefits([]), { gold: [], nuevos: [], cafecitos: [] });
+    assert.deepEqual(backend.selectHomeBenefits([]), { gold: [], nuevos: [], cafecitos: [], mas: [] });
+  });
+
+  await test("campaign and more-benefits blocks prefer benefits not shown above, then fill", () => {
+    const items = [
+      fixture("cafe-featured", { titulo: "Café destacado", isFeatured: true }),
+      fixture("cafe-a", { titulo: "Café A" }),
+      fixture("gym", { titulo: "Gimnasio" }),
+      fixture("cafe-b", { titulo: "Café B", isFeatured: true }),
+      fixture("store", { titulo: "Tienda" }),
+    ];
+    const rows = backend.selectHomeBenefits(items, "café");
+    assert.deepEqual(slugs(rows.gold), ["cafe-b", "cafe-featured"]);
+    assert.deepEqual(slugs(rows.cafecitos), ["cafe-a", "cafe-featured", "cafe-b"]);
+    assert.deepEqual(slugs(rows.mas), ["gym", "store", "cafe-featured", "cafe-a"]);
+  });
+
+  await test("hand-picked campaigns keep the admin's order even when repeated above", () => {
+    const items = [fixture("a", { isFeatured: true }), fixture("b"), fixture("c")];
+    const rows = backend.selectHomeBenefits(items, null, ["c", "missing", "a"]);
+    assert.deepEqual(slugs(rows.cafecitos), ["c", "a"]);
+    assert.deepEqual(slugs(rows.mas), ["b", "a", "c"]);
+  });
+
+  await test("discount labels read the same however they were typed", () => {
+    const cases = {
+      "10 % OFF": "10% OFF",
+      "15% Off": "15% OFF",
+      "20% off en compras": "20% OFF en compras",
+      "Descuento del 25 % en cuotas": "25% en cuotas",
+      "10% de descuento": "10% OFF",
+      "25% y 10% de descuento": "25% y 10% OFF",
+      "Socios Free": "Socios Free",
+      "  ": "Exclusivo",
+    };
+    for (const [input, expected] of Object.entries(cases)) assert.equal(backend.formatDiscount(input), expected, input);
+    assert.equal(backend.offerLabel("25%"), "25% OFF");
+    assert.equal(backend.offerLabel("50% OFF - 10% OFF"), "50% OFF - 10% OFF");
+    assert.equal(backend.offerLabel("SOCIOS FREE"), "SOCIOS FREE");
+    assert.equal(backend.offerLabel("Promociones 2x1"), "Promociones");
+  });
+
+  await test("catalog sorts by discount, title and featured-first default", () => {
+    const items = [
+      fixture("ten", { titulo: "beta", resumen: "10% OFF" }),
+      fixture("free", { titulo: "Zorzal", resumen: "Socios Free" }),
+      fixture("none", { titulo: "Álamo", resumen: "2x1" }),
+      fixture("combo", { titulo: "alfa", resumen: "10% y 25% de descuento", isFeatured: true }),
+    ];
+    assert.deepEqual(slugs(backend.sortCatalog(items, "descuento")), ["free", "combo", "ten", "none"]);
+    // Accents and case do not change alphabetical order ("Álamo" before "alfa").
+    assert.deepEqual(slugs(backend.sortCatalog(items, "az")), ["none", "combo", "ten", "free"]);
+    assert.deepEqual(slugs(backend.sortCatalog(items, "")), ["combo", "ten", "free", "none"]);
+    assert.equal(backend.parseCatalogSort("cualquiera"), "");
+    assert.equal(backend.parseCatalogSort("az"), "az");
+  });
+
+  await test("common location and live filter counts", () => {
+    const laPlata = { id: 1, descripcion: "La Plata" };
+    const club = { id: 2, descripcion: "EN EL CLUB" };
+    const items = [
+      fixture("a", { ubicacion: [laPlata] }),
+      fixture("b", { ubicacion: [laPlata] }),
+      fixture("c", { ubicacion: [club], ofertas: [{ id: 7, descripcion: "SOCIOS FREE" }] }),
+      fixture("hidden", { ubicacion: [club], mostrar_app: 0 }),
+    ];
+    assert.equal(backend.commonLocation(items.slice(0, 3)), "La Plata");
+    assert.equal(backend.commonLocation([items[0], items[2]]), null);
+    assert.ok(backend.isClubLocation("EN EL CLUB"));
+    const counted = backend.withLiveCounts(
+      { categorias: [{ id: 1, descripcion: "Compras", beneficios_count: 99 }], ubicaciones: [laPlata, club], ofertas: [{ id: 7, descripcion: "SOCIOS FREE" }] },
+      items,
+    );
+    assert.deepEqual(counted.categorias.map((option) => option.beneficios_count), [3]);
+    assert.deepEqual(counted.ubicaciones.map((option) => option.beneficios_count), [2, 1]);
+    assert.deepEqual(counted.ofertas.map((option) => option.beneficios_count), [1]);
   });
 
   for (const name of ["benefits", "benefitFilterOptions"]) {
@@ -165,7 +253,7 @@ try {
     assert.equal(queries.length, beforeCuratedRows, "Curated rows reuse the request's loaded catalog");
     const expectedRecent = [68, 67, 66, 65, 64, 63].map((index) => records[index].slug);
     assert.deepEqual(slugs(rows.gold), expectedRecent);
-    assert.deepEqual(slugs(rows.nuevos), expectedRecent);
+    assert.deepEqual(slugs(rows.nuevos), [62, 61, 60, 59, 58, 57].map((index) => records[index].slug));
     assert.deepEqual(slugs(rows.cafecitos), [60, 61, 62, 63].map((index) => records[index].slug));
     assert.ok(Object.values(rows).every((row) => !slugs(row).includes(records[69].slug)), "Drafts never appear");
     const selects = queries.slice(queryStart).filter((query) => /^select\b/i.test(query));

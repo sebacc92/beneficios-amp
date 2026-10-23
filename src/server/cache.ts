@@ -2,7 +2,7 @@ import type { RequestEventBase } from "@builder.io/qwik-city";
 import { getDB } from "~/db";
 import { benefits } from "~/db/schema";
 import { BENEFIT_FILTERS_CACHE_KEY, getSavedBenefitFilters } from "./benefit-filters";
-import { isDraftBenefit } from "~/utils/benefit-status";
+import { isDraftBenefit, parseValidUntil } from "~/utils/benefit-status";
 import { matchesCampaign } from "~/utils/home-benefits";
 
 export interface Category {
@@ -50,6 +50,14 @@ export interface Benefit {
   pdfUrl?: string | null; // PDF file document URL or path
   imagenMobile?: string | null; // Mobile image URL or path
   isActive?: boolean;
+  validUntil?: string | null; // YYYY-MM-DD without the draft prefix
+  // Structured merchant details (null for older benefits, which keep them in `descripcion`)
+  address?: string | null;
+  hours?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  instagram?: string | null;
+  website?: string | null;
 }
 
 export interface Filters {
@@ -300,6 +308,9 @@ async function loadCustomBenefits(requestEvent: RequestEventBase): Promise<Benef
       getFilters(requestEvent),
     ]);
 
+    // Same day boundary as expiredBenefitCondition: a benefit is valid through its last day in Buenos Aires.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
     const mapped = dbBenefits.map((cb) => {
       const cat = filters.categorias.find((c) => c.id === cb.categoryId) || { id: cb.categoryId, descripcion: "Otro" };
       const loc = filters.ubicaciones.find((l) => l.id === cb.locationId) || { id: cb.locationId, descripcion: "La Plata" };
@@ -310,7 +321,9 @@ async function loadCustomBenefits(requestEvent: RequestEventBase): Promise<Benef
         ? Number(cb.slug.split("-")[0])
         : Math.floor(Math.random() * 10000) + 90000;
 
-      const isActive = !isDraftBenefit(cb.validUntil);
+      const { isDraft, validUntil } = parseValidUntil(cb.validUntil);
+      // Expired benefits leave the public site like drafts do; their coupons already count as expired.
+      const isActive = !isDraft && !(validUntil && validUntil.slice(0, 10) < today);
 
       return {
         id: numId,
@@ -332,6 +345,13 @@ async function loadCustomBenefits(requestEvent: RequestEventBase): Promise<Benef
         imagenMobile: cb.imagenMobile || null,
         created_at: cb.createdAt,
         isActive,
+        validUntil,
+        address: cb.address || null,
+        hours: cb.hours || null,
+        phone: cb.phone || null,
+        whatsapp: cb.whatsapp || null,
+        instagram: cb.instagram || null,
+        website: cb.website || null,
       } as Benefit;
     });
 

@@ -41,6 +41,47 @@ const ADDED_COLUMNS = {
       "campaign_query",
       "TEXT DEFAULT 'cafe,café,desayuno,factura,gastronomia,gastro'",
     ],
+    ["campaign_benefit_slugs", "TEXT"],
+    ["popup_starts_at", "TEXT"],
+    ["popup_ends_at", "TEXT"],
+    ["popup_audience", "TEXT DEFAULT 'all'"],
+  ],
+  chat_sessions: [["reviewed_at", "TEXT"]],
+  users: [
+    ["last_login_at", "TEXT"],
+    ["must_change_password", "INTEGER NOT NULL DEFAULT 0"],
+  ],
+  benefits: [
+    ["address", "TEXT"],
+    ["hours", "TEXT"],
+    ["phone", "TEXT"],
+    ["whatsapp", "TEXT"],
+    ["instagram", "TEXT"],
+    ["website", "TEXT"],
+  ],
+  events: [
+    ["kind", "TEXT"],
+    ["registration_url", "TEXT"],
+  ],
+  raffles: [
+    ["status", "TEXT NOT NULL DEFAULT 'published'"],
+    ["requirements", "TEXT"],
+  ],
+  sponsors: [
+    ["is_active", "INTEGER NOT NULL DEFAULT 1"],
+    ["tier", "TEXT NOT NULL DEFAULT 'oficial'"],
+  ],
+  merchant_requests: [
+    ["notes", "TEXT"],
+    ["assigned_to", "TEXT"],
+    ["contacted_at", "TEXT"],
+    ["updated_at", "TEXT"],
+  ],
+  suggestions: [
+    ["notes", "TEXT"],
+    ["assigned_to", "TEXT"],
+    ["contacted_at", "TEXT"],
+    ["updated_at", "TEXT"],
   ],
 };
 

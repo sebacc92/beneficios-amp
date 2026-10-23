@@ -1,23 +1,24 @@
 import { component$, $ } from "@builder.io/qwik";
 import type { Benefit } from "~/server/cache";
 import { BenefitCard } from "~/components/ui/BenefitCard";
+import { SectionHeading } from "~/components/section-heading/section-heading";
 
 interface CuratedRowProps {
   title: string;
   subtitle: string;
-  accentColor: "gold" | "green" | "emerald";
+  /** @deprecated Kept for older callers; every row now uses the club colors. */
+  accentColor?: "gold" | "green" | "emerald";
   containerId: string;
   benefits: Benefit[];
   variant: "gold" | "new" | "standard";
+  /** Passed to each card so the shared city is not repeated on every one. */
+  commonLocation?: string | null;
 }
 
-export const CuratedRow = component$<CuratedRowProps>(({
-  title,
-  subtitle,
-  containerId,
-  benefits,
-  variant,
-}) => {
+const arrowButton =
+  "flex h-11 w-11 items-center justify-center border border-primary bg-surface text-primary transition-colors hover:bg-primary hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+export const CuratedRow = component$<CuratedRowProps>(({ title, subtitle, containerId, benefits, variant, commonLocation }) => {
   const scrollContainer = $((direction: "left" | "right") => {
     const container = document.getElementById(containerId);
     if (container) {
@@ -30,55 +31,44 @@ export const CuratedRow = component$<CuratedRowProps>(({
 
   if (!benefits || benefits.length === 0) return null;
 
-  const dotColorClass = "bg-accent";
-  const labelColorClass = "text-slate-600";
-
   return (
-    <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden text-left animate-fade-in-up">
-      <div class="flex items-end justify-between border-b border-line pb-3 mb-6">
-        <div class="space-y-1">
-          <div class="flex items-center space-x-2">
-            <span class={`w-1.5 h-1.5 rounded-full ${dotColorClass} animate-pulse`}></span>
-            <span class={`text-[11px] font-black tracking-widest ${labelColorClass} uppercase`}>{subtitle}</span>
-          </div>
-          <h2 class="text-2xl font-display font-extrabold text-primary tracking-tight leading-none">
-            {title}
-          </h2>
-        </div>
-        {/* Arrow navigation buttons */}
-        <div class="flex items-center space-x-2 pb-0.5">
+    <section class="mx-auto max-w-[90rem] px-4 py-8 text-left print:hidden sm:px-6 lg:px-8" aria-labelledby={`${containerId}-title`}>
+      <div class="mb-6 flex items-end justify-between gap-4">
+        <SectionHeading id={`${containerId}-title`} eyebrow={subtitle} title={title} size="md" />
+        {/* Phones swipe; four cards fit a desktop row, so arrows only help in between or with more. */}
+        <div class={`hidden shrink-0 items-center gap-2 ${benefits.length > 1 ? "sm:flex" : ""} ${benefits.length > 4 ? "" : "lg:hidden"}`}>
           <button
             type="button"
             onClick$={() => scrollContainer("left")}
-            class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            class={arrowButton}
             aria-label={`Ver beneficios anteriores en ${title}`}
             aria-controls={containerId}
           >
-            <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="square" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <button
             type="button"
             onClick$={() => scrollContainer("right")}
-            class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            class={arrowButton}
             aria-label={`Ver más beneficios en ${title}`}
             aria-controls={containerId}
           >
-            <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="square" d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
       </div>
 
-      <div id={containerId} class="flex items-center space-x-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
+      <ul id={containerId} class="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-5 overflow-x-auto px-4 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0">
         {benefits.map((benefit: Benefit) => (
-          <div key={`${variant}-${benefit.id}`} class="w-[280px] sm:w-[320px] flex-shrink-0 snap-start select-none">
-            <BenefitCard benefit={benefit} variant={variant} />
-          </div>
+          <li key={`${variant}-${benefit.id}`} class="flex w-[17.5rem] shrink-0 snap-start sm:w-[19rem] lg:w-[calc((100%-3.75rem)/4)]">
+            <BenefitCard benefit={benefit} variant={variant} commonLocation={commonLocation} />
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 });

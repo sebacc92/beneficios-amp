@@ -1,10 +1,28 @@
 /** Options of the /sugerencias form; `?tipo=` only prefills one of these values. */
 export const SUGGESTION_TYPES = [
-  { value: "Sugerir Comercio", label: "Recomendar un nuevo comercio adherido" },
-  { value: "Problema Comercio", label: "Reportar un inconveniente con un beneficio o descuento" },
-  { value: "Consulta General", label: "Consulta o duda general sobre el club" },
-  { value: "Otro", label: "Otro motivo" },
+  {
+    value: "Sugerir Comercio",
+    label: "Recomendar un nuevo comercio adherido",
+    title: "Recomendar un comercio",
+    hint: "Contanos qué comercio te gustaría ver en el portal.",
+  },
+  {
+    value: "Problema Comercio",
+    label: "Reportar un inconveniente con un beneficio o descuento",
+    title: "Problema con un beneficio",
+    hint: "Un comercio no aplicó el descuento o algo no funcionó.",
+  },
+  {
+    value: "Consulta General",
+    label: "Consulta o duda general sobre el club",
+    title: "Consulta general",
+    hint: "Dudas sobre el portal, tu cuenta o el club.",
+  },
+  { value: "Otro", label: "Otro motivo", title: "Otro motivo", hint: "Cualquier otra cosa que quieras contarnos." },
 ] as const;
+
+/** Reasons where the form asks for the shop's name. */
+export const SUGGESTION_TYPES_WITH_COMMERCE: readonly string[] = ["Sugerir Comercio", "Problema Comercio"];
 
 export const SUGGESTION_STATUSES = ["pending", "reviewed", "discarded"] as const;
 export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];

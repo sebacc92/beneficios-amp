@@ -121,9 +121,15 @@ interface CategorySliderProps {
   categorias: Category[];
   activeCategoryId?: number | null;
   sliderId?: string;
+  /** Hide categories without benefits (the active one always stays, so it can be removed). */
   filterEmpty?: boolean;
   title?: string;
+  /** "blocks": navy tiles that fill the row (home). "chips": compact quick filters (catalog). */
+  variant?: "blocks" | "chips";
 }
+
+const arrowButton =
+  "flex h-11 w-11 items-center justify-center border border-primary bg-surface text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-default disabled:opacity-35 disabled:hover:bg-surface disabled:hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 export const CategorySlider = component$<CategorySliderProps>(
   ({
@@ -131,62 +137,40 @@ export const CategorySlider = component$<CategorySliderProps>(
     activeCategoryId = null,
     sliderId = "category-scroll-container",
     filterEmpty = false,
-    title = "Explorá por Categoría",
+    title = "Explorá por rubro",
+    variant = "blocks",
   }) => {
     const location = useLocation();
     const showControls = useSignal(false);
     const canScrollLeft = useSignal(false);
     const canScrollRight = useSignal(false);
 
-    const scrollLeft = $(() => {
-      const container = document.getElementById(sliderId);
-      if (container) {
-        container.scrollBy({
-          left: -280,
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? "instant"
-            : "smooth",
-        });
-      }
-    });
-
-    const scrollRight = $(() => {
-      const container = document.getElementById(sliderId);
-      if (container) {
-        container.scrollBy({
-          left: 280,
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? "instant"
-            : "smooth",
-        });
-      }
+    const scrollBy = $((distance: number) => {
+      document.getElementById(sliderId)?.scrollBy({
+        left: distance,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      });
     });
 
     const displayList = filterEmpty
-      ? categorias.filter((c) => (c.beneficios_count || 0) > 0)
+      ? categorias.filter((c) => (c.beneficios_count || 0) > 0 || c.id === activeCategoryId)
       : categorias;
 
+    // Arrows only matter while the row scrolls (mobile); on desktop the blocks wrap.
+    // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ track, cleanup }) => {
       track(() => displayList.length);
-
-      const checkScroll = () => {
-        const container = document.getElementById(sliderId);
-        if (container) {
-          const maxScroll = container.scrollWidth - container.clientWidth;
-          showControls.value = maxScroll > 1;
-          canScrollLeft.value = container.scrollLeft > 1;
-          canScrollRight.value = container.scrollLeft < maxScroll - 1;
-        }
-      };
-
-      // Check after DOM layout calculation
       const container = document.getElementById(sliderId);
+      const checkScroll = () => {
+        if (!container) return;
+        const maxScroll = container.scrollWidth - container.clientWidth;
+        showControls.value = maxScroll > 1;
+        canScrollLeft.value = container.scrollLeft > 1;
+        canScrollRight.value = container.scrollLeft < maxScroll - 1;
+      };
       const handle = setTimeout(checkScroll, 100);
       container?.addEventListener("scroll", checkScroll, { passive: true });
       window.addEventListener("resize", checkScroll);
-
       cleanup(() => {
         clearTimeout(handle);
         container?.removeEventListener("scroll", checkScroll);
@@ -194,126 +178,117 @@ export const CategorySlider = component$<CategorySliderProps>(
       });
     });
 
+    // From the home every category opens the catalog; in the catalog a chip toggles its filter.
+    const hrefFor = (id: number | null) => {
+      if (location.url.pathname === "/") return id ? `/beneficios/?categoria=${id}` : "/beneficios/";
+      const params = new URLSearchParams(location.url.search);
+      if (id === null || id === activeCategoryId) params.delete("categoria");
+      else params.set("categoria", String(id));
+      params.delete("page");
+      const query = params.toString();
+      return `/beneficios/${query ? `?${query}` : ""}`;
+    };
+
+    if (variant === "chips") {
+      const chip = (selected: boolean) =>
+        `inline-flex min-h-11 shrink-0 items-center gap-2 border px-3 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+          selected ? "border-primary bg-primary text-white" : "border-line bg-surface text-primary hover:border-primary"
+        }`;
+      return (
+        <ul id={sliderId} aria-label={title} class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 md:flex-wrap md:overflow-visible">
+          <li class="shrink-0">
+            <Link href={hrefFor(null)} aria-current={activeCategoryId ? undefined : "true"} class={chip(!activeCategoryId)}>
+              Todos
+            </Link>
+          </li>
+          {displayList.map((cat) => {
+            const isSelected = activeCategoryId === cat.id;
+            return (
+              <li key={cat.id} class="shrink-0">
+                <Link
+                  href={hrefFor(cat.id)}
+                  aria-current={isSelected ? "true" : undefined}
+                  aria-label={`${cat.descripcion}: ${cat.beneficios_count || 0} beneficios${isSelected ? ". Quitar filtro" : ""}`}
+                  class={chip(isSelected)}
+                >
+                  <span class={isSelected ? "text-accent" : "text-secondary"}>
+                    {getCategoryIcon(cat.descripcion, "h-4 w-4 stroke-2 text-current")}
+                  </span>
+                  <span>{cat.descripcion}</span>
+                  <span class={`text-xs ${isSelected ? "text-accent" : "text-slate-500"}`}>{cat.beneficios_count || 0}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      );
+    }
+
     return (
       <div class="w-full text-left">
-        <div class="flex min-h-12 items-center justify-between gap-3 mb-2 border-b border-line pb-1">
-          <h3 class="text-[12px] font-black tracking-widest text-slate-600 uppercase pl-1 m-0">
-            {title}
-          </h3>
-          {/* Category scroll controllers */}
+        <div class="mb-3 flex min-h-11 items-center justify-between gap-3">
+          <h3 class="eyebrow text-amber-900">{title}</h3>
           {showControls.value && (
-            <div class="flex items-center space-x-1.5 select-none">
+            <div class="flex items-center gap-2 select-none">
               <button
                 type="button"
-                onClick$={scrollLeft}
+                onClick$={() => scrollBy(-280)}
                 disabled={!canScrollLeft.value}
-                class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                aria-label="Ver categorías anteriores"
+                class={arrowButton}
+                aria-label="Ver rubros anteriores"
                 aria-controls={sliderId}
               >
-                <svg
-                  class="w-3.5 h-3.5 stroke-current fill-none stroke-2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M15 19l-7-7 7-7"
-                  />
+                <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="square" d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <button
                 type="button"
-                onClick$={scrollRight}
+                onClick$={() => scrollBy(280)}
                 disabled={!canScrollRight.value}
-                class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                aria-label="Ver más categorías"
+                class={arrowButton}
+                aria-label="Ver más rubros"
                 aria-controls={sliderId}
               >
-                <svg
-                  class="w-3.5 h-3.5 stroke-current fill-none stroke-2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M9 5l7 7-7 7"
-                  />
+                <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="square" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
           )}
         </div>
 
-        <div
+        <ul
           id={sliderId}
-          class="flex items-center space-x-3 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory"
+          class="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:scroll-px-0 sm:px-0 md:grid md:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] md:overflow-visible md:pb-0"
         >
           {displayList.map((cat) => {
             const isSelected = activeCategoryId === cat.id;
-
-            // Build target URL synchronously and safely
-            const isHome = location.url.pathname === "/";
-            let href = "";
-            if (isHome) {
-              href = `/beneficios?categoria=${cat.id}`;
-            } else {
-              const searchParams = new URLSearchParams(location.url.search);
-              if (isSelected) {
-                searchParams.delete("categoria");
-              } else {
-                searchParams.set("categoria", String(cat.id));
-              }
-              searchParams.set("page", "1");
-              href = `/beneficios?${searchParams.toString()}`;
-            }
-
+            const count = cat.beneficios_count || 0;
             return (
-              <Link
-                key={cat.id}
-                href={href}
-                aria-current={isSelected ? "true" : undefined}
-                aria-label={`${cat.descripcion}: ${cat.beneficios_count || 0} beneficios${isSelected ? ". Quitar filtro" : ""}`}
-                title={cat.descripcion}
-                class={[
-                  "relative flex flex-col items-center justify-center text-center p-3 rounded-2xl border transition-all duration-300 w-28 h-28 flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  isSelected
-                    ? "bg-accent border-accent text-primary shadow-md shadow-accent/15 scale-105"
-                    : "bg-surface border-line hover:border-accent text-primary hover:bg-amber-50 hover:shadow-md hover:scale-105",
-                ]}
-              >
-                {/* Floating Benefit Count Badge */}
-                <span
-                  class={[
-                    "absolute top-2 right-2 text-[11px] font-black px-1.5 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[18px] h-4.5",
-                    isSelected
-                      ? "bg-primary text-white"
-                      : "bg-surface-muted text-slate-600 group-hover:bg-accent group-hover:text-primary",
-                  ]}
+              <li key={cat.id} class="w-36 shrink-0 snap-start md:w-auto">
+                <Link
+                  href={hrefFor(cat.id)}
+                  aria-current={isSelected ? "true" : undefined}
+                  aria-label={`${cat.descripcion}: ${count} ${count === 1 ? "beneficio" : "beneficios"}${isSelected ? ". Quitar filtro" : ""}`}
+                  class={`flex h-full min-h-32 flex-col justify-between gap-4 p-4 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                    isSelected ? "bg-accent text-primary" : "bg-primary text-white hover:bg-secondary"
+                  }`}
                 >
-                  {cat.beneficios_count || 0}
-                </span>
-
-                <span
-                  class={[
-                    "flex items-center justify-center transition-transform duration-300 group-hover:scale-110",
-                    isSelected
-                      ? "text-primary"
-                      : "text-secondary group-hover:text-primary",
-                  ]}
-                >
-                  {getCategoryIcon(
-                    cat.descripcion,
-                    "w-8 h-8 text-current stroke-[1.5]",
-                  )}
-                </span>
-                <span class="text-[11px] font-black uppercase tracking-wider mt-2.5 line-clamp-2 leading-tight max-w-[96px]">
-                  {cat.descripcion}
-                </span>
-              </Link>
+                  <span class={isSelected ? "text-primary" : "text-accent"}>
+                    {getCategoryIcon(cat.descripcion, "h-7 w-7 stroke-[1.5] text-current")}
+                  </span>
+                  <span>
+                    <span class="heading-display line-clamp-2 block text-base leading-tight">{cat.descripcion}</span>
+                    <span class={`mt-1 block text-xs font-semibold ${isSelected ? "text-primary" : "text-accent"}`}>
+                      {count} {count === 1 ? "beneficio" : "beneficios"}
+                    </span>
+                  </span>
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     );
   },

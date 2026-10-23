@@ -5,14 +5,17 @@ import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuMapPin, LuSettings, LuUser, LuLock, LuTicket, LuLogOut, LuChevronDown } from "@qwikest/icons/lucide";
 import { getSearchSuggestions, useSiteLogoutAction } from "~/routes/layout";
 import { ClubBrand } from "~/components/club-brand/club-brand";
-import { HOME_ITEM, MAP_ITEM, NAV_ITEMS, isNavActive } from "./nav-items";
+import { COUPONS_ITEM, HOME_ITEM, MAP_ITEM, isNavActive, navItems } from "./nav-items";
 import { loginUrl } from "~/utils/return-path";
+import { CLUB, WHATSAPP_MESSAGES, whatsappLink } from "~/utils/club";
 
 interface SiteHeaderProps {
   user: Readonly<Signal<AuthenticatedUser | null>>;
+  /** False while the agenda has no upcoming events. */
+  showAgenda: boolean;
 }
 
-export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
+export const SiteHeader = component$<SiteHeaderProps>(({ user, showAgenda }) => {
   const isMobileMenuOpen = useSignal(false);
   const isUserMenuOpen = useSignal(false);
   const location = useLocation();
@@ -98,17 +101,30 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
   // /beneficios has its own search with filters; a second box in the header would compete with it.
   const showHeaderSearch = !isNavActive(location.url.pathname, "/beneficios/");
   const loginHref = loginUrl(location.url.pathname + location.url.search);
+  const items = navItems({ showAgenda });
+  const haceteSocioHref = whatsappLink(WHATSAPP_MESSAGES.haceteSocio);
 
   return (
     <>
       {/* Official portal banner */}
-      <div class="bg-accent text-primary text-[11px] py-2 px-4 text-center font-bold border-b border-accent-hover/20 tracking-[0.15em] uppercase z-50">
-        <span aria-hidden="true">🏉</span> Portal de Beneficios Oficial — La Plata Rugby Club
+      <div class="bg-accent text-primary px-4 py-2 print:hidden">
+        <div class="max-w-[90rem] mx-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center font-display text-[11px] font-semibold uppercase tracking-[0.18em]">
+          <p>
+            {CLUB.name} · Desde {CLUB.foundedYear}
+            <span class="hidden sm:inline"> — Portal oficial de beneficios para socios</span>
+          </p>
+          {!user.value && (
+            <a href={haceteSocioHref} target="_blank" rel="noopener" class="hidden underline decoration-2 underline-offset-4 hover:decoration-primary/40 sm:inline">
+              ¿No sos socio? Hacete socio
+              <span class="sr-only"> (WhatsApp, abre en una pestaña nueva)</span>
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Main Sticky Header — Dark theme */}
       <header
-        class="sticky top-0 z-40 bg-primary/95 backdrop-blur-md border-b border-secondary shadow-lg transition-all duration-300 print:hidden"
+        class="sticky top-0 z-40 bg-primary border-b border-secondary shadow-lg print:hidden"
         onKeyDown$={(event) => {
           if (event.key !== "Escape") return;
           if (isMobileMenuOpen.value) {
@@ -147,7 +163,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                 action="/beneficios/"
                 method="get"
                 role="search"
-                class="relative w-full min-w-0 overflow-hidden rounded-full"
+                class="relative w-full min-w-0 overflow-hidden"
               >
                 <input
                   id="site-search"
@@ -189,13 +205,13 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                     }),
                     handleKeyDown,
                   ]}
-                  class="w-full bg-surface text-primary placeholder-slate-500 text-base sm:text-sm pl-12 pr-14 py-3 rounded-full border border-line focus:border-accent focus:bg-surface focus:outline-none focus:ring-1 focus:ring-accent/50 transition-all duration-300 shadow-sm"
+                  class="w-full bg-surface text-primary placeholder-slate-500 text-base sm:text-sm pl-12 pr-14 py-3 border border-line focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/60 transition-colors"
                   autocomplete="off"
                 />
                 <button
                   type="submit"
                   aria-label="Buscar"
-                  class="absolute right-1 top-1 bottom-1 flex w-11 items-center justify-center rounded-full bg-accent text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  class="absolute right-0 top-0 bottom-0 flex w-12 items-center justify-center bg-accent text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                 >
                   <svg
                     class="h-4 w-4"
@@ -230,8 +246,8 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
 
               {/* Search suggestions */}
               {showSuggestions.value && (
-                <div class="absolute top-full left-0 right-0 mt-2 bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden z-50 text-left animate-scale-in">
-                  <div class="px-5 py-2.5 bg-surface-muted border-b border-line text-[11px] font-black uppercase tracking-widest text-slate-600">
+                <div class="absolute top-full left-0 right-0 mt-1 bg-surface border border-line border-t-4 border-t-accent shadow-2xl overflow-hidden z-50 text-left animate-scale-in">
+                  <div class="eyebrow px-5 py-2.5 bg-surface-muted border-b border-line text-[11px] text-slate-600">
                     Sugerencias
                   </div>
                   {searchStatus.value === "loading" ? (
@@ -272,7 +288,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                               {item.resumen}
                             </span>
                           </div>
-                          <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-surface-muted text-primary uppercase tracking-wide flex-shrink-0">
+                          <span class="badge badge-muted flex-shrink-0">
                             {item.categoria}
                           </span>
                         </Link>
@@ -312,19 +328,21 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
             {/* Desktop Navigation Links */}
             <nav
               aria-label="Navegación principal"
-              class="order-5 col-span-full hidden items-center justify-center gap-x-6 gap-y-2 border-t border-secondary pt-2 xl:flex xl:flex-wrap"
+              class="order-5 col-span-full hidden items-center justify-center gap-x-8 gap-y-2 border-t border-secondary pt-2 xl:flex xl:flex-wrap"
             >
-              {NAV_ITEMS.map((item) => (
+              {[...items, ...(user.value ? [COUPONS_ITEM] : [])].map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  aria-current={isActive(item.href) ? "page" : undefined}
-                  class={`font-extrabold text-[13px] uppercase tracking-wider transition-colors duration-300 py-2 border-b-2 hover:text-accent ${
-                    isActive(item.href)
+                  aria-current={isActive(item.href) && item !== COUPONS_ITEM ? "page" : undefined}
+                  class={`inline-flex items-center gap-1.5 font-display font-semibold text-[13px] uppercase tracking-[0.14em] transition-colors duration-200 py-2 border-b-2 hover:text-accent ${
+                    isActive(item.href) && item !== COUPONS_ITEM
                       ? "text-accent border-accent"
-                      : "text-slate-300 border-transparent hover:border-accent/30"
+                      : "text-white border-transparent hover:border-accent/40"
                   }`}
                 >
+                  {item === MAP_ITEM && <LuMapPin class="w-3.5 h-3.5 text-accent" />}
+                  {item === COUPONS_ITEM && <LuTicket class="w-3.5 h-3.5 text-accent" />}
                   {item.label}
                 </Link>
               ))}
@@ -332,15 +350,6 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
 
             {/* Right-most Action Buttons */}
             <div class="order-4 hidden xl:order-3 xl:flex items-center gap-2 flex-shrink-0">
-              <Link
-                href={MAP_ITEM.href}
-                aria-current={isActive(MAP_ITEM.href) ? "page" : undefined}
-                class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-secondary bg-secondary/40 hover:bg-secondary text-white font-black text-sm shadow-sm hover:shadow-md transition-all uppercase tracking-wider cursor-pointer"
-              >
-                <LuMapPin class="w-4 h-4 text-accent" />
-                <span>{MAP_ITEM.label}</span>
-              </Link>
-
               {user.value ? (
                 <div
                   class="relative"
@@ -353,23 +362,23 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                     aria-expanded={isUserMenuOpen.value}
                     aria-controls="user-menu"
                     onClick$={() => (isUserMenuOpen.value = !isUserMenuOpen.value)}
-                    class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-accent bg-accent text-primary font-extrabold text-sm shadow-sm transition-all hover:bg-accent-hover cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    class="inline-flex min-h-9 items-center gap-2 bg-accent px-4 py-2 text-sm font-bold text-primary hover:bg-accent-hover cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
                     <LuUser class="w-4 h-4 text-primary" />
-                    <span class="truncate max-w-[120px]">{user.value.name}</span>
+                    <span class="truncate max-w-[140px]">{user.value.name}</span>
                     <LuChevronDown class={`w-4 h-4 transition-transform ${isUserMenuOpen.value ? "rotate-180" : ""}`} />
                     <span class="sr-only">: menú de tu cuenta</span>
                   </button>
                   {isUserMenuOpen.value && (
                     <div
                       id="user-menu"
-                      class="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-line bg-surface text-primary shadow-2xl animate-scale-in"
+                      class="absolute right-0 top-full mt-1 w-60 overflow-hidden border border-line border-t-4 border-t-accent bg-surface text-primary shadow-2xl animate-scale-in"
                     >
                       <Link href="/perfil/" aria-current={location.url.pathname === "/perfil/" ? "page" : undefined} class="flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-surface-muted">
-                        <LuUser class="w-4 h-4" /> Mi perfil
+                        <LuUser class="w-4 h-4" /> Mi perfil y credencial
                       </Link>
-                      <Link href="/perfil/#mis-cupones" class="flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-surface-muted">
-                        <LuTicket class="w-4 h-4" /> Mis cupones
+                      <Link href={COUPONS_ITEM.href} class="flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-surface-muted">
+                        <LuTicket class="w-4 h-4" /> {COUPONS_ITEM.label}
                       </Link>
                       {user.value.role === "admin" && (
                         <Link href="/admin" class="flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-surface-muted">
@@ -385,13 +394,16 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                   )}
                 </div>
               ) : (
-                <Link
-                  href={loginHref}
-                  class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-accent hover:bg-accent-hover text-primary font-extrabold text-sm shadow-md transition-all cursor-pointer"
-                >
-                  <LuLock class="w-4 h-4 text-primary" />
-                  <span>Ingresar</span>
-                </Link>
+                <>
+                  <Link href={loginHref} class="btn btn-sm btn-outline-light">
+                    <LuLock class="w-4 h-4" />
+                    <span>Ingresar</span>
+                  </Link>
+                  <a href={haceteSocioHref} target="_blank" rel="noopener" class="btn btn-sm btn-primary">
+                    Hacete socio
+                    <span class="sr-only"> (WhatsApp, abre en una pestaña nueva)</span>
+                  </a>
+                </>
               )}
             </div>
 
@@ -403,7 +415,7 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
                   (isMobileMenuOpen.value = !isMobileMenuOpen.value)
                 }
                 type="button"
-                class="inline-flex h-11 w-11 items-center justify-center rounded-md text-accent hover:bg-secondary hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-colors duration-300"
+                class="inline-flex h-11 w-11 items-center justify-center text-accent hover:bg-secondary hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-colors duration-300"
                 aria-controls="mobile-menu"
                 aria-expanded={isMobileMenuOpen.value}
               >
@@ -453,74 +465,76 @@ export const SiteHeader = component$<SiteHeaderProps>(({ user }) => {
           id="mobile-menu"
           hidden={!isMobileMenuOpen.value}
         >
-          <div class="px-4 pt-2 pb-4 space-y-2 bg-primary">
-            {user.value ? (
+          <div class="px-4 pt-2 pb-5 space-y-1 bg-primary">
+            {user.value && (
               <>
                 <Link
                   href="/perfil/"
                   aria-current={location.url.pathname === "/perfil/" ? "page" : undefined}
-                  class="inline-flex min-h-11 items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-accent hover:bg-secondary"
+                  class="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-base font-bold text-accent hover:bg-secondary"
                 >
                   <LuUser class="w-4 h-4 text-accent" />
-                  <span>Mi Perfil</span>
+                  <span>Mi perfil y credencial</span>
                 </Link>
                 <Link
-                  href="/perfil/#mis-cupones"
-                  class="inline-flex min-h-11 items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-accent hover:bg-secondary"
+                  href={COUPONS_ITEM.href}
+                  class="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-base font-bold text-accent hover:bg-secondary"
                 >
                   <LuTicket class="w-4 h-4 text-accent" />
-                  <span>Mis cupones</span>
+                  <span>{COUPONS_ITEM.label}</span>
                 </Link>
+                {user.value.role === "admin" && (
+                  <Link
+                    href="/admin"
+                    class="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-base font-bold text-accent hover:bg-secondary"
+                  >
+                    <LuSettings class="w-4 h-4" />
+                    <span>Panel de administración</span>
+                  </Link>
+                )}
               </>
-            ) : (
-              <Link
-                href={loginHref}
-                class="inline-flex min-h-11 items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-accent hover:bg-secondary"
-              >
-                <LuLock class="w-4 h-4 text-accent" />
-                <span>Iniciar Sesión</span>
-              </Link>
             )}
 
-            {user.value?.role === "admin" && (
-              <Link
-                href="/admin"
-                class="inline-flex min-h-11 items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-accent hover:bg-secondary"
-              >
-                <LuSettings class="w-4 h-4" />
-                <span>Panel de administración</span>
-              </Link>
-            )}
-
-            {[HOME_ITEM, ...NAV_ITEMS, MAP_ITEM].map((item) => (
+            {[HOME_ITEM, ...items].map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={isActive(item.href) ? "page" : undefined}
                 // Also covers links to the page already open, where the pathname does not change.
                 onClick$={() => (isMobileMenuOpen.value = false)}
-                class={`flex min-h-11 items-center gap-2 px-3 py-2 rounded-md text-base font-semibold transition-colors ${
+                class={`flex min-h-11 items-center gap-2 px-3 py-2 font-display text-base font-semibold uppercase tracking-[0.12em] transition-colors ${
                   isActive(item.href)
-                    ? "text-accent bg-secondary"
-                    : "text-slate-300 hover:bg-secondary hover:text-accent"
+                    ? "text-accent bg-secondary border-l-4 border-accent"
+                    : "text-white hover:bg-secondary hover:text-accent"
                 }`}
               >
-                {item === MAP_ITEM && <LuMapPin class="w-4 h-4 text-slate-400" />}
+                {item === MAP_ITEM && <LuMapPin class="w-4 h-4 text-accent" />}
                 <span>{item.label}</span>
               </Link>
             ))}
 
-            {user.value && (
+            {user.value ? (
               <Form action={logoutAction}>
                 <button
                   type="submit"
                   disabled={logoutAction.isRunning}
-                  class="inline-flex min-h-11 items-center gap-2 w-full px-3 py-2 rounded-md text-base font-bold text-red-300 hover:bg-secondary cursor-pointer disabled:opacity-60"
+                  class="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-base font-bold text-red-300 hover:bg-secondary cursor-pointer disabled:opacity-60"
                 >
                   <LuLogOut class="w-4 h-4" />
                   <span>{logoutAction.isRunning ? "Cerrando sesión..." : "Cerrar sesión"}</span>
                 </button>
               </Form>
+            ) : (
+              <div class="grid grid-cols-2 gap-2 pt-3">
+                <Link href={loginHref} class="btn btn-outline-light">
+                  <LuLock class="w-4 h-4" />
+                  Ingresar
+                </Link>
+                <a href={haceteSocioHref} target="_blank" rel="noopener" class="btn btn-primary">
+                  Hacete socio
+                  <span class="sr-only"> (WhatsApp, abre en una pestaña nueva)</span>
+                </a>
+              </div>
             )}
           </div>
         </nav>

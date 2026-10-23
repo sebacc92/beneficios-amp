@@ -1,6 +1,9 @@
 import { component$ } from "@builder.io/qwik";
 import { Link, routeLoader$, useLocation, useNavigate, type DocumentHead } from "@builder.io/qwik-city";
-import { getAdminCouponPage, parseAdminCouponQuery } from "~/server/admin-coupons";
+import { LuDownload, LuExternalLink, LuScanLine, LuSearch } from "@qwikest/icons/lucide";
+import { getAdminCouponPage } from "~/server/admin-coupons";
+import { ADMIN_COUPON_PERIODS, parseAdminCouponQuery, type AdminCouponStatus } from "~/utils/admin-coupons";
+import { AdminPageHeader } from "~/components/admin/page-header";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 export const useAdminCouponsLoader = routeLoader$(async (event) => {
@@ -21,124 +24,189 @@ export const useAdminCouponsLoader = routeLoader$(async (event) => {
       total: 0,
       page: 1,
       pages: 1,
-      stats: { total: 0, redeemed: 0, active: 0, rate: 0, topBenefits: [] },
+      benefitOptions: [],
+      stats: { total: 0, redeemed: 0, active: 0, expired: 0, rate: 0, topBenefits: [] },
       loadError: true,
     };
   }
 });
 
 const STATUS_LABELS: Record<string, { label: string; class: string }> = {
-  used: { label: "Canjeado", class: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  expired: { label: "Vencido", class: "bg-slate-100 text-slate-600 border-slate-200" },
-  active: { label: "Activo", class: "bg-amber-50 text-amber-800 border-amber-200" },
+  used: { label: "Canjeado", class: "badge bg-green-50 text-green-800 border border-green-200" },
+  expired: { label: "Vencido", class: "badge badge-muted" },
+  active: { label: "Activo", class: "badge badge-accent" },
 };
 
 // Workers render in UTC, so the club's timezone has to be explicit.
 const formatDateTime = (value: string) =>
-  new Date(value).toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  new Date(value)
+    .toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+    .replace(",", "");
+
+const NO_DATA = "S/D";
 
 const StatusBadge = component$<{ status: string }>(({ status }) => {
   const badge = STATUS_LABELS[status] ?? STATUS_LABELS.active;
-  return (
-    <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border uppercase tracking-wider ${badge.class}`}>
-      {badge.label}
-    </span>
-  );
+  return <span class={badge.class}>{badge.label}</span>;
 });
 
 /** Builds the list URL keeping the other filters; going back to page 1 unless a page is given. */
-const couponsHref = (current: URL, changes: Record<string, string | number | null>) => {
+const couponsHref = (current: URL, changes: Record<string, string | number | null>, pathname = current.pathname) => {
   const url = new URL(current);
+  url.pathname = pathname;
   url.searchParams.delete("pagina");
   for (const [key, value] of Object.entries(changes)) {
-    if (value === null || value === "" || (key === "estado" && value === "all") || (key === "pagina" && value === 1)) url.searchParams.delete(key);
+    if (
+      value === null ||
+      value === "" ||
+      (key === "estado" && value === "all") ||
+      (key === "periodo" && value === "todo") ||
+      (key === "pagina" && value === 1)
+    ) url.searchParams.delete(key);
     else url.searchParams.set(key, String(value));
   }
   return `${url.pathname}${url.search}`;
 };
 
+const actionClass = "inline-flex h-11 w-11 items-center justify-center border border-line text-primary hover:border-primary hover:bg-surface-muted";
+
+/** Benefit page, member lookup and the merchant validation screen for one coupon. */
+const CouponActions = component$<{ code: string; status: string; slug: string | null; dni: string | null; title: string }>((props) => (
+  <div class="flex items-center gap-2">
+    {props.slug && (
+      <a href={`/beneficio/${props.slug}/`} target="_blank" rel="noopener noreferrer" class={actionClass} title="Ver beneficio" aria-label={`Ver el beneficio ${props.title} (abre en una pestaña nueva)`}>
+        <LuExternalLink class="h-4 w-4" aria-hidden="true" />
+      </a>
+    )}
+    {props.dni && (
+      <Link href={`/admin/users/?buscar=${encodeURIComponent(props.dni)}`} class={actionClass} title="Buscar socio" aria-label={`Buscar al socio con DNI ${props.dni}`}>
+        <LuSearch class="h-4 w-4" aria-hidden="true" />
+      </Link>
+    )}
+    {props.status === "active" && (
+      <a href={`/validar-cupon/?code=${encodeURIComponent(props.code)}`} target="_blank" rel="noopener noreferrer" class="inline-flex h-11 items-center gap-1.5 border border-primary px-3 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary hover:text-white" title="Validar en el comercio" aria-label={`Validar el cupón ${props.code} (abre en una pestaña nueva)`}>
+        <LuScanLine class="h-4 w-4" aria-hidden="true" />
+        Validar
+      </a>
+    )}
+  </div>
+));
+
 export default component$(() => {
   const data = useAdminCouponsLoader();
   const location = useLocation();
   const navigate = useNavigate();
-  const { query, records, pageSize, total, page, pages } = data.value;
+  const { query, records, pageSize, total, page, pages, benefitOptions } = data.value;
 
   const stats = data.value.stats;
   const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastShown = Math.min(page * pageSize, total);
+  const periodLabel = ADMIN_COUPON_PERIODS.find((option) => option.value === query.period)?.label ?? "Todo";
+  const benefitName = benefitOptions.find((option) => option.id === query.benefit)?.title;
+
+  const kpis: { status: AdminCouponStatus; label: string; value: number; note: string; valueClass: string }[] = [
+    { status: "all", label: "Generados", value: stats.total, note: "cupones", valueClass: "text-primary" },
+    { status: "active", label: "Activos", value: stats.active, note: "sin usar todavía", valueClass: "text-primary" },
+    { status: "used", label: "Canjeados", value: stats.redeemed, note: `${stats.rate}% de los generados`, valueClass: "text-green-800" },
+    { status: "expired", label: "Vencidos", value: stats.expired, note: "el beneficio terminó", valueClass: "text-slate-500" },
+  ];
 
   return (
-    <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
-      {/* Header Section */}
-      <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
-        <div class="space-y-1.5 text-left">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
-            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
-              Administración / Transacciones
-            </span>
-          </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
-            Historial de Cupones
-          </h1>
-          <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
-            Monitoreá el uso de cupones de beneficios, registros de canje y estadísticas generales de redención.
-          </p>
-        </div>
-      </div>
+    <div class="w-full px-4 sm:px-10 py-8 sm:py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto text-left">
+      <AdminPageHeader
+        title="Cupones"
+        description="Cupones generados por los socios y su canje en los comercios. Tocá un total para filtrar la lista."
+      >
+        <a href={couponsHref(location.url, {}, "/admin/cupones/exportar/")} class="btn btn-outline" download>
+          <LuDownload class="h-4 w-4" aria-hidden="true" />
+          Exportar CSV
+        </a>
+      </AdminPageHeader>
 
-      {/* KPI Cards Grid */}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-        <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4">
-          <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block">Generados Totales</span>
-          <div class="flex items-baseline space-x-2">
-            <span class="text-3xl font-black text-slate-800">{stats.total}</span>
-            <span class="text-xs text-slate-400 font-semibold">cupones</span>
-          </div>
-        </div>
+      <nav aria-label="Período" class="flex flex-wrap items-center gap-3">
+        <span class="eyebrow text-slate-600">Período</span>
+        <ul class="grid w-full grid-cols-4 border border-line bg-surface sm:flex sm:w-auto">
+          {ADMIN_COUPON_PERIODS.map((option) => {
+            const current = query.period === option.value;
+            return (
+              <li key={option.value} class="border-r border-line last:border-r-0">
+                <Link
+                  href={couponsHref(location.url, { periodo: option.value })}
+                  aria-current={current ? "true" : undefined}
+                  class={[
+                    "flex min-h-11 items-center justify-center whitespace-nowrap px-3 text-sm font-bold sm:px-4",
+                    current ? "bg-primary text-white" : "text-slate-700 hover:bg-surface-muted",
+                  ]}
+                >
+                  {option.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        <span class="text-xs text-slate-500">Cuenta los cupones generados en el período{benefitName ? ` para ${benefitName}` : ""}.</span>
+      </nav>
 
-        <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4">
-          <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block">Canjeados (Usados)</span>
-          <div class="flex items-baseline space-x-2">
-            <span class="text-3xl font-black text-brand-navy">{stats.redeemed}</span>
-            <span class="text-xs text-brand-navy/80 font-bold">canjes exitosos</span>
-          </div>
-        </div>
+      {/* Each total is also a status filter */}
+      <ul class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {kpis.map((kpi) => {
+          const current = query.status === kpi.status;
+          return (
+            <li key={kpi.status}>
+              <Link
+                href={couponsHref(location.url, { estado: kpi.status })}
+                aria-current={current ? "true" : undefined}
+                class={[
+                  "flex h-full flex-col gap-3 border bg-surface p-4 sm:p-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                  current ? "border-primary shadow-[inset_0_4px_0_var(--color-accent)]" : "border-line hover:border-slate-400",
+                ]}
+              >
+                <span class="eyebrow text-slate-600">{kpi.label}</span>
+                <span class={`font-display text-3xl sm:text-4xl font-bold leading-none ${kpi.valueClass}`}>{kpi.value}</span>
+                <span class="text-xs text-slate-500">{kpi.note}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
 
-        <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4">
-          <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block">Tasa de Redención</span>
-          <div class="flex items-baseline space-x-2">
-            <span class="text-3xl font-black text-brand-gold">{stats.rate}%</span>
-            <span class="text-xs text-slate-400 font-semibold">de efectividad</span>
-          </div>
+      <section aria-labelledby="top-benefits-title" class="card p-4 sm:p-6 space-y-3">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="top-benefits-title" class="heading-display text-lg text-primary">Beneficios más pedidos</h2>
+          <span class="text-xs text-slate-500">{periodLabel} · generados y canjeados</span>
         </div>
-
-        <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-2">
-          <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block">Top Beneficios</span>
-          <div class="space-y-1">
-            {stats.topBenefits.length > 0 ? (
-              stats.topBenefits.map((b, idx) => (
-                <div key={idx} class="flex justify-between text-xs font-semibold">
-                  <span class="text-slate-600 line-clamp-1 flex-grow pr-2">{b.title}</span>
-                  <span class="text-brand-navy font-bold shrink-0">{b.count} usos</span>
+        {stats.topBenefits.length > 0 ? (
+          <ol class="divide-y divide-line">
+            {stats.topBenefits.map((benefit, idx) => (
+              <li key={benefit.benefitId} class="flex items-start gap-3 py-2">
+                <span class="w-5 shrink-0 font-display text-lg font-bold text-slate-400" aria-hidden="true">{idx + 1}</span>
+                <div class="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                  <Link href={couponsHref(location.url, { beneficio: benefit.benefitId })} title="Filtrar la lista por este beneficio" class="block min-w-0 truncate text-sm font-bold text-primary underline-offset-2 hover:underline">
+                    {benefit.title}
+                  </Link>
+                  <span class="block shrink-0 text-sm text-slate-700">
+                    <strong class="text-primary">{benefit.generated}</strong> {benefit.generated === 1 ? "generado" : "generados"} ·{" "}
+                    <strong class="text-green-800">{benefit.redeemed}</strong> {benefit.redeemed === 1 ? "canjeado" : "canjeados"}
+                  </span>
                 </div>
-              ))
-            ) : (
-              <span class="text-xs text-slate-400 italic">Sin datos registrados</span>
-            )}
-          </div>
-        </div>
-      </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p class="text-sm text-slate-500">Sin cupones en este período.</p>
+        )}
+      </section>
 
       {/* Filters live in the URL so a reload or a shared link keeps them */}
-      <div class="flex flex-col sm:flex-row gap-4 justify-between items-center text-left">
+      <div class="flex flex-col lg:flex-row gap-3 lg:items-end">
         <form
           role="search"
           preventdefault:submit
@@ -146,115 +214,144 @@ export default component$(() => {
             const value = new FormData(form).get("buscar")?.toString().trim() ?? "";
             navigate(couponsHref(location.url, { buscar: value }));
           }}
-          class="relative flex w-full sm:max-w-md gap-2"
+          class="flex w-full lg:max-w-md gap-2"
         >
-          <input
-            type="search"
-            name="buscar"
-            aria-label="Buscar cupones"
-            placeholder="Buscar por código, socio, DNI o beneficio..."
-            value={query.search}
-            class="w-full bg-white text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:outline-none transition-all shadow-sm"
-          />
-          <button type="submit" class="shrink-0 rounded-2xl bg-brand-navy px-4 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-brand-navy-dark cursor-pointer">
-            Buscar
-          </button>
+          <div class="flex-1">
+            <label for="coupons-search" class="field-label">Buscar</label>
+            <input
+              id="coupons-search"
+              type="search"
+              name="buscar"
+              placeholder="Código, socio, DNI o beneficio"
+              value={query.search}
+              class="field"
+            />
+          </div>
+          <button type="submit" class="btn btn-dark self-end">Buscar</button>
         </form>
 
-        <div class="flex gap-2 w-full sm:w-auto">
-          <select
-            aria-label="Filtrar por estado"
-            value={query.status}
-            onChange$={(_, el) => navigate(couponsHref(location.url, { estado: el.value }))}
-            class="bg-white text-slate-700 border border-slate-200 rounded-2xl text-base sm:text-xs px-4 py-3 font-bold uppercase tracking-wider focus:border-brand-navy focus:outline-none transition-all shadow-sm cursor-pointer"
-          >
-            <option value="all">Todos los Estados</option>
-            <option value="active">Activos / Pendientes</option>
-            <option value="used">Canjeados / Aplicados</option>
-            <option value="expired">Vencidos</option>
-          </select>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:flex-1">
+          <div>
+            <label for="coupons-status" class="field-label">Estado</label>
+            <select
+              id="coupons-status"
+              value={query.status}
+              onChange$={(_, el) => navigate(couponsHref(location.url, { estado: el.value }))}
+              class="field cursor-pointer"
+            >
+              <option value="all" selected={query.status === "all"}>Todos</option>
+              <option value="active" selected={query.status === "active"}>Activos</option>
+              <option value="used" selected={query.status === "used"}>Canjeados</option>
+              <option value="expired" selected={query.status === "expired"}>Vencidos</option>
+            </select>
+          </div>
+          <div>
+            <label for="coupons-benefit" class="field-label">Beneficio</label>
+            <select
+              id="coupons-benefit"
+              value={query.benefit}
+              onChange$={(_, el) => navigate(couponsHref(location.url, { beneficio: el.value }))}
+              class="field cursor-pointer"
+            >
+              <option value="" selected={!query.benefit}>Todos los beneficios</option>
+              {benefitOptions.map((option) => (
+                <option key={option.id} value={option.id} selected={query.benefit === option.id}>{option.title}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {data.value.loadError && (
-        <div role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-xs font-bold text-red-700 shadow-sm text-left">
+        <div role="alert" class="border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800">
           No se pudieron cargar los cupones. Recargá la página.
         </div>
       )}
 
-      <p class="text-xs font-semibold text-slate-500 text-left" aria-live="polite">
-        {total === 0
-          ? "No hay cupones para mostrar."
-          : `Mostrando ${firstShown}–${lastShown} de ${total} ${total === 1 ? "cupón" : "cupones"}${query.search ? ` para «${query.search}»` : ""}.`}
-      </p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-slate-600" aria-live="polite">
+          {total === 0
+            ? "No hay cupones para mostrar."
+            : `Mostrando ${firstShown}–${lastShown} de ${total} ${total === 1 ? "cupón" : "cupones"}${query.search ? ` para «${query.search}»` : ""}.`}
+        </p>
+        {(query.search || query.status !== "all" || query.benefit || query.period !== "todo") && (
+          <Link href="/admin/cupones/" class="text-sm font-bold text-secondary underline underline-offset-2">Quitar filtros</Link>
+        )}
+      </div>
 
-      {/* Coupons: stacked cards on phones, table from sm up */}
-      <ul class="space-y-3 sm:hidden text-left">
+      {/* Coupons: cards until the table fits beside the sidebar */}
+      <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 xl:hidden">
         {records.length === 0 && (
-          <li class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-xs font-bold text-slate-500">
+          <li class="card p-6 text-center text-sm font-bold text-slate-500 md:col-span-2">
             No se encontraron cupones con los filtros seleccionados
           </li>
         )}
         {records.map((coupon) => (
-          <li key={coupon.id} class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-2">
+          <li key={coupon.id} class="card p-4 space-y-3">
             <div class="flex items-center justify-between gap-2">
-              <span class="font-mono font-bold text-brand-navy-dark tracking-wider">{coupon.code}</span>
+              <span class="font-mono text-lg font-bold tracking-wider text-primary">{coupon.code}</span>
               <StatusBadge status={coupon.status} />
             </div>
             <div>
-              <p class="font-bold text-slate-800">{coupon.benefitTitle}</p>
+              <p class="font-bold text-primary">{coupon.benefitTitle}</p>
               <p class="text-xs text-slate-500">{coupon.benefitResumen}</p>
             </div>
-            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
               <dt class="text-slate-500">Socio</dt>
               <dd class="font-bold text-slate-700">{coupon.userName}</dd>
               <dt class="text-slate-500">DNI</dt>
-              <dd class="font-mono text-slate-700">{coupon.numeroSocio || "N/A"}</dd>
+              <dd class="font-mono text-slate-700">{coupon.numeroSocio || NO_DATA}</dd>
               <dt class="text-slate-500">Generado</dt>
               <dd class="text-slate-700">{formatDateTime(coupon.createdAt)}</dd>
               <dt class="text-slate-500">Canjeado</dt>
               <dd class="text-slate-700">{coupon.usedAt ? formatDateTime(coupon.usedAt) : "Pendiente"}</dd>
             </dl>
+            <CouponActions code={coupon.code} status={coupon.status} slug={coupon.benefitSlug} dni={coupon.numeroSocio} title={coupon.benefitTitle} />
           </li>
         ))}
       </ul>
 
-      <div class="hidden sm:block overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm text-left">
-        <table class="w-full text-left border-collapse text-xs sm:text-sm">
+      <div class="hidden xl:block overflow-x-auto border border-line bg-surface">
+        <table class="w-full border-collapse text-sm">
+          <caption class="sr-only">Cupones</caption>
           <thead>
-            <tr class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-              <th class="px-6 py-4">Código</th>
-              <th class="px-6 py-4">Beneficio</th>
-              <th class="px-6 py-4">Socio</th>
-              <th class="px-6 py-4">DNI</th>
-              <th class="px-6 py-4">Generado</th>
-              <th class="px-6 py-4">Canjeado</th>
-              <th class="px-6 py-4 text-center">Estado</th>
+            <tr class="border-b border-line bg-surface-muted text-left">
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600">Código</th>
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600">Beneficio</th>
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600">Socio</th>
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600">Fechas</th>
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600">Estado</th>
+              <th scope="col" class="eyebrow px-4 py-3 text-slate-600"><span class="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 font-medium">
+          <tbody class="divide-y divide-line">
             {records.length > 0 ? (
               records.map((coupon) => (
-                <tr key={coupon.id} class="hover:bg-slate-50 transition-colors">
-                  <td class="px-6 py-4 font-mono font-bold text-brand-navy-dark tracking-wider">{coupon.code}</td>
-                  <td class="px-6 py-4">
-                    <div class="font-bold text-slate-800">{coupon.benefitTitle}</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{coupon.benefitResumen}</div>
+                <tr key={coupon.id} class="hover:bg-surface-muted">
+                  <td class="px-4 py-3 font-mono font-bold tracking-wider text-primary">{coupon.code}</td>
+                  <td class="px-4 py-3">
+                    <div class="font-bold text-primary">{coupon.benefitTitle}</div>
+                    <div class="mt-0.5 line-clamp-1 text-xs text-slate-500">{coupon.benefitResumen}</div>
                   </td>
-                  <td class="px-6 py-4 text-slate-700 font-bold">{coupon.userName}</td>
-                  <td class="px-6 py-4 text-slate-500 font-mono">{coupon.numeroSocio || "N/A"}</td>
-                  <td class="px-6 py-4 text-slate-600">{formatDateTime(coupon.createdAt)}</td>
-                  <td class="px-6 py-4 text-slate-600">
-                    {coupon.usedAt ? formatDateTime(coupon.usedAt) : <span class="text-slate-500 italic">Pendiente</span>}
+                  <td class="px-4 py-3">
+                    <div class="font-bold text-slate-700 whitespace-nowrap">{coupon.userName}</div>
+                    <div class="font-mono text-xs text-slate-500">DNI {coupon.numeroSocio || NO_DATA}</div>
                   </td>
-                  <td class="px-6 py-4 text-center">
+                  <td class="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
+                    <div>Generado {formatDateTime(coupon.createdAt)}</div>
+                    <div>{coupon.usedAt ? `Canjeado ${formatDateTime(coupon.usedAt)}` : "Sin canjear"}</div>
+                  </td>
+                  <td class="px-4 py-3">
                     <StatusBadge status={coupon.status} />
+                  </td>
+                  <td class="px-4 py-3">
+                    <CouponActions code={coupon.code} status={coupon.status} slug={coupon.benefitSlug} dni={coupon.numeroSocio} title={coupon.benefitTitle} />
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} class="px-6 py-10 text-center text-slate-500 font-bold uppercase tracking-widest bg-slate-50/50">
+                <td colSpan={6} class="px-6 py-10 text-center font-bold text-slate-500">
                   No se encontraron cupones con los filtros seleccionados
                 </td>
               </tr>
@@ -266,19 +363,19 @@ export default component$(() => {
       {pages > 1 && (
         <nav aria-label="Páginas de cupones" class="flex items-center justify-between gap-3 text-sm font-bold">
           {page > 1 ? (
-            <Link href={couponsHref(location.url, { pagina: page - 1 })} class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-50">
+            <Link href={couponsHref(location.url, { pagina: page - 1 })} class="btn btn-outline btn-sm">
               ← Anterior
             </Link>
           ) : (
-            <span class="rounded-2xl border border-slate-100 px-4 py-2.5 text-slate-300" aria-hidden="true">← Anterior</span>
+            <span class="btn btn-outline btn-sm" aria-disabled="true">← Anterior</span>
           )}
-          <span class="text-slate-500">Página {page} de {pages}</span>
+          <span class="text-slate-600">Página {page} de {pages}</span>
           {page < pages ? (
-            <Link href={couponsHref(location.url, { pagina: page + 1 })} class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-50">
+            <Link href={couponsHref(location.url, { pagina: page + 1 })} class="btn btn-outline btn-sm">
               Siguiente →
             </Link>
           ) : (
-            <span class="rounded-2xl border border-slate-100 px-4 py-2.5 text-slate-300" aria-hidden="true">Siguiente →</span>
+            <span class="btn btn-outline btn-sm" aria-disabled="true">Siguiente →</span>
           )}
         </nav>
       )}

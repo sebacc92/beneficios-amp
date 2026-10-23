@@ -6,6 +6,9 @@ import {
   useSignal,
   useOnWindow,
 } from "@builder.io/qwik";
+import { LuMessageCircle } from "@qwikest/icons/lucide";
+import { CLUB, WHATSAPP_MESSAGES, whatsappLink } from "~/utils/club";
+import { ChatMessageContent } from "./chat-message-content";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -35,7 +38,7 @@ export const Chatbot = component$(() => {
     ] as Message[],
     sessionId: "",
     avatarUrl: "" as string | null,
-    whatsappNumber: "5492214895777",
+    whatsappNumber: CLUB.whatsappNumber as string,
   });
 
   const inputValue = useSignal("");
@@ -53,7 +56,9 @@ export const Chatbot = component$(() => {
     }),
   );
 
-  // Fetch settings from server on mount
+  // The root wrapper has no size of its own (everything inside is `fixed`), so the
+  // default "visible" strategy never fires: these tasks run once the page is idle.
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(async () => {
     try {
       const res = await fetch("/api/chat");
@@ -61,7 +66,7 @@ export const Chatbot = component$(() => {
         const data = (await res.json()) as ChatbotSettingsResponse;
         state.enabled = data.aiEnabled;
         state.avatarUrl = data.aiAvatarUrl;
-        state.whatsappNumber = data.whatsappNumber;
+        if (data.whatsappNumber) state.whatsappNumber = data.whatsappNumber;
         if (data.aiInitialGreeting) {
           state.messages = [
             { role: "assistant", content: data.aiInitialGreeting },
@@ -73,9 +78,10 @@ export const Chatbot = component$(() => {
     } finally {
       state.ready = true;
     }
-  });
+  }, { strategy: "document-idle" });
 
   // Session ID initialization
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
     let sId = sessionStorage.getItem("chatbot_session_id");
     if (!sId) {
@@ -86,7 +92,7 @@ export const Chatbot = component$(() => {
       sessionStorage.setItem("chatbot_session_id", sId);
     }
     state.sessionId = sId;
-  });
+  }, { strategy: "document-idle" });
 
   // Scroll to bottom when messages update
   // eslint-disable-next-line qwik/no-use-visible-task
@@ -96,7 +102,7 @@ export const Chatbot = component$(() => {
       messagesContainerRef.value.scrollTop =
         messagesContainerRef.value.scrollHeight;
     }
-  });
+  }, { strategy: "document-idle" });
 
   const sendMessage = $(async () => {
     if (!inputValue.value.trim() || state.isLoading) return;
@@ -150,23 +156,15 @@ export const Chatbot = component$(() => {
 
   return (
     <div class={["floating-action print:hidden", !state.ready && "invisible"]} aria-hidden={!state.ready}>
-      {!state.isOpen && (
-        <span
-          class={[
-            "pointer-events-none fixed right-6 z-40 h-14 w-14 sm:h-16 sm:w-16 animate-pulse rounded-full bg-brand-gold opacity-50 transition-all duration-300",
-            bottomPos,
-          ]}
-        ></span>
-      )}
       <button
         ref={launcherRef}
         onClick$={() => (state.isOpen = !state.isOpen)}
         class={[
-          "fixed right-6 z-45 flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 shadow-2xl shadow-slate-900/40 transition-all duration-300 hover:scale-105 active:scale-95 h-14 w-14 sm:h-16 sm:w-16",
+          "fixed right-6 z-45 flex h-14 w-14 cursor-pointer items-center justify-center border-2 shadow-xl shadow-slate-900/30 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:h-16 sm:w-16",
           bottomPos,
           state.isOpen
-            ? "border-slate-700 bg-slate-900 text-white p-3"
-            : "border-brand-gold bg-brand-navy text-white p-3.5",
+            ? "border-primary bg-white text-primary hover:bg-slate-100"
+            : "border-accent bg-primary text-accent hover:bg-secondary",
         ]}
         aria-label={state.isOpen ? "Cerrar asistente virtual" : "Abrir asistente virtual"}
         aria-expanded={state.isOpen}
@@ -181,7 +179,8 @@ export const Chatbot = component$(() => {
             viewBox="0 0 24 24"
             stroke-width="2.5"
             stroke="currentColor"
-            class="h-6 w-6 text-brand-gold"
+            aria-hidden="true"
+            class="h-6 w-6"
           >
             <path
               stroke-linecap="round"
@@ -198,7 +197,8 @@ export const Chatbot = component$(() => {
             viewBox="0 0 24 24"
             stroke-width="2"
             stroke="currentColor"
-            class="h-8 w-8 sm:h-10 sm:w-10 text-brand-gold"
+            aria-hidden="true"
+            class="h-8 w-8 sm:h-9 sm:w-9"
           >
             <path
               stroke-linecap="round"
@@ -220,33 +220,28 @@ export const Chatbot = component$(() => {
             launcherRef.value?.focus();
           }}
           class={[
-            "animate-fade-in-up fixed right-4 z-50 flex h-[34rem] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96 [@media(max-height:600px)]:bottom-4 [@media(max-height:600px)]:max-h-[calc(100dvh-2rem)]",
+            "animate-fade-in-up fixed right-4 z-50 flex h-[34rem] w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-300 bg-white text-slate-800 shadow-2xl shadow-slate-900/30 duration-300 sm:right-6 sm:w-96 [@media(max-height:600px)]:bottom-4 [@media(max-height:600px)]:max-h-[calc(100dvh-2rem)]",
             hasScrolled.value
               ? "bottom-44 max-h-[calc(100dvh-12rem)] sm:bottom-48 sm:max-h-[calc(100dvh-13rem)]"
               : "bottom-24 max-h-[calc(100dvh-7rem)] sm:bottom-28 sm:max-h-[calc(100dvh-8rem)]",
           ]}
         >
-          {/* Header */}
-          <div class="flex shrink-0 items-center justify-between bg-brand-navy-dark border-b border-brand-gold/20 p-4 text-white">
-            <div class="flex items-center gap-3">
-              <div class="relative">
-                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
-                  <img
-                    src={state.avatarUrl || "/logo-lprc.svg"}
-                    alt="Asistente LPRC"
-                    class="h-full w-full object-contain"
-                    width={38}
-                    height={38}
-                  />
-                </div>
-                <div class="absolute right-0 bottom-0 h-3 w-3 animate-pulse rounded-full border-2 border-brand-navy-dark bg-emerald-400"></div>
-              </div>
-              <div>
-                <h3 id="chatbot-title" class="text-sm font-display font-extrabold tracking-wide text-brand-gold-light uppercase">
+          {/* Header: club navy with the yellow rule lprc.com.ar uses */}
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b-4 border-accent bg-primary px-4 py-3 text-white">
+            <div class="flex min-w-0 items-center gap-3">
+              <img
+                src={state.avatarUrl || "/lprc.avif"}
+                alt=""
+                class={["h-11 w-11 shrink-0 object-contain", state.avatarUrl && "bg-white p-0.5"]}
+                width={44}
+                height={44}
+              />
+              <div class="min-w-0">
+                <h3 id="chatbot-title" class="font-display text-base font-semibold uppercase leading-tight tracking-wide text-white">
                   Asistente LPRC
                 </h3>
-                <p class="text-[11px] font-bold tracking-widest text-slate-300 uppercase">
-                  En línea
+                <p class="text-xs font-semibold text-accent">
+                  Club de Beneficios
                 </p>
               </div>
             </div>
@@ -254,7 +249,7 @@ export const Chatbot = component$(() => {
               type="button"
               onClick$={() => (state.isOpen = false)}
               aria-label="Cerrar asistente virtual"
-              class="text-slate-300 transition-colors hover:text-brand-gold cursor-pointer"
+              class="flex h-11 w-11 shrink-0 items-center justify-center text-white/80 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -263,6 +258,7 @@ export const Chatbot = component$(() => {
                 viewBox="0 0 24 24"
                 stroke="currentColor"
                 stroke-width="2.5"
+                aria-hidden="true"
               >
                 <path
                   stroke-linecap="round"
@@ -279,7 +275,7 @@ export const Chatbot = component$(() => {
             role="log"
             aria-live="polite"
             aria-label="Conversación con el asistente"
-            class="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto bg-slate-50 p-4 scrollbar-thin"
+            class="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto bg-slate-50 p-4 scrollbar-thin"
           >
             {state.messages.map((msg, i) => (
               <div
@@ -291,31 +287,43 @@ export const Chatbot = component$(() => {
               >
                 <div
                   class={[
-                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-sm font-medium whitespace-pre-wrap break-words",
+                    "max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed break-words",
                     msg.role === "user"
-                      ? "rounded-br-none bg-brand-navy text-white"
-                      : "rounded-bl-none border border-slate-200 bg-white text-slate-800",
+                      ? "bg-primary text-white whitespace-pre-wrap"
+                      : "border border-slate-200 border-l-4 border-l-accent bg-white text-slate-800",
                   ]}
                 >
-                  {msg.content}
+                  {msg.role === "user" ? msg.content : <ChatMessageContent content={msg.content} />}
                 </div>
               </div>
             ))}
 
             {state.isLoading && (
               <div class="flex justify-start">
-                <div class="flex items-center gap-1.5 rounded-2xl rounded-bl-none border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 shadow-sm">
+                <div class="flex items-center gap-1.5 border border-slate-200 border-l-4 border-l-accent bg-white px-4 py-3 text-sm text-slate-500">
                   <span class="sr-only">El asistente está escribiendo…</span>
-                  <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold"></div>
-                  <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold [animation-delay:-0.15s]"></div>
-                  <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold [animation-delay:-0.3s]"></div>
+                  <div class="h-1.5 w-1.5 animate-bounce bg-primary"></div>
+                  <div class="h-1.5 w-1.5 animate-bounce bg-primary [animation-delay:-0.15s]"></div>
+                  <div class="h-1.5 w-1.5 animate-bounce bg-primary [animation-delay:-0.3s]"></div>
                 </div>
               </div>
             )}
           </div>
 
+          {/* A person on WhatsApp, for whatever the assistant cannot solve */}
+          <a
+            href={whatsappLink(WHATSAPP_MESSAGES.consulta, state.whatsappNumber)}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-primary hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+          >
+            <LuMessageCircle class="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>¿Preferís hablar con una persona? <span class="underline decoration-accent decoration-2 underline-offset-2">Escribinos por WhatsApp</span></span>
+            <span class="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+
           {/* Input Area */}
-          <div class="shrink-0 border-t border-slate-100 bg-white p-4">
+          <div class="shrink-0 border-t border-slate-200 bg-white p-3">
             <form
               preventdefault:submit
               onSubmit$={sendMessage}
@@ -328,7 +336,7 @@ export const Chatbot = component$(() => {
                 type="text"
                 bind:value={inputValue}
                 placeholder="Escribí tu consulta..."
-                class="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-base sm:text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-brand-gold focus:outline-none"
+                class="field min-w-0 flex-1 py-2.5 text-base sm:text-sm"
                 readOnly={state.isLoading}
                 aria-busy={state.isLoading}
               />
@@ -336,13 +344,14 @@ export const Chatbot = component$(() => {
                 type="submit"
                 aria-label="Enviar consulta"
                 disabled={!inputValue.value.trim() || state.isLoading}
-                class="flex items-center justify-center rounded-xl bg-brand-navy p-2.5 text-white transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:opacity-50 cursor-pointer"
+                class="flex h-11 w-11 shrink-0 items-center justify-center bg-accent text-primary transition-colors hover:bg-accent-hover disabled:bg-slate-200 disabled:text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary cursor-pointer disabled:cursor-not-allowed"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
                   fill="currentColor"
-                  class="h-5 w-5 text-brand-gold"
+                  aria-hidden="true"
+                  class="h-5 w-5"
                 >
                   <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
                 </svg>

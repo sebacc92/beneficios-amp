@@ -150,3 +150,128 @@ export function formatValidUntil(raw: string | null | undefined): string | null 
     year: "numeric",
   });
 }
+
+const ARGENTINA_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Calendar day (YYYY-MM-DD) in Buenos Aires, the zone `valid_until` is written in. */
+export function argentinaDay(date: Date = new Date()): string {
+  return ARGENTINA_DAY.format(date);
+}
+
+/** How many days ahead counts as "vence pronto" in the admin list and dashboard. */
+export const EXPIRING_SOON_DAYS = 14;
+
+export type BenefitValidity = "vencido" | "vence-pronto" | "vigente" | "sin-vencimiento";
+
+/**
+ * Same rule as the coupon checks: a benefit is still valid on its last day and expires the
+ * day after. `today` is an Argentine YYYY-MM-DD so callers can pin it in tests.
+ */
+export function benefitValidity(
+  raw: string | null | undefined,
+  today: string = argentinaDay(),
+  soonDays: number = EXPIRING_SOON_DAYS,
+): BenefitValidity {
+  const { validUntil } = parseValidUntil(raw);
+  if (!validUntil) return "sin-vencimiento";
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? validUntil : (() => {
+    const date = new Date(validUntil);
+    return Number.isNaN(date.getTime()) ? null : argentinaDay(date);
+  })();
+  if (!day) return "sin-vencimiento";
+  if (day < today) return "vencido";
+  const limit = argentinaDay(new Date(new Date(`${today}T12:00:00-03:00`).getTime() + soonDays * 86_400_000));
+  return day <= limit ? "vence-pronto" : "vigente";
+}
+
+export const MERCHANT_FIELDS = ["address", "hours", "phone", "whatsapp", "instagram", "website"] as const;
+export type MerchantField = (typeof MERCHANT_FIELDS)[number];
+export type MerchantFieldsInput = Partial<Record<MerchantField, string | null>>;
+type MerchantValues = Record<MerchantField, string | null>;
+
+const MERCHANT_LIMITS: Record<MerchantField, number> = {
+  address: 200,
+  hours: 300,
+  phone: 40,
+  whatsapp: 40,
+  instagram: 200,
+  website: 300,
+};
+
+/** Phone numbers are kept as typed (only tidied up): the public page builds the links. */
+function checkPhone(value: string, label: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  if (!/^[\d\s()+\-.]+$/.test(value) || digits.length < 7 || digits.length > 15) {
+    return `Revisá el ${label}: usá solo números, con código de área (ej: 221 456-7890).`;
+  }
+  return null;
+}
+
+/** "@lprc", "lprc" or any instagram.com link → canonical profile URL. */
+export function normalizeInstagram(value: string): string | null {
+  const text = value.trim();
+  const fromUrl = text.match(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]{1,30})\/?(?:[?#].*)?$/i);
+  const handle = fromUrl?.[1] ?? text.match(/^@?([A-Za-z0-9._]{1,30})$/)?.[1];
+  return handle ? `https://www.instagram.com/${handle}/` : null;
+}
+
+/** Adds https:// when missing and accepts only http(s) addresses with a real host name. */
+export function normalizeWebsite(value: string): string | null {
+  const text = value.trim();
+  if (!text || /\s/.test(text)) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`;
+  try {
+    const url = new URL(candidate);
+    if (!/^https?:$/.test(url.protocol) || !/^[^.]+\.[^.]{2,}/.test(url.hostname)) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+/** Why one merchant field cannot be saved, or null when it is fine (empty included). */
+export function merchantFieldError(field: MerchantField, value: string | null | undefined): string | null {
+  const raw = (value ?? "").replace(/[ \t]+/g, " ").trim();
+  if (!raw) return null;
+  if (raw.length > MERCHANT_LIMITS[field]) return `Usá hasta ${MERCHANT_LIMITS[field]} caracteres.`;
+  if (field === "phone" || field === "whatsapp") return checkPhone(raw, field === "phone" ? "teléfono" : "WhatsApp");
+  if (field === "instagram" && !normalizeInstagram(raw)) return "Ingresá el usuario (ej: @comercio) o el link del perfil.";
+  if (field === "website" && !normalizeWebsite(raw)) return "Ingresá una dirección web válida (ej: comercio.com.ar).";
+  return null;
+}
+
+/**
+ * Structured merchant details from the form. Empty fields become null; links are tidied up
+ * and the rest is checked loosely, so a valid way of writing a number is never rejected.
+ */
+export function parseMerchantFields(
+  input: MerchantFieldsInput,
+): { ok: true; values: MerchantValues } | { ok: false; errors: Partial<Record<MerchantField, string>> } {
+  const values = {} as MerchantValues;
+  const errors: Partial<Record<MerchantField, string>> = {};
+  for (const field of MERCHANT_FIELDS) {
+    const raw = (input[field] ?? "").replace(/[ \t]+/g, " ").trim();
+    const error = merchantFieldError(field, raw);
+    if (error) errors[field] = error;
+    values[field] = !raw ? null : field === "instagram" ? normalizeInstagram(raw) : field === "website" ? normalizeWebsite(raw) : raw;
+  }
+  return Object.keys(errors).length ? { ok: false, errors } : { ok: true, values };
+}
+
+/** Internal paths ("/beneficios/") or full http(s) links; protocol-relative "//" is refused. */
+export function isValidSiteLink(value: string): boolean {
+  const text = value.trim();
+  if (!text) return true;
+  if (text.startsWith("/")) return !text.startsWith("//") && !/\s/.test(text);
+  try {
+    const url = new URL(text);
+    return /^https?:$/.test(url.protocol) && url.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}

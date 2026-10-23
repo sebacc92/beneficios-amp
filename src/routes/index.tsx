@@ -1,66 +1,55 @@
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, Link, useLocation, type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { searchBenefits, getFilters, getCustomBenefits, type Benefit } from "~/server/cache";
-import { CAMPAIGN_DEFAULTS, selectHomeBenefits } from "~/utils/home-benefits";
+import { getFilters, getCustomBenefits } from "~/server/cache";
+import { CAMPAIGN_DEFAULTS, commonLocation, isPublicBenefit, selectHomeBenefits, withLiveCounts } from "~/utils/home-benefits";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/ui/BenefitCard";
-import { HeroSlider } from "~/components/hero-slider/hero-slider";
+import { ClubHero } from "~/components/hero-slider/club-hero";
 import { CuratedRow } from "~/components/curated-row/curated-row";
 import { EditorialCards } from "~/components/editorial-cards/editorial-cards";
 import { SponsorMarquee } from "~/components/ui/SponsorMarquee";
-import { LPRCButton } from "~/components/ui/LPRCButton";
 import { POPUP_STORAGE_KEY, PopupModal, popupVersion } from "~/components/popup-modal/popup-modal";
+import { CampaignSpotlight } from "~/components/campaign-spotlight/campaign-spotlight";
+import { SectionHeading } from "~/components/section-heading/section-heading";
+import { HaceteSocio } from "~/components/hacete-socio/hacete-socio";
+import { useLayoutUser } from "~/routes/layout";
+import { shouldShowPopup } from "~/utils/popup";
 import { getSettings } from "~/server/chatbotDb";
 import { rateLimitByIp } from "~/server/rate-limit";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable, heroSlides as heroSlidesTable, merchantRequests } from "~/db/schema";
 import { asc, eq } from "drizzle-orm";
 
+/** Filters that used to work on the home; the catalog owns them now. */
+const CATALOG_PARAMS = ["buscar", "categoria", "ubicacion", "oferta", "gold", "page"];
+
 // Loader to fetch sponsors sorted by display order (y)
 export const useSponsorsData = routeLoader$(async (event) => {
   try {
     const db = getDB(event);
-    return await db.select().from(sponsorsTable).orderBy(sponsorsTable.y);
+    // Hidden sponsors stay in the panel without reaching the site.
+    return await db.select().from(sponsorsTable).where(eq(sponsorsTable.isActive, true)).orderBy(sponsorsTable.y);
   } catch (err) {
     console.error("Failed to load sponsors on home:", err);
     return [];
   }
 });
 
-// Server Loader to retrieve benefits and filters
 export const useBenefitsData = routeLoader$(async (event) => {
-  const url = new URL(event.url);
-  const query = url.searchParams.get("buscar") || "";
-  const categoryId = url.searchParams.get("categoria") ? Number(url.searchParams.get("categoria")) : undefined;
-  const locationId = url.searchParams.get("ubicacion") ? Number(url.searchParams.get("ubicacion")) : undefined;
-  const offerId = url.searchParams.get("oferta") ? Number(url.searchParams.get("oferta")) : undefined;
-  const page = url.searchParams.get("page") ? Number(url.searchParams.get("page")) : 1;
-  const isGoldOnly = url.searchParams.get("gold") === "1";
-  const isMap = url.searchParams.get("vista") === "mapa";
-
-  const searchResult = await searchBenefits({
-    query, categoryId, locationId, offerId, page,
-    limit: isMap ? 1000 : 12,
-    requestEvent: event,
-    isPremiumOnly: isGoldOnly
-  });
-
-  const filters = await getFilters(event);
+  if (CATALOG_PARAMS.some((key) => event.url.searchParams.has(key))) {
+    throw event.redirect(301, `/beneficios/${event.url.search}`);
+  }
 
   let settings = null;
   try { settings = await getSettings(event); } catch (err) { console.error("Failed to load settings in homepage loader:", err); }
 
-  let curatedRows = null;
-  if (!query && !categoryId && !locationId && !offerId && !isGoldOnly && page === 1) {
-    try {
-      // Reuse the catalog already memoized by searchBenefits for this request.
-      const items = await getCustomBenefits(event);
-      curatedRows = selectHomeBenefits(items, settings?.campaignQuery);
-    } catch (e) { console.error("Failed to compile curated rows:", e); }
-  }
+  const [items, savedFilters] = await Promise.all([getCustomBenefits(event), getFilters(event)]);
+  const active = items.filter(isPublicBenefit);
+  const curatedRows = selectHomeBenefits(items, settings?.campaignQuery, settings?.campaignBenefitSlugs);
+  const filters = withLiveCounts(savedFilters, items);
 
-  let slides: any[] = [];
+  let slides: (typeof heroSlidesTable.$inferSelect)[] = [];
   try {
     const db = getDB(event);
     slides = await db.select().from(heroSlidesTable).where(eq(heroSlidesTable.isActive, 1)).orderBy(asc(heroSlidesTable.orderIndex));
@@ -70,7 +59,19 @@ export const useBenefitsData = routeLoader$(async (event) => {
     console.error("Failed to load slides on homepage:", err);
   }
 
-  return { searchResult, filters, curatedRows, slides, settings, activeFilters: { query, categoryId, locationId, offerId, page } };
+  const popupVisible = settings ? shouldShowPopup(settings, { loggedIn: Boolean(event.sharedMap.get("user")) }) : false;
+
+  return {
+    curatedRows,
+    filters,
+    slides,
+    settings,
+    popupVisible,
+    benefitCount: active.length,
+    categoryCount: filters.categorias.filter((category) => (category.beneficios_count || 0) > 0).length,
+    // Cards skip the city most benefits share ("La Plata") and only show the exceptions.
+    commonLocation: commonLocation(active),
+  };
 });
 
 export const submitMerchantRequest = server$(async function (data: {
@@ -97,13 +98,14 @@ export default component$(() => {
   const location = useLocation();
   const data = useBenefitsData();
   const sponsorsData = useSponsorsData();
+  const user = useLayoutUser();
   const showPopup = useSignal(false);
 
   // Show each popup version once: a closed popup returns only when its content changes.
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
     const settings = data.value.settings;
-    if (location.url.pathname !== "/" || !settings?.popupActive || (window as any).__popupClosed) return;
+    if (location.url.pathname !== "/" || !settings || !data.value.popupVisible || (window as any).__popupClosed) return;
     let dismissed = false;
     try {
       dismissed = localStorage.getItem(POPUP_STORAGE_KEY) === popupVersion(settings);
@@ -113,107 +115,77 @@ export default component$(() => {
     if (!dismissed) showPopup.value = true;
   });
 
-  const { searchResult, filters, curatedRows, slides, settings } = data.value;
-  const { data: benefits } = searchResult;
+  const { curatedRows, filters, slides, settings, benefitCount, categoryCount, commonLocation: sharedLocation } = data.value;
+  const showCampaign = settings?.campaignActive !== false && curatedRows.cafecitos.length > 0;
 
   return (
     <div class="relative min-h-screen bg-background">
-      <h1 class="sr-only">Club de Beneficios La Plata Rugby Club</h1>
-      {/* Curated Showcase (homepage only) */}
-      {curatedRows && (
-        <>
-          {/* Hero Slider */}
-          <HeroSlider slides={slides} />
+      <ClubHero
+        loggedIn={Boolean(user.value)}
+        memberName={user.value?.name}
+        benefitCount={benefitCount}
+        categoryCount={categoryCount}
+        slides={slides}
+      />
 
-          {/* Category Slider */}
-          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2 print:hidden text-left animate-fade-in-up">
-            <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} />
-          </div>
+      <section class="mx-auto max-w-[90rem] px-4 pt-10 pb-4 text-left print:hidden sm:px-6 lg:px-8" aria-labelledby="home-explore-title">
+        <SectionHeading id="home-explore-title" eyebrow="Encontrá lo que buscás" title="Rubros y descuentos" size="md" />
+        <div class="mt-6 space-y-6">
+          <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} title="Por rubro" />
+          <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} title="Por descuento" />
+        </div>
+      </section>
 
-          {/* Offer Slider */}
-          <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-4 print:hidden text-left animate-fade-in-up">
-            <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} />
-          </div>
+      <CuratedRow
+        title="Beneficios destacados"
+        subtitle="Selección del club"
+        containerId="gold-container"
+        benefits={curatedRows.gold}
+        variant="standard"
+        commonLocation={sharedLocation}
+      />
 
-          {/* Gold/Featured Benefits Row */}
-          <CuratedRow
-            title="Beneficios Destacados"
-            subtitle="Selección Especial"
-            accentColor="emerald"
-            containerId="gold-container"
-            benefits={curatedRows.gold}
-            variant="standard"
-          />
+      {/* Empty (and hidden) when the whole catalog was loaded on the same day. */}
+      <CuratedRow
+        title="Nuevos beneficios"
+        subtitle="Recién incorporados"
+        containerId="nuevos-container"
+        benefits={curatedRows.nuevos}
+        variant="new"
+        commonLocation={sharedLocation}
+      />
 
-          {/* Nuevos Benefits Row */}
-          <CuratedRow
-            title="Nuevos Beneficios"
-            subtitle="Recién incorporados"
-            accentColor="emerald"
-            containerId="nuevos-container"
-            benefits={curatedRows.nuevos}
-            variant="new"
-          />
-
-          {/* Campaign Spotlight */}
-          {settings?.campaignActive !== false && curatedRows.cafecitos && curatedRows.cafecitos.length > 0 && (
-            <section class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10 print:hidden text-left animate-fade-in-up">
-              <div class="bg-gradient-to-br from-white to-surface-muted border border-line rounded-[3rem] p-8 md:p-12 shadow-xl grid grid-cols-1 lg:grid-cols-4 gap-8 items-center relative overflow-hidden">
-                <div class="absolute -right-16 -top-16 w-60 h-60 bg-brand-gold/10 rounded-full blur-[80px] pointer-events-none" />
-                <div class="absolute -left-16 -bottom-16 w-60 h-60 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
-                <div class="lg:col-span-1 space-y-5 relative z-10 text-primary flex flex-col justify-center h-full">
-                  <div class="inline-flex items-center space-x-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span><span class="text-[11px] font-black tracking-widest text-amber-900 uppercase">{settings?.campaignTag || CAMPAIGN_DEFAULTS.tag}</span></div>
-                  <h2 class="text-4xl md:text-5xl font-display font-black text-primary tracking-tight leading-tight">{settings?.campaignEmoji || CAMPAIGN_DEFAULTS.emoji} {settings?.campaignTitle || CAMPAIGN_DEFAULTS.title}</h2>
-                  <p class="text-sm text-slate-600 font-medium leading-relaxed">{settings?.campaignSubtitle || CAMPAIGN_DEFAULTS.subtitle}</p>
-                  <div class="pt-2"><Link href="/beneficios/?campana=1" class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full bg-accent hover:bg-accent-hover text-primary hover:text-slate-900 border border-accent/40 hover:border-accent text-sm font-black uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer"><span>Ver todos</span><span class="text-sm">&rarr;</span></Link></div>
-                </div>
-                <div class="lg:col-span-3">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-                    {curatedRows.cafecitos.map((benefit: Benefit) => (
-                      <Link key={`coffee-${benefit.id}`} href={`/beneficio/${benefit.url}`} class="group block bg-surface hover:bg-slate-50 border border-line rounded-3xl p-4 transition-all duration-300 hover:-translate-y-1 relative">
-                        <div class="relative h-28 rounded-2xl overflow-hidden bg-surface-muted flex items-center justify-center">
-                          {benefit.imagen ? (<img src={benefit.imagen.startsWith('http') || benefit.imagen.startsWith('/') ? benefit.imagen : `https://beneficios.lprc.ar/files/${benefit.imagen}`} alt={benefit.titulo} class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" width={200} height={112} loading="lazy" />) : (<span class="text-amber-900 font-display font-extrabold text-base">LPRC</span>)}
-                          <div class="absolute bottom-2 right-2 z-10"><span class="inline-flex items-center px-3 py-1 rounded-xl text-[11px] font-black bg-brand-gold text-slate-950 shadow-lg tracking-tight border border-white/10">{benefit.resumen.replace("Descuento del", "").trim()}</span></div>
-                        </div>
-                        <div class="mt-3.5 text-left"><h4 class="text-[11px] font-bold text-amber-900 uppercase tracking-wider truncate">{benefit.ubicacion[0]?.descripcion || "La Plata"}</h4><h3 class="text-sm font-display font-black text-primary group-hover:text-primary line-clamp-2 mt-1 leading-snug">{benefit.titulo}</h3></div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Editorial Cards + Modals */}
-          <EditorialCards />
-
-          {/* Sponsors Marquee */}
-          <SponsorMarquee sponsors={sponsorsData.value as any} />
-        </>
+      {showCampaign && (
+        <CampaignSpotlight
+          tag={settings?.campaignTag || CAMPAIGN_DEFAULTS.tag}
+          title={settings?.campaignTitle || CAMPAIGN_DEFAULTS.title}
+          subtitle={settings?.campaignSubtitle || CAMPAIGN_DEFAULTS.subtitle}
+          emoji={settings?.campaignEmoji}
+          benefits={curatedRows.cafecitos}
+        />
       )}
 
-      {/* All Benefits Preview */}
-      <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div class="border-b border-line pb-5 mb-8 text-left animate-fade-in-up">
-          <h2 class="text-3xl font-display font-extrabold text-primary tracking-tight leading-none">Ver todos los beneficios</h2>
-          <p class="text-slate-600 text-sm mt-2 font-medium">Explorá nuestro catálogo de descuentos exclusivos</p>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
-          {benefits.slice(0, 4).map((benefit: Benefit, idx: number) => {
-            const isLocked = false;
-            return (
-              <div key={benefit.id} class={`animate-fade-in-up animate-stagger-${idx + 1}`}>
-                <BenefitCard benefit={benefit} isLocked={isLocked} />
-              </div>
-            );
-          })}
-        </div>
-        <div class="flex justify-center pt-10 mt-8 border-t border-line">
-          <LPRCButton href="/beneficios" variant="accent">
-            Ver todos
-          </LPRCButton>
-        </div>
-      </div>
+      {curatedRows.mas.length > 0 && (
+        <section class="mx-auto max-w-[90rem] px-4 py-10 text-left sm:px-6 lg:px-8" aria-labelledby="home-more-title">
+          <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <SectionHeading id="home-more-title" eyebrow="Catálogo completo" title="Más beneficios" size="md" />
+            <Link href="/beneficios/" class="btn btn-outline">
+              {benefitCount > curatedRows.mas.length ? `Ver los ${benefitCount} beneficios` : "Ver el catálogo"}
+            </Link>
+          </div>
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {curatedRows.mas.map((benefit) => (
+              <BenefitCard key={benefit.id} benefit={benefit} commonLocation={sharedLocation} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!user.value && <HaceteSocio variant="band" class="my-6" />}
+
+      <EditorialCards />
+
+      <SponsorMarquee sponsors={sponsorsData.value as any} />
 
       {/* Configurable Popup Modal */}
       {showPopup.value && settings && (
@@ -234,11 +206,14 @@ export default component$(() => {
   );
 });
 
+const DESCRIPTION =
+  "Portal oficial de beneficios de La Plata Rugby Club: descuentos en comercios adheridos, actividades en el club y sorteos para socios. Ingresá con tu DNI, generá tu cupón y mostralo antes de pagar.";
+
 export const head: DocumentHead = {
-  title: "Portal de Beneficios Oficial - La Plata Rugby Club",
+  title: "Beneficios para socios - La Plata Rugby Club",
   meta: [
-    { name: "description", content: "Exclusivo club de beneficios para socios y empleados de la LPRC. Disfrutá de más de 250 comercios con descuentos especiales, promociones, y sorteos increíbles." },
-    { property: "og:title", content: "Portal de Beneficios Oficial - La Plata Rugby Club" },
-    { property: "og:description", content: "Ahorrá y disfrutá con el catálogo oficial de beneficios de La Plata Rugby Club. Descuentos en turismo, gastronomía, indumentaria, recreación y mucho más." }
-  ]
+    { name: "description", content: DESCRIPTION },
+    { property: "og:title", content: "Beneficios para la familia amarilla - La Plata Rugby Club" },
+    { property: "og:description", content: DESCRIPTION },
+  ],
 };
