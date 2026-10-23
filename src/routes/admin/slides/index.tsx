@@ -13,12 +13,16 @@ import {
   LuSmartphone, 
   LuMove,
   LuCheck,
-  LuX
+  LuX,
+  LuArrowUp,
+  LuArrowDown
 } from "@qwikest/icons/lucide";
 import { asc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { heroSlides as heroSlidesTable } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { ActionFeedback } from "~/components/admin/action-feedback";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 
 // --- SECURITY & LOADERS ---
 
@@ -246,6 +250,38 @@ export default component$(() => {
   const draggedIdx = useSignal<number | null>(null);
   const draggedOverIdx = useSignal<number | null>(null);
 
+  // Shared by drag & drop and the Subir/Bajar buttons; restores the old order if the save fails.
+  const moveSlide$ = $(async (from: number, to: number) => {
+    if (from === to || to < 0 || to >= localSlides.list.length) return;
+    const previous = [...localSlides.list];
+    const items = [...localSlides.list];
+    const [moved] = items.splice(from, 1);
+    items.splice(to, 0, moved);
+    localSlides.list = items;
+    const { value } = await reorderSlidesAction.submit({ ids: items.map((x) => x.id) });
+    if (value.failed) localSlides.list = previous;
+  });
+
+  const isDeleteOpen = useSignal(false);
+  const deleteTarget = useSignal<{ id: string; title: string } | null>(null);
+  const deleteError = useSignal("");
+
+  const confirmDeleteSlide$ = $(async () => {
+    if (!deleteTarget.value) return;
+    const { value } = await deleteSlideAction.submit({ id: deleteTarget.value.id });
+    if (value.failed) {
+      deleteError.value = value.message || "No se pudo eliminar el slide. Intentá de nuevo.";
+      return;
+    }
+    isDeleteOpen.value = false;
+  });
+
+  const closeEditModal$ = $(() => {
+    editingSlide.value = null;
+    editDesktopPreview.value = null;
+    editMobilePreview.value = null;
+  });
+
   // File Upload Handlers (Standard change events)
   const handleFileChange = $((event: Event, target: "desktop" | "mobile" | "edit-desktop" | "edit-mobile") => {
     const input = event.target as HTMLInputElement;
@@ -305,12 +341,12 @@ export default component$(() => {
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
-            <span class="text-[10px] font-extrabold tracking-widest text-slate-450 uppercase">
+            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
+            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
               Administración / Personalización
             </span>
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             Carrusel Hero Promocional
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
@@ -324,7 +360,7 @@ export default component$(() => {
               isCreateSlideOpen.value = !isCreateSlideOpen.value;
               resetPreviews();
             }}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
             <span>{isCreateSlideOpen.value ? "Cerrar Panel" : "Añadir Slide"}</span>
@@ -334,23 +370,29 @@ export default component$(() => {
 
       <div class="space-y-8 animate-in fade-in duration-300 text-left">
         {/* Action feedback alerts */}
-        {createSlideAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-bounce">
-            ✓ Slide promocional agregado exitosamente al carrusel principal.
-          </div>
+        {/* Field errors are shown next to their inputs; this banner covers the rest */}
+        {(createSlideAction.value?.success || createSlideAction.value?.message) && (
+          <ActionFeedback value={createSlideAction.value} success="✓ Slide promocional agregado al carrusel principal." />
         )}
-        {updateSlideAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-bounce">
-            ✓ Slide promocional actualizado exitosamente.
-          </div>
-        )}
+        {!editingSlide.value && <ActionFeedback value={updateSlideAction.value} success="✓ Slide promocional actualizado." />}
+        <ActionFeedback
+          value={toggleActiveAction.value}
+          success={(toggleActiveAction.value as { isActive?: number } | undefined)?.isActive === 1 ? "✓ El slide ahora se muestra en el carrusel." : "✓ El slide quedó oculto del carrusel."}
+        />
+        <ActionFeedback value={deleteSlideAction.value} success="✓ Slide eliminado." />
+        <ActionFeedback value={reorderSlidesAction.value} success="✓ Orden del carrusel guardado." />
 
         {/* Form panel with double column optimized layout */}
         {isCreateSlideOpen.value && (
           <Form
             action={createSlideAction}
             enctype="multipart/form-data"
-            onSubmit$={resetPreviews}
+            onSubmitCompleted$={() => {
+              if (createSlideAction.value?.success) {
+                isCreateSlideOpen.value = false;
+                resetPreviews();
+              }
+            }}
             class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-md grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-top-6 duration-300"
           >
             {/* Left Column: Metadata fields */}
@@ -369,7 +411,7 @@ export default component$(() => {
                     type="text"
                     name="preTitle"
                     placeholder="Ej: La Plata y City Bell"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium"
                   />
                 </div>
 
@@ -380,31 +422,43 @@ export default component$(() => {
                     name="orderIndex"
                     value={localSlides.list.length + 1}
                     min="1"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
+                <label for="create-slide-title" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
                 <input
+                  id="create-slide-title"
                   type="text"
                   name="title"
                   required
                   placeholder="Ej: Temporada de Invierno LPRC"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
+                  aria-invalid={!!createSlideAction.value?.fieldErrors?.title}
+                  aria-describedby={createSlideAction.value?.fieldErrors?.title ? "create-slide-title-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-bold"
                 />
+                {createSlideAction.value?.fieldErrors?.title && (
+                  <p id="create-slide-title-error" role="alert" class="text-xs text-red-700">{createSlideAction.value.fieldErrors.title}</p>
+                )}
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
+                <label for="create-slide-subtitle" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
                 <textarea
+                  id="create-slide-subtitle"
                   name="subtitle"
                   required
                   rows={2}
                   placeholder="Ej: Presentá tu credencial digital y disfrutá de los mejores descuentos..."
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium"
+                  aria-invalid={!!createSlideAction.value?.fieldErrors?.subtitle}
+                  aria-describedby={createSlideAction.value?.fieldErrors?.subtitle ? "create-slide-subtitle-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium"
                 />
+                {createSlideAction.value?.fieldErrors?.subtitle && (
+                  <p id="create-slide-subtitle-error" role="alert" class="text-xs text-red-700">{createSlideAction.value.fieldErrors.subtitle}</p>
+                )}
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -414,7 +468,7 @@ export default component$(() => {
                     type="text"
                     name="buttonText"
                     placeholder="Explorar"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-semibold"
                   />
                 </div>
 
@@ -424,7 +478,7 @@ export default component$(() => {
                     type="text"
                     name="buttonLink"
                     placeholder="/beneficios"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-mono"
                   />
                 </div>
               </div>
@@ -432,11 +486,11 @@ export default component$(() => {
               <div class="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <div class="space-y-0.5">
                   <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Activar Slide Inmediatamente</span>
-                  <span class="text-[10px] text-slate-400 font-semibold">Desmarcar para guardar como borrador oculto.</span>
+                  <span class="text-[11px] text-slate-400 font-semibold">Desmarcar para guardar como borrador oculto.</span>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" name="isActive" checked={true} class="sr-only peer" />
-                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>
+                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy"></div>
                 </label>
               </div>
             </div>
@@ -445,7 +499,7 @@ export default component$(() => {
             <div class="space-y-5">
               <div class="border-b border-slate-100 pb-3">
                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <LuImage class="w-4 h-4 text-brand-green" />
+                  <LuImage class="w-4 h-4 text-brand-navy" />
                   Multimedia & Adaptabilidad Móvil
                 </h4>
               </div>
@@ -463,8 +517,8 @@ export default component$(() => {
                   class={[
                     "relative group h-44 rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverDesktop.value
-                      ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                      : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
+                      ? "border-brand-navy bg-emerald-50/50 scale-[1.01]"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
                   ]}
                   onClick$={() => desktopInputRef.value?.click()}
                 >
@@ -493,11 +547,11 @@ export default component$(() => {
                       </div>
                     </>
                   ) : (
-                    <div class="flex flex-col items-center gap-2 text-slate-450 z-10">
+                    <div class="flex flex-col items-center gap-2 text-slate-500 z-10">
                       <LuMonitor class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
-                      <div class="text-xs font-bold text-slate-650">Arrastrá la imagen desktop aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 16:9 recomendado (ej: 1920x1080)</div>
-                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
+                      <div class="text-xs font-bold text-slate-600">Arrastrá la imagen desktop aquí</div>
+                      <div class="text-[11px] text-slate-400 font-semibold">Aspecto 16:9 recomendado (ej: 1920x1080)</div>
+                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-600 text-[11px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
                     </div>
@@ -507,7 +561,7 @@ export default component$(() => {
                   type="text"
                   name="imageUrl"
                   placeholder="Ó ingresá URL de Imagen Desktop Externa"
-                  class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono"
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium font-mono"
                 />
               </div>
 
@@ -524,8 +578,8 @@ export default component$(() => {
                   class={[
                     "relative group h-44 rounded-3xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-4 cursor-pointer text-center",
                     isDragOverMobile.value
-                      ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                      : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
+                      ? "border-brand-navy bg-emerald-50/50 scale-[1.01]"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
                   ]}
                   onClick$={() => mobileInputRef.value?.click()}
                 >
@@ -556,9 +610,9 @@ export default component$(() => {
                   ) : (
                     <div class="flex flex-col items-center gap-2 text-slate-400 z-10">
                       <LuSmartphone class="w-10 h-10 text-slate-400 stroke-1 group-hover:scale-110 transition-transform duration-300" />
-                      <div class="text-xs font-bold text-slate-650">Arrastrá la imagen mobile aquí</div>
-                      <div class="text-[10px] text-slate-400 font-semibold">Aspecto 9:16 o 4:5 recomendado (ej: 1080x1920)</div>
-                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-650 text-[10px] font-black uppercase rounded-full shadow-xs mt-1">
+                      <div class="text-xs font-bold text-slate-600">Arrastrá la imagen mobile aquí</div>
+                      <div class="text-[11px] text-slate-400 font-semibold">Aspecto 9:16 o 4:5 recomendado (ej: 1080x1920)</div>
+                      <span class="inline-flex px-3 py-1 bg-white border border-slate-200 text-slate-600 text-[11px] font-black uppercase rounded-full shadow-xs mt-1">
                         Buscar Archivo
                       </span>
                     </div>
@@ -568,27 +622,27 @@ export default component$(() => {
                   type="text"
                   name="imageMobileUrl"
                   placeholder="Ó ingresá URL de Imagen Mobile Externa"
-                  class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-mono"
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium font-mono"
                 />
               </div>
             </div>
 
             {/* Bottom Actions Row spanning 2 columns */}
-            <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-150 gap-3">
+            <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-100 gap-3">
               <button
                 type="button"
                 onClick$={() => {
                   isCreateSlideOpen.value = false;
                   resetPreviews();
                 }}
-                class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-250 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
+                class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={createSlideAction.isRunning}
-                class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95"
+                class="px-6 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95"
               >
                 {createSlideAction.isRunning ? "Registrando..." : "💾 Registrar Slide"}
               </button>
@@ -599,13 +653,13 @@ export default component$(() => {
         {/* Drag & Drop Visual Deck Info Badge */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 p-4 rounded-2xl gap-3 text-slate-600 font-medium">
           <div class="flex items-center gap-2 text-xs text-left">
-            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-gold text-brand-green-dark text-[10px] font-black">!</span>
+            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-gold text-brand-navy-dark text-[11px] font-black">!</span>
             <span>
-              <strong>Ordenamiento Visual Nativo</strong>: Arrastrá y soltá las tarjetas para reordenarlas de forma inmediata. El sistema sincronizará los cambios automáticamente.
+              <strong>Orden del carrusel</strong>: arrastrá las tarjetas o usá los botones Subir y Bajar de cada slide. El orden se guarda al instante.
             </span>
           </div>
           {reorderSlidesAction.isRunning && (
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-brand-green text-[10px] font-bold uppercase tracking-wide rounded-full animate-pulse">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-brand-navy text-[11px] font-bold uppercase tracking-wide rounded-full animate-pulse">
               Sincronizando orden...
             </span>
           )}
@@ -614,7 +668,7 @@ export default component$(() => {
         {/* Visual Slide Deck Preview Grid (Draggable Cards) */}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {localSlides.list.length === 0 ? (
-            <div class="col-span-full h-64 border-2 border-dashed border-slate-250 rounded-3xl flex flex-col items-center justify-center text-slate-450 gap-2 font-medium">
+            <div class="col-span-full h-64 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-500 gap-2 font-medium">
               <span>🎠 No hay slides promocionales configurados en el sistema.</span>
             </div>
           ) : (
@@ -635,21 +689,13 @@ export default component$(() => {
                   onDragOver$={() => {
                     draggedOverIdx.value = idx;
                   }}
-                  onDrop$={$(() => {
+                  onDrop$={$(async () => {
                     if (draggedIdx.value === null || draggedOverIdx.value === null) return;
-                    if (draggedIdx.value === draggedOverIdx.value) return;
-
-                    const items = [...localSlides.list];
-                    const [draggedItem] = items.splice(draggedIdx.value, 1);
-                    items.splice(draggedOverIdx.value, 0, draggedItem);
-
-                    localSlides.list = items;
-
-                    // Bulk reorder update action on server
-                    reorderSlidesAction.submit({ ids: items.map((x) => x.id) });
-
+                    const from = draggedIdx.value;
+                    const to = draggedOverIdx.value;
                     draggedIdx.value = null;
                     draggedOverIdx.value = null;
+                    await moveSlide$(from, to);
                   })}
                   onDragEnd$={() => {
                     draggedIdx.value = null;
@@ -657,19 +703,19 @@ export default component$(() => {
                   }}
                   class={[
                     "bg-white rounded-3xl border overflow-hidden shadow-sm flex flex-col group hover:shadow-md transition-all duration-300 relative",
-                    isDragged ? "opacity-35 scale-95 border-brand-green border-dashed border-2" : "border-slate-200",
+                    isDragged ? "opacity-35 scale-95 border-brand-navy border-dashed border-2" : "border-slate-200",
                     isOver && !isDragged ? "border-brand-gold border-dashed border-2 scale-[1.02]" : "",
                   ]}
                 >
                   {/* Drag Handle Overlay bar */}
-                  <div class="absolute top-2 left-2 z-20 opacity-40 group-hover:opacity-150 transition-opacity bg-black/55 backdrop-blur-xs p-1.5 rounded-lg cursor-grab active:cursor-grabbing text-white" title="Arrastrar para reordenar">
+                  <div class="absolute top-2 left-2 z-20 opacity-40 group-hover:opacity-100 transition-opacity bg-black/55 backdrop-blur-xs p-1.5 rounded-lg cursor-grab active:cursor-grabbing text-white" title="Arrastrar para reordenar">
                     <LuMove class="w-3.5 h-3.5" />
                   </div>
 
                   {/* Header Badges */}
                   <div class="absolute top-2 right-2 z-20 flex gap-1.5 items-center">
                     <span class={[
-                      "inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase backdrop-blur-md shadow-xs border text-white",
+                      "inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wider uppercase backdrop-blur-md shadow-xs border text-white",
                       slide.isActive === 1 
                         ? "bg-emerald-500/80 border-emerald-400" 
                         : "bg-red-500/80 border-red-400"
@@ -690,18 +736,18 @@ export default component$(() => {
                     
                     {/* Shadow overlay gradient */}
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent flex flex-col justify-end p-4 text-left">
-                      <span class="text-[9px] font-black uppercase text-brand-gold tracking-widest mb-0.5 inline-flex items-center gap-1">
+                      <span class="text-[11px] font-black uppercase text-brand-gold tracking-widest mb-0.5 inline-flex items-center gap-1">
                         <LuSparkles class="w-2.5 h-2.5 text-brand-gold fill-brand-gold animate-pulse" />
                         {slide.preTitle || "Exclusivo LPRC"}
                       </span>
                       <h3 class="text-sm font-black text-white leading-tight font-display">{slide.title}</h3>
-                      <p class="text-[10px] text-slate-200 line-clamp-1 mt-0.5">{slide.subtitle}</p>
+                      <p class="text-[11px] text-slate-200 line-clamp-1 mt-0.5">{slide.subtitle}</p>
                     </div>
                   </div>
 
                   {/* Body actions row */}
                   <div class="p-4 flex-grow flex flex-col justify-between text-left space-y-4 bg-white">
-                    <div class="text-[10px] font-bold text-slate-500 space-y-1">
+                    <div class="text-[11px] font-bold text-slate-500 space-y-1">
                       <div>
                         <span class="uppercase tracking-widest text-slate-400">Texto Botón:</span>{" "}
                         <span class="text-slate-700 font-semibold">{slide.buttonText || "Explorar"}</span>
@@ -711,7 +757,7 @@ export default component$(() => {
                         <span class="text-slate-700 font-semibold font-mono">{slide.buttonLink || "/"}</span>
                       </div>
                       {slide.imageMobile && (
-                        <div class="truncate flex items-center gap-1 mt-1 text-[9px] text-emerald-700 font-black">
+                        <div class="truncate flex items-center gap-1 mt-1 text-[11px] text-emerald-700 font-black">
                           <LuSmartphone class="w-3 h-3" />
                           Tiene Imagen Mobile
                         </div>
@@ -720,9 +766,31 @@ export default component$(() => {
 
                     {/* Premium action buttons suite */}
                     <div class="flex items-center justify-between border-t border-slate-100 pt-3 gap-2">
-                      <span class="text-[10px] font-bold text-slate-400 font-mono">
-                        #{slide.orderIndex || idx + 1}
-                      </span>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[11px] font-bold text-slate-500 font-mono">
+                          #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick$={() => moveSlide$(idx, idx - 1)}
+                          disabled={idx === 0 || reorderSlidesAction.isRunning}
+                          aria-label={`Subir el slide ${slide.title}`}
+                          title="Subir"
+                          class="p-2 rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <LuArrowUp class="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick$={() => moveSlide$(idx, idx + 1)}
+                          disabled={idx === localSlides.list.length - 1 || reorderSlidesAction.isRunning}
+                          aria-label={`Bajar el slide ${slide.title}`}
+                          title="Bajar"
+                          class="p-2 rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <LuArrowDown class="w-4 h-4" />
+                        </button>
+                      </div>
                       <div class="flex items-center gap-1.5">
                         {/* Edit Button */}
                         <button
@@ -731,8 +799,9 @@ export default component$(() => {
                             editDesktopPreview.value = slide.imageUrl;
                             editMobilePreview.value = slide.imageMobile || slide.imageUrl;
                           }}
-                          class="p-2 text-slate-650 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/60 shadow-xs transition-all cursor-pointer active:scale-90"
+                          class="p-2 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/60 shadow-xs transition-all cursor-pointer active:scale-90"
                           title="Editar Slide"
+                          aria-label={`Editar slide ${slide.title}`}
                         >
                           <LuPencil class="w-3.5 h-3.5" />
                         </button>
@@ -742,11 +811,13 @@ export default component$(() => {
                           <input type="hidden" name="id" value={slide.id} />
                           <button
                             type="submit"
+                            disabled={toggleActiveAction.isRunning}
+                            aria-label={slide.isActive === 1 ? `Ocultar slide ${slide.title}` : `Mostrar slide ${slide.title}`}
                             class={[
-                              "p-2 rounded-full border shadow-xs transition-all cursor-pointer active:scale-90",
-                              slide.isActive === 1 
-                                ? "text-emerald-650 hover:text-emerald-800 bg-emerald-50 border-emerald-100 hover:bg-emerald-100" 
-                                : "text-slate-450 hover:text-slate-600 bg-slate-50 border-slate-200/60 hover:bg-slate-100"
+                              "p-2 rounded-full border shadow-xs transition-all cursor-pointer active:scale-90 disabled:opacity-50",
+                              slide.isActive === 1
+                                ? "text-emerald-600 hover:text-emerald-800 bg-emerald-50 border-emerald-100 hover:bg-emerald-100"
+                                : "text-slate-500 hover:text-slate-600 bg-slate-50 border-slate-200/60 hover:bg-slate-100"
                             ]}
                             title={slide.isActive === 1 ? "Desactivar (Ocultar)" : "Activar (Mostrar)"}
                           >
@@ -757,13 +828,14 @@ export default component$(() => {
                         {/* Delete Button */}
                         <button
                           type="button"
-                          onClick$={$(async () => {
-                            if (confirm("¿Está seguro de que desea eliminar este slide de forma permanente?")) {
-                              await deleteSlideAction.submit({ id: slide.id });
-                            }
-                          })}
+                          onClick$={() => {
+                            deleteTarget.value = { id: slide.id, title: slide.title };
+                            deleteError.value = "";
+                            isDeleteOpen.value = true;
+                          }}
                           class="p-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-full border border-red-100 shadow-xs transition-all cursor-pointer active:scale-90"
                           title="Eliminar Slide"
+                          aria-label={`Eliminar slide ${slide.title}`}
                         >
                           <LuTrash2 class="w-3.5 h-3.5" />
                         </button>
@@ -779,25 +851,33 @@ export default component$(() => {
 
       {/* Editing Slide Modal Overlay */}
       {editingSlide.value && (
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-300">
-          <div class="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
+        <div
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-300"
+          window:onKeyDown$={(ev) => {
+            if (ev.key === "Escape" && !updateSlideAction.isRunning) closeEditModal$();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-slide-title"
+            class="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
+          >
             {/* Modal Header */}
-            <div class="bg-brand-green text-white px-6 py-4 flex items-center justify-between">
+            <div class="bg-brand-navy text-white px-6 py-4 flex items-center justify-between">
               <div>
-                <h3 class="font-display font-extrabold text-base text-brand-gold flex items-center gap-1.5">
+                <h3 id="edit-slide-title" class="font-display font-extrabold text-base text-brand-gold flex items-center gap-1.5">
                   <LuPencil class="w-4 h-4" />
                   Editar Slide Promocional
                 </h3>
-                <p class="text-[10px] text-slate-200 uppercase tracking-wider font-semibold">
+                <p class="text-[11px] text-slate-200 uppercase tracking-wider font-semibold">
                   Slide ID: {editingSlide.value.id}
                 </p>
               </div>
               <button
-                onClick$={() => {
-                  editingSlide.value = null;
-                  editDesktopPreview.value = null;
-                  editMobilePreview.value = null;
-                }}
+                type="button"
+                onClick$={closeEditModal$}
+                aria-label="Cerrar edición del slide"
                 class="p-1 text-slate-200 hover:text-white rounded-full transition-colors cursor-pointer"
               >
                 <LuX class="w-6 h-6" />
@@ -808,14 +888,17 @@ export default component$(() => {
             <Form
               action={updateSlideAction}
               enctype="multipart/form-data"
-              onSubmit$={() => {
-                editingSlide.value = null;
-                editDesktopPreview.value = null;
-                editMobilePreview.value = null;
+              onSubmitCompleted$={() => {
+                if (updateSlideAction.value?.success) closeEditModal$();
               }}
               class="flex-1 overflow-y-auto p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-left"
             >
               <input type="hidden" name="id" value={editingSlide.value.id} />
+              {updateSlideAction.value?.failed && updateSlideAction.value.message && (
+                <div class="lg:col-span-2">
+                  <ActionFeedback value={updateSlideAction.value} />
+                </div>
+              )}
 
               {/* Modal Left Col: Metadata fields */}
               <div class="space-y-4">
@@ -827,7 +910,7 @@ export default component$(() => {
                       name="preTitle"
                       value={editingSlide.value.preTitle || ""}
                       placeholder="Ej: Exclusivo LPRC"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-semibold"
                     />
                   </div>
 
@@ -838,33 +921,45 @@ export default component$(() => {
                       name="orderIndex"
                       value={editingSlide.value.orderIndex}
                       min="1"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-semibold"
                     />
                   </div>
                 </div>
 
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
+                  <label for="edit-slide-title-input" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título Principal</label>
                   <input
+                    id="edit-slide-title-input"
                     type="text"
                     name="title"
                     required
                     value={editingSlide.value.title}
                     placeholder="Ej: Temporada de Invierno"
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-extrabold"
+                    aria-invalid={!!updateSlideAction.value?.fieldErrors?.title}
+                    aria-describedby={updateSlideAction.value?.fieldErrors?.title ? "edit-slide-title-error" : undefined}
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-extrabold"
                   />
+                  {updateSlideAction.value?.fieldErrors?.title && (
+                    <p id="edit-slide-title-error" role="alert" class="text-xs text-red-700">{updateSlideAction.value.fieldErrors.title}</p>
+                  )}
                 </div>
 
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
+                  <label for="edit-slide-subtitle" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Descripción (Subtítulo)</label>
                   <textarea
+                    id="edit-slide-subtitle"
                     name="subtitle"
                     required
                     rows={2}
                     value={editingSlide.value.subtitle}
                     placeholder="Ej: Descuentos increíbles..."
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-semibold"
+                    aria-invalid={!!updateSlideAction.value?.fieldErrors?.subtitle}
+                    aria-describedby={updateSlideAction.value?.fieldErrors?.subtitle ? "edit-slide-subtitle-error" : undefined}
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-semibold"
                   />
+                  {updateSlideAction.value?.fieldErrors?.subtitle && (
+                    <p id="edit-slide-subtitle-error" role="alert" class="text-xs text-red-700">{updateSlideAction.value.fieldErrors.subtitle}</p>
+                  )}
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -875,7 +970,7 @@ export default component$(() => {
                       name="buttonText"
                       value={editingSlide.value.buttonText || ""}
                       placeholder="Explorar"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-bold"
                     />
                   </div>
 
@@ -886,7 +981,7 @@ export default component$(() => {
                       name="buttonLink"
                       value={editingSlide.value.buttonLink || ""}
                       placeholder="/"
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-mono"
                     />
                   </div>
                 </div>
@@ -894,7 +989,7 @@ export default component$(() => {
                 <div class="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div class="space-y-0.5">
                     <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Slide Activo</span>
-                    <span class="text-[10px] text-slate-400 font-semibold">Tildar para mostrar en la web inmediatamente.</span>
+                    <span class="text-[11px] text-slate-400 font-semibold">Tildar para mostrar en la web inmediatamente.</span>
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer">
                     <input
@@ -903,7 +998,7 @@ export default component$(() => {
                       checked={editingSlide.value.isActive === 1}
                       class="sr-only peer"
                     />
-                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>
+                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy"></div>
                   </label>
                 </div>
               </div>
@@ -923,8 +1018,8 @@ export default component$(() => {
                     class={[
                       "relative group h-36 rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditDesktop.value
-                        ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                        : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
+                        ? "border-brand-navy bg-emerald-50/50 scale-[1.01]"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
                     ]}
                     onClick$={() => editDesktopInputRef.value?.click()}
                   >
@@ -952,9 +1047,9 @@ export default component$(() => {
                         </div>
                       </>
                     ) : (
-                      <div class="flex flex-col items-center gap-1.5 text-slate-405 z-10">
+                      <div class="flex flex-col items-center gap-1.5 text-slate-400 z-10">
                         <LuMonitor class="w-8 h-8 text-slate-400 stroke-1" />
-                        <span class="text-xs font-bold text-slate-650">Soltá la nueva imagen desktop aquí</span>
+                        <span class="text-xs font-bold text-slate-600">Soltá la nueva imagen desktop aquí</span>
                       </div>
                     )}
                   </div>
@@ -963,7 +1058,7 @@ export default component$(() => {
                     name="imageUrl"
                     value={editingSlide.value.imageUrl}
                     placeholder="URL de Imagen Desktop Externa"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-mono"
                   />
                 </div>
 
@@ -980,8 +1075,8 @@ export default component$(() => {
                     class={[
                       "relative group h-36 rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden flex flex-col items-center justify-center p-3 cursor-pointer text-center",
                       isDragOverEditMobile.value
-                        ? "border-brand-green bg-emerald-50/50 scale-[1.01]"
-                        : "border-slate-250 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
+                        ? "border-brand-navy bg-emerald-50/50 scale-[1.01]"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400",
                     ]}
                     onClick$={() => editMobileInputRef.value?.click()}
                   >
@@ -1011,7 +1106,7 @@ export default component$(() => {
                     ) : (
                       <div class="flex flex-col items-center gap-1.5 text-slate-400 z-10">
                         <LuSmartphone class="w-8 h-8 text-slate-400 stroke-1" />
-                        <span class="text-xs font-bold text-slate-650">Soltá la nueva imagen mobile aquí</span>
+                        <span class="text-xs font-bold text-slate-600">Soltá la nueva imagen mobile aquí</span>
                       </div>
                     )}
                   </div>
@@ -1020,28 +1115,25 @@ export default component$(() => {
                     name="imageMobileUrl"
                     value={editingSlide.value.imageMobile || ""}
                     placeholder="URL de Imagen Mobile Externa"
-                    class="w-full bg-slate-50 text-slate-800 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-mono"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-mono"
                   />
                 </div>
               </div>
 
               {/* Modal Footer Controls */}
-              <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-150 gap-3">
+              <div class="lg:col-span-2 bg-slate-50 p-5 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 flex justify-end border-t border-slate-100 gap-3">
                 <button
                   type="button"
-                  onClick$={() => {
-                    editingSlide.value = null;
-                    editDesktopPreview.value = null;
-                    editMobilePreview.value = null;
-                  }}
-                  class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-250 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
+                  disabled={updateSlideAction.isRunning}
+                  onClick$={closeEditModal$}
+                  class="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={updateSlideAction.isRunning}
-                  class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+                  class="px-6 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
                 >
                   <LuCheck class="w-4 h-4" />
                   {updateSlideAction.isRunning ? "Guardando..." : "Guardar Cambios"}
@@ -1051,6 +1143,17 @@ export default component$(() => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        title="Eliminar slide"
+        confirmLabel="Eliminar slide"
+        pending={deleteSlideAction.isRunning}
+        error={deleteError.value}
+        onConfirm$={confirmDeleteSlide$}
+      >
+        <p>“{deleteTarget.value?.title}” se eliminará del carrusel de forma permanente.</p>
+      </ConfirmDialog>
     </div>
   );
 });

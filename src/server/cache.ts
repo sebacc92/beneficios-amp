@@ -2,6 +2,8 @@ import type { RequestEventBase } from "@builder.io/qwik-city";
 import { getDB } from "~/db";
 import { benefits } from "~/db/schema";
 import { BENEFIT_FILTERS_CACHE_KEY, getSavedBenefitFilters } from "./benefit-filters";
+import { isDraftBenefit } from "~/utils/benefit-status";
+import { matchesCampaign } from "~/utils/home-benefits";
 
 export interface Category {
   id: number;
@@ -238,7 +240,7 @@ async function loadFilters(requestEvent?: RequestEventBase): Promise<Filters> {
       }
     }
     for (const benefit of customBenefits) {
-      if (benefit.validUntil === "draft" || benefit.validUntil?.startsWith("draft|")) continue;
+      if (isDraftBenefit(benefit.validUntil)) continue;
       categoryCounts[benefit.categoryId] = (categoryCounts[benefit.categoryId] || 0) + 1;
     }
   } else {
@@ -308,13 +310,7 @@ async function loadCustomBenefits(requestEvent: RequestEventBase): Promise<Benef
         ? Number(cb.slug.split("-")[0])
         : Math.floor(Math.random() * 10000) + 90000;
 
-      // Extract real validUntil and isActive status
-      const rawValidUntil = cb.validUntil;
-      const isDraft = rawValidUntil?.startsWith("draft|") || rawValidUntil === "draft";
-      const cleanValidUntil = isDraft
-        ? (rawValidUntil === "draft" ? null : rawValidUntil!.substring(6))
-        : rawValidUntil;
-      const isActive = !isDraft;
+      const isActive = !isDraftBenefit(cb.validUntil);
 
       return {
         id: numId,
@@ -392,6 +388,8 @@ export interface SearchParams {
   limit?: number;
   requestEvent?: RequestEventBase; // Support fetching custom DB benefits
   isPremiumOnly?: boolean;
+  /** Home campaign keywords: the catalog's "Ver todos" must list exactly what the home block matches. */
+  campaignTerms?: string[];
 }
 
 export interface SearchResult {
@@ -452,6 +450,12 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
   // 5. Gold/Premium filter
   if (params.isPremiumOnly) {
     filtered = filtered.filter(b => b.isPremiumOnly);
+  }
+
+  // 6. Home campaign keywords
+  if (params.campaignTerms) {
+    const terms = params.campaignTerms;
+    filtered = filtered.filter(b => matchesCampaign(b, terms));
   }
 
   const total = filtered.length;

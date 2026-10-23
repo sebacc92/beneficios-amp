@@ -1,4 +1,4 @@
-import { component$, isDev } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import { QwikCityProvider, RouterOutlet } from "@builder.io/qwik-city";
 import { RouterHead } from "./components/router-head/router-head";
 
@@ -18,16 +18,11 @@ export default component$(() => {
         <meta charset="utf-8" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;550;700&display=swap" rel="stylesheet" />
-        {!isDev && (
-          <link
-            rel="manifest"
-            href={`${import.meta.env.BASE_URL}manifest.json`}
-          />
-        )}
+        {/* Variable ranges cover every weight in use (font-black/extrabold included); the manifest link lives in RouterHead. */}
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Oswald:wght@400..700&display=swap" rel="stylesheet" />
         <RouterHead />
       </head>
-      <body lang="es">
+      <body>
         <RouterOutlet />
       </body>
     </QwikCityProvider>

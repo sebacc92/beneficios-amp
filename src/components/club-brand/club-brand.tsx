@@ -19,7 +19,7 @@ export const ClubBrand = component$(() => (
         Club de Beneficios
       </span>
       <span class="sr-only"> - </span>
-      <span class="text-[9px] leading-snug font-bold tracking-[0.06em] text-accent sm:text-[10px] xl:text-[11px]">
+      <span class="text-[11px] leading-snug font-bold tracking-[0.06em] text-accent sm:text-[11px] xl:text-[11px]">
         LA PLATA RUGBY CLUB
       </span>
     </span>

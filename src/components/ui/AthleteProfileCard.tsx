@@ -1,4 +1,5 @@
 import { component$ } from "@builder.io/qwik";
+import { Link } from "@builder.io/qwik-city";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 interface AthleteProfileCardProps {
@@ -14,7 +15,7 @@ export const AthleteProfileCard = component$<AthleteProfileCardProps>(({ user })
     if (!dateStr) return "Sin Vencimiento";
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return "Sin Vencimiento";
-    return date.toLocaleDateString("es-AR", { month: "2-digit", year: "numeric" });
+    return date.toLocaleDateString("es-AR", { month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
   };
 
   return (
@@ -34,7 +35,7 @@ export const AthleteProfileCard = component$<AthleteProfileCardProps>(({ user })
         {/* Header: Club Identity */}
         <div class="flex justify-between items-start">
           <div class="space-y-0.5 text-left">
-            <span class="text-[8.5px] font-black text-accent tracking-[0.2em] uppercase leading-none block">
+            <span class="text-[11px] font-black text-accent tracking-[0.2em] uppercase leading-none block">
               Credencial Digital
             </span>
             <span class="font-display font-black text-lg sm:text-xl tracking-wide uppercase leading-none block text-white">
@@ -68,18 +69,18 @@ export const AthleteProfileCard = component$<AthleteProfileCardProps>(({ user })
             </h4>
             <div class="flex items-center space-x-1.5">
               <span class={`inline-block w-1.5 h-1.5 rounded-full ${isPremium ? 'bg-accent' : 'bg-emerald-400'} animate-pulse`}></span>
-              <span class="text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+              <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">
                 {statusLabel}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Footer: Metadata & Barcode */}
+        {/* Footer: Metadata and the real, scannable credential */}
         <div class="flex justify-between items-end border-t border-slate-800/80 pt-3">
           <div class="space-y-1 text-left">
             <div>
-              <span class="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">N° de Socio</span>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">N° de Socio</span>
               <span class="font-mono font-black text-accent text-sm leading-none">
                 {user.numeroSocio || "------"}
               </span>
@@ -87,28 +88,19 @@ export const AthleteProfileCard = component$<AthleteProfileCardProps>(({ user })
             {isPremium && (
               <div>
                 <span class="text-[7.5px] font-bold text-slate-500 uppercase tracking-wider block">Validez</span>
-                <span class="text-[10px] font-bold text-slate-300 leading-none">
+                <span class="text-[11px] font-bold text-slate-300 leading-none">
                   {formatExpiration(user.premiumExpiresAt)}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Athletic Barcode representation */}
-          <div class="flex flex-col items-end space-y-1">
-            <div class="flex items-end space-x-[1.5px] h-6 opacity-70 group-hover:opacity-95 transition-opacity duration-300">
-              {/* Generate barcode stripes pseudo-randomly based on user ID / socio number */}
-              {Array.from({ length: 24 }).map((_, i) => {
-                const heights = ["h-3", "h-4.5", "h-5", "h-6"];
-                const h = heights[Math.abs(Math.sin(i + (user.numeroSocio ? parseInt(user.numeroSocio) : 10)) * 4) | 0] || "h-4";
-                const w = (i % 3 === 0 || i % 7 === 0) ? "w-[2px]" : "w-[1px]";
-                return <div key={i} class={`${h} ${w} bg-white rounded-sm`}></div>;
-              })}
-            </div>
-            <span class="text-[8px] font-mono text-slate-500 tracking-widest leading-none">
-              LPRC-{user.numeroSocio || "SOCIO"}
-            </span>
-          </div>
+          <Link
+            href="/perfil/?credencial=1"
+            class="inline-flex min-h-11 items-center rounded-xl border border-accent/50 px-3 py-2 text-xs font-black uppercase tracking-wider text-accent hover:bg-accent hover:text-primary transition-colors"
+          >
+            Mostrar QR
+          </Link>
 
         </div>
 

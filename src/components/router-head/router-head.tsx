@@ -8,6 +8,21 @@ export const RouterHead = component$(() => {
   const head = useDocumentHead();
   const loc = useLocation();
 
+  // Link previews (WhatsApp, redes): pages may set their own og:* tags; these fill the gaps.
+  const declared = (key: string) => head.meta.some((m) => m.property === key || m.name === key);
+  const description = head.meta.find((m) => m.name === "description")?.content;
+  const hasPageImage = declared("og:image");
+  const shareDefaults = [
+    { property: "og:site_name", content: "LPRC Beneficios" },
+    { property: "og:locale", content: "es_AR" },
+    { property: "og:type", content: "website" },
+    { property: "og:url", content: loc.url.href },
+    { property: "og:title", content: head.title },
+    { property: "og:description", content: description },
+    { property: "og:image", content: new URL("/lprc-app-icon-512.png", loc.url.origin).href },
+    { name: "twitter:card", content: hasPageImage ? "summary_large_image" : "summary" },
+  ].filter((m) => m.content && !declared(m.property ?? m.name));
+
   return (
     <>
       <title>{head.title}</title>
@@ -20,9 +35,13 @@ export const RouterHead = component$(() => {
       <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
       <link rel="shortcut icon" href="/favicon.ico" />
       <link rel="manifest" href="/manifest.json" />
+      <meta name="theme-color" content="#0B1526" />
 
       {head.meta.map((m) => (
         <meta key={m.key} {...m} />
+      ))}
+      {shareDefaults.map((m) => (
+        <meta key={m.property ?? m.name} {...m} />
       ))}
 
       {head.links.map((l) => (

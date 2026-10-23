@@ -1,4 +1,6 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { normalizedDniExpression } from "./dni-expression.mjs";
 
 // --- Settings & AI ---
 export const siteSettings = sqliteTable("site_settings", {
@@ -57,7 +59,9 @@ export const users = sqliteTable("users", {
   avatarUrl: text("avatar_url"),
   premiumExpiresAt: text("premium_expires_at"), // ISO Date string
   createdAt: text("created_at").notNull(),
-});
+}, () => [
+  index("idx_users_dni_normalized").on(sql.raw(normalizedDniExpression)),
+]);
 
 // --- Auth Sessions ---
 // `id` stores the SHA-256 of the cookie token, never the token itself, so a leaked
@@ -142,6 +146,20 @@ export const events = sqliteTable("events", {
   createdAt: text("created_at").notNull(),
 });
 
+// --- Raffles ---
+// Whether a raffle is current comes from draw_date in Buenos Aires; it is never stored.
+export const raffles = sqliteTable("raffles", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  image: text("image"),
+  drawDate: text("draw_date").notNull(), // YYYY-MM-DD
+  prizeDetail: text("prize_detail").notNull(),
+  terms: text("terms").notNull(),
+  winners: text("winners"),
+  createdAt: text("created_at").notNull(),
+});
+
 // --- Advertising Banners ---
 export const banners = sqliteTable("banners", {
   id: text("id").primaryKey(),
@@ -189,6 +207,19 @@ export const merchantRequests = sqliteTable("merchant_requests", {
   phone: text("phone").notNull(),
   proposal: text("proposal").notNull(),
   status: text("status").default("pending").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// --- Member suggestions and complaints (/sugerencias) ---
+export const suggestions = sqliteTable("suggestions", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  email: text("email").notNull(),
+  telefono: text("telefono"),
+  tipo: text("tipo").notNull(),
+  comercio: text("comercio"),
+  mensaje: text("mensaje").notNull(),
+  status: text("status").default("pending").notNull(), // pending | reviewed | discarded
   createdAt: text("created_at").notNull(),
 });
 

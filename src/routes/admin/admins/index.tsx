@@ -1,10 +1,11 @@
-import { component$, useSignal } from "@builder.io/qwik";
+import { component$, useSignal, type Signal } from "@builder.io/qwik";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { desc, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { users as usersTable } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { LuPlus, LuLock } from "@qwikest/icons/lucide";
+import { ActionFeedback } from "~/components/admin/action-feedback";
 
 // --- SECURITY & LOADERS ---
 
@@ -121,6 +122,23 @@ export const useRegisterAdminAction = routeAction$(
   })
 );
 
+const AdminAvatar = component$<{ name: string; isMe: boolean }>(({ name, isMe }) => (
+  <div aria-hidden="true" class={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-black uppercase text-white shadow-sm ${isMe ? "bg-brand-navy" : "bg-slate-500"}`}>
+    {name.charAt(0)}
+  </div>
+));
+
+const PasswordButton = component$<{ open: Signal<boolean> }>(({ open }) => (
+  <button
+    type="button"
+    onClick$={() => (open.value = true)}
+    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+  >
+    <LuLock class="w-3.5 h-3.5" />
+    <span>Cambiar Contraseña</span>
+  </button>
+));
+
 export default component$(() => {
   const adminUsers = useAdminUsersLoader();
   const currentUser = useCurrentUserLoader();
@@ -129,6 +147,7 @@ export default component$(() => {
 
   const isCreateAdminOpen = useSignal(false);
   const isChangingMyPassword = useSignal(false);
+  const admins = adminUsers.value.filter((u) => u.role === "admin");
 
   return (
     <div class="w-full px-6 sm:px-10 py-10 space-y-8 pb-24 font-sans text-slate-800 flex flex-col flex-1 overflow-y-auto">
@@ -136,12 +155,12 @@ export default component$(() => {
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
-            <span class="text-[10px] font-extrabold tracking-widest text-slate-450 uppercase">
+            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
+            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
               Administración / Personal
             </span>
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             Administradores
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
@@ -154,7 +173,7 @@ export default component$(() => {
             onClick$={() => {
               isCreateAdminOpen.value = !isCreateAdminOpen.value;
             }}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer animate-none"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer animate-none"
           >
             <LuPlus class="w-4 h-4" />
             <span>{isCreateAdminOpen.value ? "Cerrar Panel" : "Agregar Administrador"}</span>
@@ -163,35 +182,21 @@ export default component$(() => {
       </div>
 
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
-        {/* Form Actions Feedbacks */}
-        {registerAdminAction.value?.failed && (
-          <div class="rounded-2xl border border-red-150 bg-red-50 px-4 py-3.5 text-xs font-bold text-red-800 shadow-sm">
-            Error al registrar administrador: {registerAdminAction.value.message || "Por favor, verifica los campos."}
-          </div>
-        )}
+        {/* Form Actions Feedbacks (failures show inside the open form) */}
         {registerAdminAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-150 bg-emerald-50 px-4 py-3.5 text-xs font-bold text-emerald-800 shadow-sm">
-            ¡Administrador registrado exitosamente y dado de alta en el sistema!
-          </div>
-        )}
-
-        {changePasswordAction.value?.failed && (
-          <div class="rounded-2xl border border-red-150 bg-red-50 px-4 py-3.5 text-xs font-bold text-red-800 shadow-sm">
-            Error al cambiar contraseña: {changePasswordAction.value.message || "Intentalo nuevamente."}
-          </div>
+          <ActionFeedback value={registerAdminAction.value} success="¡Administrador registrado y dado de alta en el sistema!" />
         )}
         {changePasswordAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-150 bg-emerald-50 px-4 py-3.5 text-xs font-bold text-emerald-800 shadow-sm">
-            ¡Contraseña actualizada exitosamente!
-          </div>
+          <ActionFeedback value={changePasswordAction.value} success="¡Contraseña actualizada!" />
         )}
 
         {/* Register Admin Form Panel */}
         {isCreateAdminOpen.value && (
           <Form
             action={registerAdminAction}
-            onSubmit$={() => {
-              isCreateAdminOpen.value = false;
+            onSubmitCompleted$={() => {
+              // Keep the panel and its values open when the email is rejected
+              if (registerAdminAction.value?.success) isCreateAdminOpen.value = false;
             }}
             class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300"
           >
@@ -206,38 +211,62 @@ export default component$(() => {
               </button>
             </div>
 
+            {registerAdminAction.value?.failed && registerAdminAction.value.message && <ActionFeedback value={registerAdminAction.value} />}
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre Completo</label>
+                <label for="new-admin-name" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nombre Completo</label>
                 <input
+                  id="new-admin-name"
                   type="text"
                   name="name"
                   required
+                  autocomplete="off"
                   placeholder="Ej: Marcelo Admin"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                  aria-invalid={!!registerAdminAction.value?.fieldErrors?.name}
+                  aria-describedby={registerAdminAction.value?.fieldErrors?.name ? "new-admin-name-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                 />
+                {registerAdminAction.value?.fieldErrors?.name && (
+                  <p id="new-admin-name-error" role="alert" class="text-xs text-red-700">{registerAdminAction.value.fieldErrors.name}</p>
+                )}
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Correo Electrónico</label>
+                <label for="new-admin-email" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Correo Electrónico</label>
                 <input
+                  id="new-admin-email"
                   type="email"
                   name="email"
                   required
+                  autocomplete="off"
                   placeholder="Ej: marcelo@lprc.ar"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                  aria-invalid={!!registerAdminAction.value?.fieldErrors?.email}
+                  aria-describedby={registerAdminAction.value?.fieldErrors?.email ? "new-admin-email-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                 />
+                {registerAdminAction.value?.fieldErrors?.email && (
+                  <p id="new-admin-email-error" role="alert" class="text-xs text-red-700">{registerAdminAction.value.fieldErrors.email}</p>
+                )}
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Contraseña Inicial</label>
+                <label for="new-admin-password" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Contraseña Inicial</label>
                 <input
+                  id="new-admin-password"
                   type="password"
                   name="password"
                   required
+                  minLength={6}
+                  autocomplete="new-password"
                   placeholder="Mínimo 6 caracteres"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                  aria-invalid={!!registerAdminAction.value?.fieldErrors?.password}
+                  aria-describedby={registerAdminAction.value?.fieldErrors?.password ? "new-admin-password-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                 />
+                {registerAdminAction.value?.fieldErrors?.password && (
+                  <p id="new-admin-password-error" role="alert" class="text-xs text-red-700">{registerAdminAction.value.fieldErrors.password}</p>
+                )}
               </div>
             </div>
 
@@ -252,7 +281,7 @@ export default component$(() => {
               <button
                 type="submit"
                 disabled={registerAdminAction.isRunning}
-                class="px-6 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                class="px-6 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
               >
                 {registerAdminAction.isRunning ? "Registrando..." : "Dar de Alta"}
               </button>
@@ -260,86 +289,115 @@ export default component$(() => {
           </Form>
         )}
 
-        {/* Admins Table */}
-        <div class="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+        {/* Own password change: one panel above the list, used from both layouts */}
+        {isChangingMyPassword.value && currentUser.value && (
+          <Form
+            action={changePasswordAction}
+            onSubmitCompleted$={() => {
+              if (changePasswordAction.value?.success) isChangingMyPassword.value = false;
+            }}
+            class="bg-white rounded-3xl border border-slate-200 p-6 shadow-md space-y-4"
+          >
+            <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Cambiar mi contraseña</h4>
+            {changePasswordAction.value?.failed && changePasswordAction.value.message && (
+              <ActionFeedback value={changePasswordAction.value} />
+            )}
+            <input type="hidden" name="userId" value={currentUser.value.id} />
+            <div class="space-y-1 max-w-sm">
+              <label for="admin-new-password" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Nueva contraseña</label>
+              <input
+                id="admin-new-password"
+                type="password"
+                name="newPassword"
+                required
+                minLength={6}
+                autocomplete="new-password"
+                placeholder="Mínimo 6 caracteres"
+                aria-invalid={!!changePasswordAction.value?.fieldErrors?.newPassword}
+                aria-describedby={changePasswordAction.value?.fieldErrors?.newPassword ? "admin-new-password-error" : undefined}
+                class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
+              />
+              {changePasswordAction.value?.fieldErrors?.newPassword && (
+                <p id="admin-new-password-error" role="alert" class="text-xs text-red-700">{changePasswordAction.value.fieldErrors.newPassword}</p>
+              )}
+            </div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                disabled={changePasswordAction.isRunning}
+                onClick$={() => (isChangingMyPassword.value = false)}
+                class="px-5 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={changePasswordAction.isRunning}
+                class="px-6 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+              >
+                {changePasswordAction.isRunning ? "Guardando..." : "Guardar contraseña"}
+              </button>
+            </div>
+          </Form>
+        )}
+
+        {/* Admins: stacked cards on phones, table from sm up */}
+        <ul class="space-y-3 sm:hidden">
+          {admins.map((userItem) => {
+            const isMe = userItem.id === currentUser.value?.id;
+            return (
+              <li key={userItem.id} class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                <div class="flex items-center gap-2.5">
+                  <AdminAvatar name={userItem.name} isMe={isMe} />
+                  <div class="min-w-0">
+                    <p class="font-bold text-slate-800">{userItem.name}{isMe && <span class="ml-1.5 text-[11px] bg-brand-navy/10 text-brand-navy px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Tú</span>}</p>
+                    <p class="text-xs text-slate-500 break-all">{userItem.email}</p>
+                  </div>
+                </div>
+                {isMe && !isChangingMyPassword.value && <PasswordButton open={isChangingMyPassword} />}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div class="hidden sm:block overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
           <table class="w-full text-left border-collapse text-xs sm:text-sm">
             <thead>
-              <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              <tr class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                 <th class="px-6 py-4">Nombre</th>
                 <th class="px-6 py-4">Correo</th>
                 <th class="px-6 py-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
-              {adminUsers.value
-                .filter((u) => u.role === "admin")
-                .map((userItem) => {
-                  const isMe = userItem.id === currentUser.value?.id;
-                  return (
-                    <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
-                      <td class="px-6 py-4 font-bold text-slate-800 flex items-center gap-2.5">
-                        <div class={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black uppercase text-white shadow-sm ${isMe ? "bg-brand-green" : "bg-slate-450"}`}>
-                          {userItem.name.charAt(0)}
-                        </div>
+              {admins.map((userItem) => {
+                const isMe = userItem.id === currentUser.value?.id;
+                return (
+                  <tr key={userItem.id} class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 font-bold text-slate-800">
+                      <div class="flex items-center gap-2.5">
+                        <AdminAvatar name={userItem.name} isMe={isMe} />
                         <span class="flex items-center gap-1.5">
                           {userItem.name}
                           {isMe && (
-                            <span class="text-[9px] bg-brand-green/10 text-brand-green px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-brand-green-light/10">
+                            <span class="text-[11px] bg-brand-navy/10 text-brand-navy px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-brand-navy-light/10">
                               Tú
                             </span>
                           )}
                         </span>
-                      </td>
-                      <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
-                      <td class="px-6 py-4 text-center">
-                        {isMe ? (
-                          isChangingMyPassword.value ? (
-                            <Form
-                              action={changePasswordAction}
-                              onSubmit$={() => {
-                                isChangingMyPassword.value = false;
-                              }}
-                              class="flex items-center justify-center gap-2"
-                            >
-                              <input type="hidden" name="userId" value={userItem.id} />
-                              <input
-                                type="password"
-                                name="newPassword"
-                                required
-                                placeholder="Nueva clave"
-                                class="bg-slate-50 border border-slate-200 rounded-lg text-xs px-2.5 py-1.5 focus:border-brand-green focus:bg-white focus:outline-none w-36 font-semibold"
-                              />
-                              <button
-                                type="submit"
-                                class="bg-brand-green hover:bg-brand-green-light text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-transform active:scale-95 cursor-pointer"
-                              >
-                                Guardar
-                              </button>
-                              <button
-                                type="button"
-                                onClick$={() => (isChangingMyPassword.value = false)}
-                                class="text-[10px] font-bold text-slate-400 hover:text-slate-655 px-2 py-1.5 cursor-pointer"
-                              >
-                                Cancelar
-                              </button>
-                            </Form>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick$={() => (isChangingMyPassword.value = true)}
-                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
-                            >
-                              <LuLock class="w-3.5 h-3.5" />
-                              <span>Cambiar Contraseña</span>
-                            </button>
-                          )
-                        ) : (
-                          <span class="text-xs text-slate-350 italic">Sin acciones permitidas</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-slate-500">{userItem.email}</td>
+                    <td class="px-6 py-4 text-center">
+                      {isMe ? (
+                        !isChangingMyPassword.value && <PasswordButton open={isChangingMyPassword} />
+                      ) : (
+                        <span class="text-xs text-slate-400 italic">Sin acciones permitidas</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

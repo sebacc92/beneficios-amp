@@ -1,15 +1,17 @@
-import { component$, useVisibleTask$ } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { Link, routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
 import { and, eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { benefits, coupons } from "~/db/schema";
 import { getSessionUser } from "~/server/auth";
 import { couponQrDataUrl, isCouponBenefitAvailable } from "~/server/coupons";
+import { CopyCodeButton, CouponLiveStatus, type CouponStatus } from "~/components/ui/coupon-tools";
+import { loginUrl } from "~/utils/return-path";
 
 export const useCoupon = routeLoader$(async (event) => {
   event.headers.set("Cache-Control", "private, no-store");
   const user = getSessionUser(event);
-  if (!user) throw event.redirect(302, "/login/");
+  if (!user) throw event.redirect(302, loginUrl(event.url.pathname + event.url.search));
 
   // Ownership is part of the query, including for administrator accounts.
   const [record] = await getDB(event)
@@ -51,11 +53,13 @@ export default component$(() => {
     window.print();
   });
   const { coupon, qrDataUrl, benefitUrl } = data.value;
-  const active = coupon.status === "active";
+  // Starts from the loader and is refreshed in place while the coupon is on screen.
+  const status = useSignal<CouponStatus>(coupon.status);
+  const active = status.value === "active";
   const statusLabel = active
     ? "Activo"
-    : coupon.status === "used"
-      ? "Usado"
+    : status.value === "used"
+      ? "Canjeado"
       : "Vencido o no disponible";
   const date = (value: string) =>
     new Date(value).toLocaleDateString("es-AR", {
@@ -101,7 +105,8 @@ export default component$(() => {
               {coupon.benefitResumen}
             </p>
           </div>
-          {qrDataUrl && (
+          <CouponLiveStatus couponId={coupon.id} status={status} />
+          {active && qrDataUrl && (
             <img
               id="coupon-qr"
               src={qrDataUrl}
@@ -118,6 +123,11 @@ export default component$(() => {
             <p class="font-mono text-4xl tracking-[0.16em] font-black mt-2">
               {coupon.code}
             </p>
+            {active && (
+              <div class="mt-3 print:hidden">
+                <CopyCodeButton code={coupon.code} />
+              </div>
+            )}
           </div>
           <dl class="border-y border-secondary py-4 space-y-2 text-left text-sm print:border-slate-200">
             <div class="flex flex-wrap justify-between gap-2">
@@ -143,8 +153,10 @@ export default component$(() => {
           </dl>
           <p class="text-sm text-slate-300 leading-relaxed print:text-slate-700">
             {active
-              ? "Antes de pagar, mostrá este QR o el código junto a tu credencial. El comercio verifica tu DNI y registra el canje; el cupón se puede usar una sola vez."
-              : "Este cupón ya no se puede canjear. Consultá tus cupones activos o los beneficios disponibles."}
+              ? "Antes de pagar, mostrá este QR o el código junto a tu credencial. El comercio verifica tu DNI y registra el canje; el cupón se puede usar una sola vez. La pantalla se mantiene encendida mientras lo mostrás."
+              : status.value === "used"
+                ? "El comercio registró el canje de este cupón. ¡Que lo disfrutes!"
+                : "Este cupón ya no se puede canjear. Consultá tus cupones activos o los beneficios disponibles."}
           </p>
           <div class="flex flex-col gap-3 print:hidden">
             {active && (

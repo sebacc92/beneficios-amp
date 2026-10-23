@@ -4,6 +4,8 @@ import { LuTrash2, LuImage } from "@qwikest/icons/lucide";
 import { getSessions, deleteSession, getSettings, saveSettings } from "~/server/chatbotDb";
 import { putImage } from "~/server/media";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { ActionFeedback } from "~/components/admin/action-feedback";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 
 // --- SECURITY & LOADERS ---
 
@@ -100,6 +102,30 @@ export default component$(() => {
 
   const activeAiTab = useSignal<"audit" | "config">("audit");
 
+  const isDeleteOpen = useSignal(false);
+  const deleteTarget = useSignal<{ id: string; messageCount: number } | null>(null);
+  const deleteError = useSignal("");
+
+  const confirmDeleteChat$ = $(async () => {
+    if (!deleteTarget.value) return;
+    const { value } = await deleteAction.submit({ id: deleteTarget.value.id });
+    if (value.failed) {
+      deleteError.value = value.message || "No se pudo eliminar la conversación. Intentá de nuevo.";
+      return;
+    }
+    isDeleteOpen.value = false;
+  });
+
+  const formatDateTime = (value: string) =>
+    new Date(value).toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
   // AI settings state
   const s = settings.value;
   const avatarUrl = useSignal(s.aiAvatarUrl || "");
@@ -119,12 +145,12 @@ export default component$(() => {
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
-            <span class="text-[10px] font-extrabold tracking-widest text-slate-450 uppercase">
+            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
+            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
               Administración / Inteligencia Artificial
             </span>
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             Asistente Inteligente LPRC
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
@@ -140,8 +166,8 @@ export default component$(() => {
           class={[
             "px-6 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer uppercase tracking-wider",
             activeAiTab.value === "audit"
-              ? "border-brand-green text-brand-green"
-              : "border-transparent text-slate-400 hover:text-slate-650",
+              ? "border-brand-navy text-brand-navy"
+              : "border-transparent text-slate-400 hover:text-slate-600",
           ]}
         >
           Auditoría de Chats
@@ -151,8 +177,8 @@ export default component$(() => {
           class={[
             "px-6 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer uppercase tracking-wider",
             activeAiTab.value === "config"
-              ? "border-brand-green text-brand-green"
-              : "border-transparent text-slate-400 hover:text-slate-650",
+              ? "border-brand-navy text-brand-navy"
+              : "border-transparent text-slate-400 hover:text-slate-600",
           ]}
         >
           Personalidad del Asistente
@@ -165,13 +191,54 @@ export default component$(() => {
           <div class="space-y-6 animate-in fade-in duration-300 text-left">
             <div>
               <h3 class="text-lg font-bold text-slate-800">Historial de Conversaciones Auditadas</h3>
-              <p class="text-xs text-slate-400">Revisá las consultas de los profesionales socios con la IA.</p>
+              <p class="text-xs text-slate-500">Revisá las consultas que los socios le hicieron al asistente.</p>
             </div>
 
-            <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <ActionFeedback value={deleteAction.value} success="✓ Conversación eliminada." />
+
+            {/* Sessions: stacked cards on phones, table from sm up */}
+            <ul class="space-y-3 sm:hidden">
+              {sessionsLoader.value.length === 0 && (
+                <li class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+                  Aún no hay conversaciones registradas en la base de datos.
+                </li>
+              )}
+              {sessionsLoader.value.map((session) => (
+                <li key={session.id} class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                  <div class="space-y-1 text-xs text-slate-500">
+                    <p class="font-mono font-bold text-brand-navy-dark truncate">{session.id}</p>
+                    <p>Iniciada: {formatDateTime(session.createdAt)}</p>
+                    <p>Última actividad: {formatDateTime(session.lastActive)}</p>
+                    <p>{session.messageCount} {session.messageCount === 1 ? "mensaje" : "mensajes"}</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Link
+                      href={`/admin/chats/${session.id}`}
+                      class="px-3 py-2 bg-slate-100 hover:bg-brand-navy-dark hover:text-white text-slate-700 text-xs font-semibold rounded-lg transition-all"
+                    >
+                      Auditar
+                    </Link>
+                    <button
+                      type="button"
+                      onClick$={() => {
+                        deleteTarget.value = { id: session.id, messageCount: session.messageCount };
+                        deleteError.value = "";
+                        isDeleteOpen.value = true;
+                      }}
+                      aria-label={`Eliminar conversación ${session.id}`}
+                      class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-all cursor-pointer"
+                    >
+                      <LuTrash2 class="w-4 h-4" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div class="hidden sm:block overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
               <table class="w-full text-left border-collapse text-xs sm:text-sm">
                 <thead>
-                  <tr class="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <tr class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                     <th class="px-6 py-4">Sesión ID</th>
                     <th class="px-6 py-4">Iniciada</th>
                     <th class="px-6 py-4">Última Actividad</th>
@@ -189,27 +256,15 @@ export default component$(() => {
                   ) : (
                     sessionsLoader.value.map((session) => (
                       <tr key={session.id} class="hover:bg-slate-50 transition-colors">
-                        <td class="px-6 py-4 font-mono text-xs text-[#0a442a] font-bold truncate max-w-[120px]">
+                        <td class="px-6 py-4 font-mono text-xs text-brand-navy-dark font-bold truncate max-w-[120px]">
                           <Link href={`/admin/chats/${session.id}`} class="hover:underline">
                             {session.id}
                           </Link>
                         </td>
-                        <td class="px-6 py-4 text-slate-500">
-                          {new Date(session.createdAt).toLocaleDateString("es-AR")}{" "}
-                          {new Date(session.createdAt).toLocaleTimeString("es-AR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td class="px-6 py-4 text-slate-500">
-                          {new Date(session.lastActive).toLocaleDateString("es-AR")}{" "}
-                          {new Date(session.lastActive).toLocaleTimeString("es-AR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
+                        <td class="px-6 py-4 text-slate-500">{formatDateTime(session.createdAt)}</td>
+                        <td class="px-6 py-4 text-slate-500">{formatDateTime(session.lastActive)}</td>
                         <td class="px-6 py-4 text-center">
-                          <span class="inline-flex h-5 items-center justify-center rounded-full bg-emerald-50 border border-emerald-150 px-2.5 text-[10px] font-bold text-emerald-800">
+                          <span class="inline-flex h-5 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100 px-2.5 text-[11px] font-bold text-emerald-800">
                             {session.messageCount}
                           </span>
                         </td>
@@ -217,19 +272,23 @@ export default component$(() => {
                           <div class="flex items-center justify-center space-x-2">
                             <Link
                               href={`/admin/chats/${session.id}`}
-                              class="px-3 py-1.5 bg-slate-100 hover:bg-[#0a442a] hover:text-white text-slate-700 text-xs font-semibold rounded-lg transition-all"
+                              class="px-3 py-1.5 bg-slate-100 hover:bg-brand-navy-dark hover:text-white text-slate-700 text-xs font-semibold rounded-lg transition-all"
                             >
                               Auditar
                             </Link>
-                            <Form action={deleteAction}>
-                              <input type="hidden" name="id" value={session.id} />
-                              <button
-                                type="submit"
-                                class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-all cursor-pointer"
-                              >
-                                <LuTrash2 class="w-4 h-4" />
-                              </button>
-                            </Form>
+                            <button
+                              type="button"
+                              onClick$={() => {
+                                deleteTarget.value = { id: session.id, messageCount: session.messageCount };
+                                deleteError.value = "";
+                                isDeleteOpen.value = true;
+                              }}
+                              aria-label={`Eliminar conversación ${session.id}`}
+                              title="Eliminar conversación"
+                              class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-all cursor-pointer"
+                            >
+                              <LuTrash2 class="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -244,22 +303,18 @@ export default component$(() => {
         {/* --- PERSONALIDAD TAB --- */}
         {activeAiTab.value === "config" && (
           <div class="space-y-6 animate-in fade-in duration-300 text-left">
-            {aiSettingsAction.value?.success && (
-              <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm">
-                ✓ Configuración de personalidad de IA guardada exitosamente.
-              </div>
-            )}
+            <ActionFeedback value={aiSettingsAction.value} success="✓ Configuración de personalidad de IA guardada." />
 
             <Form action={aiSettingsAction} enctype="multipart/form-data" class="space-y-8">
               <input type="hidden" name="aiAvatarUrl" value={avatarUrl.value} />
 
               <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="flex items-center justify-between border-b border-slate-100 bg-brand-green px-8 py-5 text-white">
+                <div class="flex items-center justify-between border-b border-slate-100 bg-brand-navy px-8 py-5 text-white">
                   <div>
                     <h2 class="flex items-center gap-2 text-lg font-display font-extrabold text-brand-gold">
                       🤖 LPRC Asistente Virtual
                     </h2>
-                    <p class="text-[10px] font-bold tracking-wider text-slate-200 uppercase mt-0.5">
+                    <p class="text-[11px] font-bold tracking-wider text-slate-200 uppercase mt-0.5">
                       Definición de personalidad, avatar y reglas de la IA.
                     </p>
                   </div>
@@ -275,7 +330,7 @@ export default component$(() => {
                       type="checkbox"
                       name="aiEnabled"
                       checked={s.aiEnabled}
-                      class="rounded border-slate-300 text-brand-green focus:ring-brand-green h-4 w-4 cursor-pointer"
+                      class="rounded border-slate-300 text-brand-navy focus:ring-brand-navy h-4 w-4 cursor-pointer"
                     />
                   </div>
 
@@ -283,7 +338,7 @@ export default component$(() => {
                     <div class="space-y-1">
                       <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Avatar del Asistente</label>
                       <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 bg-slate-150 rounded-full border-2 border-slate-250 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div class="w-14 h-14 bg-slate-100 rounded-full border-2 border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {previewUrl.value ? (
                             <img src={previewUrl.value} alt="Preview" width={56} height={56} class="w-full h-full object-cover" />
                           ) : avatarUrl.value ? (
@@ -312,7 +367,7 @@ export default component$(() => {
                         type="text"
                         name="whatsappNumber"
                         value={s.whatsappNumber || "5492214895777"}
-                        class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                        class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                       />
                     </div>
                   </div>
@@ -323,7 +378,7 @@ export default component$(() => {
                       type="text"
                       name="aiTone"
                       value={s.aiTone || ""}
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                     />
                   </div>
 
@@ -333,7 +388,7 @@ export default component$(() => {
                       name="aiInstructions"
                       rows={4}
                       value={s.aiInstructions || ""}
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                     />
                   </div>
 
@@ -343,7 +398,7 @@ export default component$(() => {
                       name="aiKnowledge"
                       rows={4}
                       value={s.aiKnowledge || ""}
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                     />
                   </div>
 
@@ -354,7 +409,7 @@ export default component$(() => {
                         name="aiInitialGreeting"
                         rows={2}
                         value={s.aiInitialGreeting || ""}
-                        class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                        class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                       />
                     </div>
 
@@ -364,7 +419,7 @@ export default component$(() => {
                         name="aiCallToAction"
                         rows={2}
                         value={s.aiCallToAction || ""}
-                        class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                        class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                       />
                     </div>
                   </div>
@@ -374,7 +429,7 @@ export default component$(() => {
                   <button
                     type="submit"
                     disabled={aiSettingsAction.isRunning}
-                    class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
+                    class="py-3 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
                   >
                     {aiSettingsAction.isRunning ? "Guardando..." : "💾 Guardar Ajustes"}
                   </button>
@@ -384,6 +439,20 @@ export default component$(() => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        title="Eliminar conversación"
+        confirmLabel="Eliminar conversación"
+        pending={deleteAction.isRunning}
+        error={deleteError.value}
+        onConfirm$={confirmDeleteChat$}
+      >
+        <p>
+          Se borrará la conversación {deleteTarget.value?.id} ({deleteTarget.value?.messageCount ?? 0}{" "}
+          {deleteTarget.value?.messageCount === 1 ? "mensaje" : "mensajes"}) de la auditoría. No se puede deshacer.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 });

@@ -1,11 +1,13 @@
-import { component$, useComputed$, useSignal } from "@builder.io/qwik";
+import { $, component$, useComputed$, useSignal } from "@builder.io/qwik";
 import {
   routeLoader$,
   Link,
-  useLocation,
+  useNavigate,
   type DocumentHead,
 } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters, type Benefit } from "~/server/cache";
+import { getSettings } from "~/server/chatbotDb";
+import { CAMPAIGN_DEFAULTS, campaignTerms } from "~/utils/home-benefits";
 import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/ui/BenefitCard";
@@ -29,6 +31,10 @@ export const useBenefitsData = routeLoader$(async (event) => {
     : 1;
 
   const isMap = url.searchParams.get("vista") === "mapa";
+  const gold = url.searchParams.get("gold") === "1";
+  // "Ver todos" of the home campaign: same keywords, same matching, same order as the home block.
+  const campaign = url.searchParams.get("campana") === "1";
+  const settings = campaign ? await getSettings(event) : null;
 
   const searchResult = await searchBenefits({
     query,
@@ -38,6 +44,8 @@ export const useBenefitsData = routeLoader$(async (event) => {
     page,
     limit: isMap ? 1000 : 12,
     requestEvent: event,
+    isPremiumOnly: gold || undefined,
+    campaignTerms: settings ? campaignTerms(settings.campaignQuery) : undefined,
   });
 
   const filters = await getFilters(event);
@@ -45,27 +53,44 @@ export const useBenefitsData = routeLoader$(async (event) => {
   return {
     searchResult,
     filters,
+    campaignTitle: settings ? settings.campaignTitle || CAMPAIGN_DEFAULTS.title : null,
     activeFilters: {
       query,
       categoryId,
       locationId,
       offerId,
+      gold,
+      campaign,
     },
   };
 });
 
 export default component$(() => {
-  const location = useLocation();
   const data = useBenefitsData();
   const filtersOpen = useSignal(false);
+  const navigate = useNavigate();
 
-  const { searchResult, filters, activeFilters } = data.value;
+  const { searchResult, filters, activeFilters, campaignTitle } = data.value;
   const { data: benefits, total, totalPages, page, limit } = searchResult;
   const hasActiveFilters =
     activeFilters.query ||
     activeFilters.categoryId ||
     activeFilters.locationId ||
-    activeFilters.offerId;
+    activeFilters.offerId ||
+    activeFilters.gold ||
+    activeFilters.campaign;
+
+  // Search and dropdowns navigate in place (no full reload); the form still works without JS.
+  const applyFilters = $((form: HTMLFormElement) => {
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (const key of ["buscar", "categoria", "ubicacion", "oferta", "gold", "campana"]) {
+      const value = String(formData.get(key) ?? "").trim();
+      if (value) params.set(key, value);
+    }
+    const query = params.toString();
+    return navigate(`/beneficios/${query ? `?${query}` : ""}`);
+  });
 
   const displayBenefits = benefits;
   const firstResult = displayBenefits.length > 0 ? (page - 1) * limit + 1 : 0;
@@ -93,7 +118,8 @@ export default component$(() => {
     oferta?: number | null;
     page?: number;
     ver?: string | null;
-    gold?: string | null;
+    gold?: boolean;
+    campana?: boolean;
   }) => {
     const searchParams = new URLSearchParams();
 
@@ -116,52 +142,50 @@ export default component$(() => {
       params.oferta !== undefined ? params.oferta : activeFilters.offerId;
     if (off) searchParams.set("oferta", String(off));
 
-    const g =
-      params.gold !== undefined
-        ? params.gold
-        : location.url.searchParams.get("gold");
-    if (g) searchParams.set("gold", g);
+    if (params.gold ?? activeFilters.gold) searchParams.set("gold", "1");
+    if (params.campana ?? activeFilters.campaign) searchParams.set("campana", "1");
 
     const p = params.page !== undefined ? params.page : 1;
     if (p > 1) searchParams.set("page", String(p));
 
-    return `/beneficios?${searchParams.toString()}`;
+    const query = searchParams.toString();
+    return `/beneficios/${query ? `?${query}` : ""}`;
   };
 
   return (
-    <div class="relative min-h-screen bg-[#040811] text-white">
+    <div class="relative min-h-screen bg-background text-primary">
       {/* Search Header Info */}
       <section class="hidden md:block max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-4 print:hidden text-left">
         {/* Beautiful Horizontal Category Slider Bar */}
-        <div class="relative mb-4 pb-2 border-b border-secondary">
+        <div class="relative mb-4 pb-2 border-b border-line">
           <CategorySlider
             categorias={filters.categorias}
             activeCategoryId={activeFilters.categoryId}
             sliderId="category-scroll-container"
-            title="Explorar por Categoría"
+            filterEmpty={true}
           />
         </div>
 
         {/* Beautiful Horizontal Offer Slider Bar */}
-        <div class="relative mb-5 pb-2 border-b border-secondary">
+        <div class="relative mb-5 pb-2 border-b border-line">
           <OfferSlider
             ofertas={filters.ofertas}
             activeOfferId={activeFilters.offerId}
             sliderId="offer-scroll-container"
-            title="Explorar por Descuento"
+            filterEmpty={true}
           />
         </div>
       </section>
 
       {/* Main Catalog View Container */}
       <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6 print:hidden">
-        <div class="flex items-center justify-between border-b border-secondary pb-3 mb-4 md:pb-5 md:mb-6 gap-3 text-left">
+        <div class="flex items-center justify-between border-b border-line pb-3 mb-4 md:pb-5 md:mb-6 gap-3 text-left">
           <div class="min-w-0">
-            <h1 class="text-2xl md:text-3xl font-display font-extrabold text-white tracking-tight leading-none flex items-center">
+            <h1 class="text-2xl md:text-3xl font-display font-extrabold text-primary tracking-tight leading-none flex items-center">
               <span class="md:hidden">Beneficios</span>
               <span class="hidden md:inline">Todos los beneficios</span>
             </h1>
-            <p role="status" class="text-slate-400 text-sm mt-2 font-medium">
+            <p role="status" class="text-slate-600 text-sm mt-2 font-medium">
               {`${total} ${total === 1 ? "beneficio encontrado" : "beneficios encontrados"}`}
               {displayBenefits.length > 0 && totalPages > 1 && (
                 <span class="block text-xs mt-1">
@@ -173,14 +197,14 @@ export default component$(() => {
 
           <div class="flex items-center gap-3 flex-wrap">
             {/* List/Map View Mode Toggle Button */}
-            <div class="flex items-center bg-[#0B1526] p-1 rounded-2xl border border-secondary shadow-inner z-20 select-none">
+            <div class="flex items-center bg-surface p-1 rounded-2xl border border-line shadow-inner z-20 select-none">
               <div class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-accent text-primary shadow-sm border border-accent/20 flex items-center gap-2">
                 <LuList class="w-4 h-4 stroke-[2]" />
                 <span class="hidden sm:inline">Listado</span>
               </div>
               <Link
                 href={mapHref.value}
-                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 text-slate-400 hover:text-white"
+                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-primary"
               >
                 <LuMap class="w-4 h-4 stroke-[2]" />
                 <span>Mapa</span>
@@ -194,19 +218,16 @@ export default component$(() => {
           method="get"
           role="search"
           aria-label="Buscar y filtrar beneficios"
-          class="mb-4 flex flex-col gap-3 rounded-2xl border border-secondary bg-[#0B1526] p-4 text-left shadow-md md:mb-6 md:gap-5 md:rounded-[2rem] md:p-6"
+          preventdefault:submit
+          onSubmit$={(_, form) => applyFilters(form)}
+          class="mb-4 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left shadow-md md:mb-6 md:gap-5 md:rounded-[2rem] md:p-6"
         >
-          {location.url.searchParams.get("gold") && (
-            <input
-              type="hidden"
-              name="gold"
-              value={location.url.searchParams.get("gold") || ""}
-            />
-          )}
+          {activeFilters.gold && <input type="hidden" name="gold" value="1" />}
+          {activeFilters.campaign && <input type="hidden" name="campana" value="1" />}
           <div>
             <label
               for="catalog-search-input"
-              class="mb-2 block text-xs font-bold text-slate-300"
+              class="mb-2 block text-xs font-bold text-slate-700"
             >
               Buscá por beneficio o comercio
             </label>
@@ -217,11 +238,11 @@ export default component$(() => {
                 name="buscar"
                 placeholder="Ej: gimnasio, hotel, heladería..."
                 value={activeFilters.query}
-                class="min-w-0 flex-1 rounded-xl border border-secondary bg-[#1E2B45] px-3 py-3 text-sm text-white placeholder-slate-400 focus:border-accent focus:outline-none"
+                class="min-w-0 flex-1 rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary placeholder-slate-500 focus:border-accent focus:outline-none"
               />
               <button
                 type="submit"
-                class="min-h-11 shrink-0 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                class="min-h-11 shrink-0 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 Buscar
               </button>
@@ -237,10 +258,10 @@ export default component$(() => {
                 : "Mostrar filtros de categoría, ubicación y descuento"
             }
             onClick$={() => (filtersOpen.value = !filtersOpen.value)}
-            class="flex min-h-11 items-center justify-between rounded-xl border border-secondary px-3 text-sm font-bold text-slate-200 md:hidden"
+            class="flex min-h-11 items-center justify-between rounded-xl border border-line px-3 text-sm font-bold text-slate-700 md:hidden"
           >
             <span>{filtersOpen.value ? "Ocultar filtros" : "Filtros"}</span>
-            <span aria-hidden="true" class="ml-2 text-accent">
+            <span aria-hidden="true" class="ml-2 text-amber-900">
               {filtersOpen.value ? "−" : "+"}
             </span>
           </button>
@@ -251,14 +272,15 @@ export default component$(() => {
             <div>
               <label
                 for="catalog-category"
-                class="mb-2 block text-xs font-bold text-slate-300"
+                class="mb-2 block text-xs font-bold text-slate-700"
               >
                 Categoría
               </label>
               <select
                 id="catalog-category"
                 name="categoria"
-                class="min-h-11 w-full rounded-xl border border-secondary bg-[#1E2B45] px-3 py-3 text-sm text-white focus:border-accent focus:outline-none"
+                onChange$={(_, select) => select.form && applyFilters(select.form)}
+                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
               >
                 <option value="">Todas las categorías</option>
                 {filters.categorias.map((category) => (
@@ -275,14 +297,15 @@ export default component$(() => {
             <div>
               <label
                 for="catalog-location"
-                class="mb-2 block text-xs font-bold text-slate-300"
+                class="mb-2 block text-xs font-bold text-slate-700"
               >
                 Ubicación
               </label>
               <select
                 id="catalog-location"
                 name="ubicacion"
-                class="min-h-11 w-full rounded-xl border border-secondary bg-[#1E2B45] px-3 py-3 text-sm text-white focus:border-accent focus:outline-none"
+                onChange$={(_, select) => select.form && applyFilters(select.form)}
+                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
               >
                 <option value="">Todas las ubicaciones</option>
                 {filters.ubicaciones.map((place) => (
@@ -299,14 +322,15 @@ export default component$(() => {
             <div>
               <label
                 for="catalog-offer"
-                class="mb-2 block text-xs font-bold text-slate-300"
+                class="mb-2 block text-xs font-bold text-slate-700"
               >
                 Descuento
               </label>
               <select
                 id="catalog-offer"
                 name="oferta"
-                class="min-h-11 w-full rounded-xl border border-secondary bg-[#1E2B45] px-3 py-3 text-sm text-white focus:border-accent focus:outline-none"
+                onChange$={(_, select) => select.form && applyFilters(select.form)}
+                class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-3 py-3 text-base sm:text-sm text-primary focus:border-accent focus:outline-none"
               >
                 <option value="">Todos los descuentos</option>
                 {filters.ofertas.map((offer) => (
@@ -320,29 +344,32 @@ export default component$(() => {
                 ))}
               </select>
             </div>
-            <button
-              type="submit"
-              class="min-h-11 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-white md:col-span-3 md:justify-self-end"
-            >
-              Aplicar filtros
-            </button>
+            {/* With JS the dropdowns apply on change; this button is only for no-JS visits. */}
+            <noscript>
+              <button
+                type="submit"
+                class="min-h-11 rounded-xl bg-accent px-4 py-3 text-xs font-black uppercase tracking-wide text-primary hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary md:col-span-3 md:justify-self-end"
+              >
+                Aplicar filtros
+              </button>
+            </noscript>
           </div>
         </form>
 
         {/* Active filters pill list */}
         {hasActiveFilters && (
           <div class="mb-4 flex flex-wrap items-center gap-2 md:mb-6">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider mr-1">
               Filtros activos:
             </span>
 
             {activeFilters.query && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/20">
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
                 Buscar: "{activeFilters.query}"
                 <Link
                   href={getFilterUrl({ buscar: "" })}
                   aria-label="Quitar búsqueda"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-accent hover:bg-accent/10"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
                 >
                   &times;
                 </Link>
@@ -350,8 +377,8 @@ export default component$(() => {
             )}
 
             {activeFilters.categoryId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/20">
-                Cat:{" "}
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
+                Categoría:{" "}
                 {
                   filters.categorias.find(
                     (c) => c.id === activeFilters.categoryId,
@@ -360,7 +387,7 @@ export default component$(() => {
                 <Link
                   href={getFilterUrl({ categoria: null })}
                   aria-label="Quitar categoría"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-accent hover:bg-accent/10"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
                 >
                   &times;
                 </Link>
@@ -368,8 +395,8 @@ export default component$(() => {
             )}
 
             {activeFilters.locationId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/20">
-                Loc:{" "}
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
+                Ubicación:{" "}
                 {
                   filters.ubicaciones.find(
                     (u) => u.id === activeFilters.locationId,
@@ -378,7 +405,7 @@ export default component$(() => {
                 <Link
                   href={getFilterUrl({ ubicacion: null })}
                   aria-label="Quitar ubicación"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-accent hover:bg-accent/10"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
                 >
                   &times;
                 </Link>
@@ -386,8 +413,8 @@ export default component$(() => {
             )}
 
             {activeFilters.offerId && (
-              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/20">
-                Desc:{" "}
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
+                Descuento:{" "}
                 {
                   filters.ofertas.find((o) => o.id === activeFilters.offerId)
                     ?.descripcion
@@ -395,7 +422,33 @@ export default component$(() => {
                 <Link
                   href={getFilterUrl({ oferta: null })}
                   aria-label="Quitar descuento"
-                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-accent hover:bg-accent/10"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
+                >
+                  &times;
+                </Link>
+              </span>
+            )}
+
+            {activeFilters.gold && (
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
+                Solo Gold
+                <Link
+                  href={getFilterUrl({ gold: false })}
+                  aria-label="Quitar filtro Solo Gold"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
+                >
+                  &times;
+                </Link>
+              </span>
+            )}
+
+            {activeFilters.campaign && (
+              <span class="inline-flex max-w-full items-center break-words pl-3 pr-1 rounded-full text-xs font-medium bg-accent/10 text-amber-900 border border-accent/20">
+                Campaña: {campaignTitle}
+                <Link
+                  href={getFilterUrl({ campana: false })}
+                  aria-label="Quitar filtro de campaña"
+                  class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-amber-900 hover:bg-accent/10"
                 >
                   &times;
                 </Link>
@@ -403,8 +456,8 @@ export default component$(() => {
             )}
 
             <Link
-              href="/beneficios"
-              class="inline-flex min-h-9 items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-950/20 text-red-400 hover:bg-red-900/30 border border-red-900/30 transition-colors duration-200"
+              href="/beneficios/"
+              class="inline-flex min-h-9 items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors duration-200"
             >
               Limpiar todo
             </Link>
@@ -412,18 +465,18 @@ export default component$(() => {
         )}
 
         {displayBenefits.length === 0 ? (
-          <div class="flex flex-col items-center justify-center py-20 bg-[#0B1526] border border-secondary rounded-[2.5rem] text-center p-8 max-w-xl mx-auto shadow-sm">
+          <div class="flex flex-col items-center justify-center py-20 bg-surface border border-line rounded-[2.5rem] text-center p-8 max-w-xl mx-auto shadow-sm">
             <span aria-hidden="true" class="text-4xl mb-4">
               🔍
             </span>
-            <h3 class="text-lg font-black text-white uppercase tracking-wider mb-2">
+            <h3 class="text-lg font-black text-primary uppercase tracking-wider mb-2">
               {isPageOutOfRange
                 ? "Esta página no tiene beneficios"
                 : hasActiveFilters
                   ? "No se encontraron resultados"
                   : "Pronto habrá nuevos beneficios"}
             </h3>
-            <p class="text-sm text-slate-400 font-medium leading-relaxed mb-6">
+            <p class="text-sm text-slate-600 font-medium leading-relaxed mb-6">
               {isPageOutOfRange
                 ? "Volvé a la primera página para ver los resultados disponibles con tus filtros actuales."
                 : hasActiveFilters
@@ -434,7 +487,7 @@ export default component$(() => {
               {activeFilters.query && !isPageOutOfRange && (
                 <Link
                   href={getFilterUrl({ buscar: "" })}
-                  class="inline-flex min-h-11 items-center justify-center px-5 py-3 rounded-full border border-accent text-accent text-xs font-bold hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  class="inline-flex min-h-11 items-center justify-center px-5 py-3 rounded-full border border-accent text-amber-900 text-xs font-bold hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   Quitar búsqueda
                 </Link>
@@ -477,7 +530,7 @@ export default component$(() => {
         {totalPages > 1 && (
           <nav
             aria-label="Páginas del catálogo de beneficios"
-            class="flex flex-wrap items-center justify-center gap-3 mt-12 pt-8 border-t border-secondary print:hidden select-none"
+            class="flex flex-wrap items-center justify-center gap-3 mt-12 pt-8 border-t border-line print:hidden select-none"
           >
             <Link
               href={page > 1 ? getFilterUrl({ page: page - 1 }) : undefined}
@@ -485,8 +538,8 @@ export default component$(() => {
               tabIndex={page <= 1 ? -1 : undefined}
               class={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-semibold transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                 page > 1
-                  ? "border-secondary bg-[#0B1526] text-slate-300 hover:bg-[#1E2B45] hover:text-white active:scale-95 cursor-pointer"
-                  : "border-secondary/40 bg-[#0B1526]/40 text-slate-600 pointer-events-none"
+                  ? "border-line bg-surface text-slate-700 hover:bg-surface-muted hover:text-primary active:scale-95 cursor-pointer"
+                  : "border-line/40 bg-surface/40 text-slate-600 pointer-events-none"
               }`}
               aria-label="Página anterior"
             >
@@ -551,7 +604,7 @@ export default component$(() => {
                       class={`w-11 h-11 flex items-center justify-center rounded-xl text-sm font-extrabold border transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                         isCurrent
                           ? "bg-accent border-accent text-primary shadow-accent/10"
-                          : "bg-[#0B1526] border-secondary text-slate-350 hover:bg-[#1E2B45] hover:border-slate-500 active:scale-95 cursor-pointer"
+                          : "bg-surface border-line text-slate-700 hover:bg-surface-muted hover:border-slate-500 active:scale-95 cursor-pointer"
                       }`}
                     >
                       {pNum}
@@ -569,8 +622,8 @@ export default component$(() => {
               tabIndex={page >= totalPages ? -1 : undefined}
               class={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-semibold transition-all shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                 page < totalPages
-                  ? "border-secondary bg-[#0B1526] text-slate-300 hover:bg-[#1E2B45] hover:text-white active:scale-95 cursor-pointer"
-                  : "border-secondary/40 bg-[#0B1526]/40 text-slate-600 pointer-events-none"
+                  ? "border-line bg-surface text-slate-700 hover:bg-surface-muted hover:text-primary active:scale-95 cursor-pointer"
+                  : "border-line/40 bg-surface/40 text-slate-600 pointer-events-none"
               }`}
               aria-label="Próxima página"
             >

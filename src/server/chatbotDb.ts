@@ -63,11 +63,12 @@ const DEFAULT_SETTINGS: ChatbotSettings = {
   popupButtonText: null,
   popupButtonLink: null,
   campaignActive: true,
-  campaignTitle: "Cafecitos & Desayunos",
-  campaignSubtitle: "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital LPRC.",
-  campaignEmoji: "☕",
-  campaignTag: "SELECCIÓN GOURMET",
-  campaignQuery: "cafe,café,desayuno,factura,gastronomia,gastro",
+  // Empty campaign fields stay null; the home and the admin preview fall back to CAMPAIGN_DEFAULTS.
+  campaignTitle: null,
+  campaignSubtitle: null,
+  campaignEmoji: null,
+  campaignTag: null,
+  campaignQuery: null,
   updatedAt: null,
 };
 
@@ -113,11 +114,11 @@ export async function getSettings(requestEvent: RequestEventBase): Promise<Chatb
       popupButtonText: settings.popupButtonText,
       popupButtonLink: settings.popupButtonLink,
       campaignActive: settings.campaignActive ?? true,
-      campaignTitle: settings.campaignTitle || "Cafecitos & Desayunos",
-      campaignSubtitle: settings.campaignSubtitle || "Disfrutá del mejor aroma a café, desayunos premium y meriendas increíbles con tu credencial digital LPRC.",
-      campaignEmoji: settings.campaignEmoji || "☕",
-      campaignTag: settings.campaignTag || "SELECCIÓN GOURMET",
-      campaignQuery: settings.campaignQuery || "cafe,café,desayuno,factura,gastronomia,gastro",
+      campaignTitle: settings.campaignTitle || null,
+      campaignSubtitle: settings.campaignSubtitle || null,
+      campaignEmoji: settings.campaignEmoji || null,
+      campaignTag: settings.campaignTag || null,
+      campaignQuery: settings.campaignQuery || null,
       updatedAt: settings.updatedAt,
     };
     requestEvent.sharedMap.set(SETTINGS_KEY, resolved);

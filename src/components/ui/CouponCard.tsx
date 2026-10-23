@@ -43,21 +43,21 @@ export const CouponCard = component$<CouponCardProps>(({ coupon }) => {
       {/* Left section: Info */}
       <div class="space-y-1 text-left flex-grow">
         <div class="flex items-center gap-2">
-          <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-primary px-2 py-0.5 rounded border border-slate-800">
+          <span class="text-[11px] font-black uppercase tracking-widest text-slate-400 bg-primary px-2 py-0.5 rounded border border-slate-800">
             Cupón
           </span>
           {isActive && (
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-accent/10 text-accent border border-accent/20">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-accent/10 text-accent border border-accent/20">
               ● Activo
             </span>
           )}
           {isUsed && (
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-800 text-slate-500">
-              ✓ Usado
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-500">
+              ✓ Canjeado
             </span>
           )}
           {isExpired && (
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-red-950/20 text-red-400 border border-red-900/30">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/20 text-red-400 border border-red-900/30">
               ✕ Vencido
             </span>
           )}
@@ -70,11 +70,11 @@ export const CouponCard = component$<CouponCardProps>(({ coupon }) => {
           Descuento:{" "}
           <span class="text-accent font-bold">{coupon.benefitResumen}</span>
         </p>
-        <p class="text-[10px] text-slate-500 font-semibold">
+        <p class="text-[11px] text-slate-500 font-semibold">
           Generado el {formatDate(coupon.createdAt)}
         </p>
         {isUsed && coupon.usedAt && (
-          <p class="text-[10px] text-slate-400">
+          <p class="text-[11px] text-slate-400">
             Utilizado el {formatDate(coupon.usedAt)}
           </p>
         )}
@@ -82,7 +82,7 @@ export const CouponCard = component$<CouponCardProps>(({ coupon }) => {
 
       {/* Middle section: Bold Code */}
       <div class="flex flex-col items-start sm:items-center shrink-0">
-        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
           Código de Canje
         </span>
         <span class="font-mono font-black text-lg text-accent bg-primary px-3 py-1.5 rounded-xl border border-secondary tracking-wider shadow-inner">

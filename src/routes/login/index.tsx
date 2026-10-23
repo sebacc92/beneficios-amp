@@ -1,12 +1,14 @@
 import { component$, useSignal, $ } from "@builder.io/qwik";
-import { type DocumentHead, server$ } from "@builder.io/qwik-city";
-import { eq } from "drizzle-orm";
-import { getDB } from "~/db";
-import { users } from "~/db/schema";
+import { routeLoader$, type DocumentHead, server$ } from "@builder.io/qwik-city";
 import { createSession } from "~/server/auth";
+import { findUsersByDni } from "~/server/member-dni";
 import { rateLimitByIp } from "~/server/rate-limit";
 import { LuLock } from "@qwikest/icons/lucide";
 import { isValidDni, normalizeDni } from "~/utils/dni";
+import { RETURN_PARAM, safeReturnPath } from "~/utils/return-path";
+
+/** Where to go after logging in: the page that sent the member here, if it is ours. */
+export const useReturnPath = routeLoader$((event) => safeReturnPath(event.url.searchParams.get(RETURN_PARAM)));
 
 // Server-side login validation using server$
 export const loginUserServer = server$(async function (dni: string) {
@@ -28,14 +30,14 @@ export const loginUserServer = server$(async function (dni: string) {
         "Ingresá un DNI de 5 a 9 números. Podés incluir puntos o espacios.",
     };
   }
-  const db = getDB(this);
-
-  // Find user by DNI (stored in numeroSocio field)
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.numeroSocio, cleanDni))
-    .limit(1);
+  const matches = await findUsersByDni(this, cleanDni);
+  if (matches.length > 1) {
+    return {
+      success: false,
+      error: "Hay más de una cuenta asociada a este DNI. Contactá a la administración del club.",
+    };
+  }
+  const [user] = matches;
 
   if (!user) {
     return {
@@ -49,8 +51,8 @@ export const loginUserServer = server$(async function (dni: string) {
   if (user.role === "admin") {
     return {
       success: false,
-      error:
-        "Las cuentas de administración ingresan desde /admin/login con su contraseña.",
+      adminAccount: true,
+      error: "Las cuentas de administración ingresan con su contraseña.",
     };
   }
 
@@ -60,13 +62,16 @@ export const loginUserServer = server$(async function (dni: string) {
 });
 
 export default component$(() => {
+  const returnPath = useReturnPath();
   const dni = useSignal("");
   const errorMsg = useSignal("");
+  const isAdminAccount = useSignal(false);
   const isSubmitting = useSignal(false);
 
   const handleSubmit = $(async () => {
     if (isSubmitting.value) return;
     errorMsg.value = "";
+    isAdminAccount.value = false;
     const dniVal = normalizeDni(dni.value);
     if (!isValidDni(dniVal)) {
       errorMsg.value =
@@ -78,9 +83,11 @@ export default component$(() => {
     try {
       const res = await loginUserServer(dniVal);
       if (res.success) {
-        window.location.href = "/perfil";
+        // Full navigation so the header and every loader see the new session.
+        window.location.href = returnPath.value ?? "/perfil/";
       } else {
         errorMsg.value = res.error || "El DNI ingresado no es válido.";
+        isAdminAccount.value = "adminAccount" in res && Boolean(res.adminAccount);
         isSubmitting.value = false;
       }
     } catch (err) {
@@ -96,14 +103,15 @@ export default component$(() => {
         {/* Title branding */}
         <div class="text-center space-y-2">
           <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 mx-auto">
-            <LuLock class="w-5 h-5 text-brand-green" />
+            <LuLock class="w-5 h-5 text-brand-navy" />
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none mt-3">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none mt-3">
             Iniciar Sesión
           </h1>
-          <p class="text-xs sm:text-sm text-slate-400 font-medium">
-            Ingresá tu DNI para acceder al portal de beneficios y credencial
-            digital.
+          <p class="text-xs sm:text-sm text-slate-500 font-medium">
+            {returnPath.value
+              ? "Ingresá tu DNI para continuar. Después volvés a la página que estabas viendo."
+              : "Ingresá tu DNI para acceder al portal de beneficios y credencial digital."}
           </p>
         </div>
 
@@ -131,7 +139,7 @@ export default component$(() => {
               aria-describedby={
                 errorMsg.value ? "dni-help dni-error" : "dni-help"
               }
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all font-mono font-bold text-center"
+              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-navy transition-all font-mono font-bold text-center"
             />
             <p id="dni-help" class="text-xs text-slate-500 pt-1">
               Con o sin puntos y espacios.
@@ -143,6 +151,14 @@ export default component$(() => {
                 class="text-xs font-semibold text-red-700 pt-1"
               >
                 {errorMsg.value}
+                {isAdminAccount.value && (
+                  <>
+                    {" "}
+                    <a href="/admin/login/" class="underline underline-offset-2">
+                      Ir al ingreso de administración
+                    </a>
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -151,7 +167,7 @@ export default component$(() => {
           <button
             type="submit"
             disabled={isSubmitting.value}
-            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
+            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
           >
             {isSubmitting.value ? "Verificando..." : "Ingresar"}
           </button>
@@ -168,7 +184,7 @@ export default component$(() => {
               href="https://lprc.com.ar"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-block mt-3 font-bold text-brand-green underline underline-offset-4"
+              class="inline-block mt-3 font-bold text-brand-navy underline underline-offset-4"
             >
               Contactar al club ↗
             </a>

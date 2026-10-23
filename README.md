@@ -34,9 +34,19 @@ La activación requiere una acción y permiso del usuario; la suscripción queda
 
 `pnpm test:ux` verifica geolocalización, DNI, generación e historial de cupones, VAPID y permisos con SQLite en memoria y servicios de envío simulados. No usa la base de producción.
 
+En `/admin/benefits`, **Mostrar en Beneficios destacados** incluye el beneficio publicado en la selección de portada. Se muestran hasta seis destacados, empezando por los de creación más reciente. **Nuevos beneficios** muestra los seis activos más recientes y puede incluir destacados. El listado administrativo identifica los destacados y permite filtrarlos; las vistas previas reutilizan la tarjeta pública.
+
+El ingreso y el canje reconocen el mismo DNI con o sin puntos y espacios, incluso en registros históricos. Las altas y ediciones guardan sólo los números y rechazan identificadores equivalentes ya registrados; si hay varias cuentas históricas con el mismo DNI, el ingreso solicita intervención administrativa. Ejecutar `pnpm migrate` antes de publicar para crear `idx_users_dni_normalized`, sin modificar los datos existentes. La consulta usa los usuarios del portal; no verifica por sí sola el padrón oficial ni el estado de la cuota del club.
+
 En `/admin/benefits`, **Agregar** junto a Categoría, Ubicación u Oferta / Descuento permite guardar nuevas opciones al crear o editar un beneficio. La opción queda seleccionada sin perder lo escrito en el formulario y también está disponible en los filtros del catálogo y el mapa. Los nombres repetidos se reutilizan, ignorando mayúsculas y espacios adicionales. Ejecutar `pnpm migrate` antes de publicar esta función para crear la tabla `benefit_filter_options`.
 
+Al eliminar un beneficio que tiene cupones emitidos, el panel indica cuántos son y pide confirmación; si se confirma, el beneficio y sus cupones se borran juntos y desaparecen del historial de los socios. Si un socio genera un cupón mientras el diálogo está abierto, el borrado se detiene y se vuelve a pedir confirmación con el nuevo total.
+
 El guardado valida que cada opción exista y corresponda al campo seleccionado. El panel incluye navegación móvil; el catálogo ofrece carruseles con controles accesibles, paginación con rango de resultados y acciones contextuales cuando no hay coincidencias. Los enlaces para saltar al contenido facilitan la navegación con teclado y las animaciones respetan la preferencia de movimiento reducido.
+
+Cada beneficio tiene en el panel los campos **Válido hasta**, **Condiciones** y **Solo socios Gold**; la página pública muestra la vigencia y las condiciones, y editar un beneficio conserva los datos que el formulario no muestra. Si se dejan vacías la latitud y la longitud, el beneficio queda sin ubicación y no aparece en el mapa; también se pueden completar pegando un link de Google Maps.
+
+La Agenda (`/admin/eventos`), los Sorteos (`/admin/sorteos`) y las solicitudes de comercios de "Sumate al Club" (`/admin/solicitudes`) se administran desde el panel. Un sorteo figura como vigente hasta que termina su día de sorteo en hora de Argentina. Las sugerencias y reclamos de `/sugerencias` se guardan y aparecen en la misma bandeja de Solicitudes. Ejecutar `pnpm migrate` antes de publicar para crear las tablas `raffles` y `suggestions`; los sorteos anteriores no se migran y se cargan desde el panel.
 
 ## Despliegue
 

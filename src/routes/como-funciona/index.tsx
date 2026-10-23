@@ -38,7 +38,7 @@ export default component$((() => {
       title: "Iniciá Sesión en el Portal",
       desc: "Accedé a este sitio web oficial e iniciá sesión con tus credenciales. Si estás en tu celular, podés agregar un acceso directo en tu pantalla de inicio para mayor comodidad.",
       icon: (
-        <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
         </svg>
       )
@@ -48,7 +48,7 @@ export default component$((() => {
       title: "Explorá el Catálogo",
       desc: "Filtrá los más de 250 comercios del portal por categoría, descuento o ubicación. Podés buscar desde hoteles en Bariloche hasta locales gastronómicos en La Plata.",
       icon: (
-        <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       )
@@ -58,7 +58,7 @@ export default component$((() => {
       title: "Acreditá tu Condición",
       desc: "Al momento del pago en el comercio, presentá tu credencial digital activa directamente desde tu perfil web o informá tu DNI para verificar tu condición de socio.",
       icon: (
-        <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h3.75v3.75H5.25V7.5z" />
         </svg>
       )
@@ -68,7 +68,7 @@ export default component$((() => {
       title: "Disfrutá del Ahorro",
       desc: "El comercio aplicará el descuento correspondiente sobre el total de tu factura. ¡Así de fácil! Ahorrá en indumentaria, turismo, servicios y más.",
       icon: (
-        <svg class="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-brand-navy-light" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125H3.75a1.125 1.125 0 01-1.125-1.125V5.625C2.625 5.004 3.129 4.5 3.75 4.5zM9 10.5h.008v.008H9V10.5zm3 0h.008v.008H12V10.5z" />
         </svg>
       )
@@ -84,7 +84,7 @@ export default component$((() => {
           <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-[11px] font-extrabold bg-brand-gold/15 text-brand-gold border border-brand-gold/25 uppercase tracking-widest">
             Guía Práctica
           </span>
-          <h1 class="text-3xl sm:text-5xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl sm:text-5xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             ¿Cómo Funciona el Portal?
           </h1>
           <p class="text-slate-500 text-sm sm:text-base leading-relaxed">
@@ -100,15 +100,15 @@ export default component$((() => {
               class="group relative glass-card border rounded-2xl p-6 bg-white shadow-sm flex flex-col justify-between space-y-6 pt-10"
             >
               {/* Floating step number bubble */}
-              <div class="absolute -top-5 left-6 w-11 h-11 rounded-full bg-brand-green-dark text-brand-gold border-2 border-white flex items-center justify-center font-display font-black text-sm shadow-md group-hover:scale-110 transition-transform">
+              <div class="absolute -top-5 left-6 w-11 h-11 rounded-full bg-brand-navy-dark text-brand-gold border-2 border-white flex items-center justify-center font-display font-black text-sm shadow-md group-hover:scale-110 transition-transform">
                 {step.num}
               </div>
 
               <div class="space-y-3">
-                <div class="w-12 h-12 rounded-xl bg-brand-green-light/5 border border-brand-green-light/10 flex items-center justify-center">
+                <div class="w-12 h-12 rounded-xl bg-brand-navy-light/5 border border-brand-navy-light/10 flex items-center justify-center">
                   {step.icon}
                 </div>
-                <h3 class="text-base font-display font-extrabold text-brand-green-dark">
+                <h3 class="text-base font-display font-extrabold text-brand-navy-dark">
                   {step.title}
                 </h3>
                 <p class="text-xs text-slate-500 leading-relaxed">
@@ -116,7 +116,7 @@ export default component$((() => {
                 </p>
               </div>
 
-              <div class="pt-4 border-t border-slate-100 flex items-center text-[10px] font-extrabold uppercase tracking-widest text-brand-gold-dark">
+              <div class="pt-4 border-t border-slate-100 flex items-center text-[11px] font-extrabold uppercase tracking-widest text-brand-gold-dark">
                 Paso Completado
               </div>
             </div>
@@ -124,9 +124,9 @@ export default component$((() => {
         </section>
 
         {/* 3. Call to Action panel */}
-        <section class="p-8 sm:p-12 rounded-3xl bg-brand-green text-white shadow-lg border border-brand-gold/20 relative overflow-hidden">
+        <section class="p-8 sm:p-12 rounded-3xl bg-brand-navy text-white shadow-lg border border-brand-gold/20 relative overflow-hidden">
           {/* Backdrop details */}
-          <div class="absolute right-0 top-0 w-80 h-full bg-brand-green-dark/40 skew-x-12 z-0" />
+          <div class="absolute right-0 top-0 w-80 h-full bg-brand-navy-dark/40 skew-x-12 z-0" />
 
           <div class="relative grid grid-cols-1 lg:grid-cols-3 gap-8 items-center z-10">
             <div class="lg:col-span-2 space-y-3 text-left">
@@ -140,7 +140,7 @@ export default component$((() => {
             <div class="flex flex-wrap gap-3.5 lg:justify-end">
               <Link
                 href="/login"
-                class="inline-flex items-center space-x-2 py-4 px-8 rounded-2xl bg-white text-brand-green-dark hover:bg-slate-50 text-xs font-extrabold uppercase tracking-wider transition-all active:scale-95 shadow-md cursor-pointer"
+                class="inline-flex items-center space-x-2 py-4 px-8 rounded-2xl bg-white text-brand-navy-dark hover:bg-slate-50 text-xs font-extrabold uppercase tracking-wider transition-all active:scale-95 shadow-md cursor-pointer"
               >
                 <span>Acceder a Mi Credencial</span>
               </Link>
@@ -151,7 +151,7 @@ export default component$((() => {
         {/* 4. Interactive Accordion FAQ Section */}
         <section class="max-w-3xl mx-auto space-y-6">
           <div class="text-center space-y-2">
-            <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-brand-green-dark">
+            <h2 class="text-2xl sm:text-3xl font-display font-extrabold text-brand-navy-dark">
               Preguntas Frecuentes
             </h2>
             <p class="text-slate-500 text-xs sm:text-sm">
@@ -169,7 +169,7 @@ export default component$((() => {
                 >
                   <button
                     onClick$={() => (activeFaqIdx.value = isOpen ? null : idx)}
-                    class="w-full flex items-center justify-between p-5 text-left font-display font-bold text-sm sm:text-base text-brand-green-dark focus:outline-none cursor-pointer hover:bg-slate-50/50"
+                    class="w-full flex items-center justify-between p-5 text-left font-display font-bold text-sm sm:text-base text-brand-navy-dark focus:outline-none cursor-pointer hover:bg-slate-50/50"
                   >
                     <span>{faq.question}</span>
                     <svg

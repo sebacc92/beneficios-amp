@@ -90,9 +90,9 @@ export default component$(() => {
       <div class="max-w-md w-full bg-white rounded-3xl p-8 sm:p-10 shadow-xl space-y-8">
         <div class="text-center space-y-2">
           <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 mx-auto">
-            <LuLock class="w-5 h-5 text-brand-green" />
+            <LuLock class="w-5 h-5 text-brand-navy" />
           </div>
-          <h1 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight mt-3">
+          <h1 class="text-2xl font-display font-extrabold text-brand-navy-dark tracking-tight mt-3">
             Panel de Administración
           </h1>
           <p class="text-xs sm:text-sm text-slate-400 font-medium">
@@ -118,7 +118,7 @@ export default component$(() => {
               required
               autoComplete="username"
               placeholder="diego"
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-navy transition-all"
             />
           </div>
 
@@ -133,21 +133,21 @@ export default component$(() => {
               required
               autoComplete="current-password"
               placeholder="••••••••"
-              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+              class="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-navy transition-all"
             />
           </div>
 
           <button
             type="submit"
             disabled={loginAction.isRunning}
-            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
+            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold shadow-md transition-all duration-300 cursor-pointer"
           >
             {loginAction.isRunning ? "Verificando..." : "Ingresar al panel"}
           </button>
         </Form>
 
         <div class="pt-6 border-t border-slate-100 text-center">
-          <a href="/" class="text-xs text-slate-400 font-semibold hover:text-brand-green transition-colors">
+          <a href="/" class="text-xs text-slate-400 font-semibold hover:text-brand-navy transition-colors">
             ← Volver al sitio
           </a>
         </div>

@@ -11,6 +11,7 @@
  */
 import { createClient } from "@libsql/client";
 import { config } from "dotenv";
+import { normalizedDniIndexSql } from "../src/db/dni-expression.mjs";
 
 config({ path: ".env.local" });
 config();
@@ -71,6 +72,39 @@ const CREATE_TABLES = [
      status TEXT NOT NULL DEFAULT 'pending',
      created_at TEXT NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS events (
+     id TEXT PRIMARY KEY,
+     title TEXT NOT NULL,
+     description TEXT NOT NULL,
+     date TEXT NOT NULL,
+     location TEXT NOT NULL,
+     image TEXT,
+     created_at TEXT NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS raffles (
+     id TEXT PRIMARY KEY,
+     title TEXT NOT NULL,
+     description TEXT NOT NULL,
+     image TEXT,
+     draw_date TEXT NOT NULL,
+     prize_detail TEXT NOT NULL,
+     terms TEXT NOT NULL,
+     winners TEXT,
+     created_at TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_merchant_requests_status ON merchant_requests(status, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS suggestions (
+     id TEXT PRIMARY KEY,
+     nombre TEXT NOT NULL,
+     email TEXT NOT NULL,
+     telefono TEXT,
+     tipo TEXT NOT NULL,
+     comercio TEXT,
+     mensaje TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_at TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_suggestions_status ON suggestions(status, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS benefit_filter_options (
      id INTEGER PRIMARY KEY,
      type TEXT NOT NULL CHECK(type IN ('categorias', 'ubicaciones', 'ofertas')),
@@ -85,6 +119,7 @@ const CREATE_TABLES = [
   `CREATE INDEX IF NOT EXISTS idx_coupons_user_status_date ON coupons(user_id, status, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id)`,
   `CREATE INDEX IF NOT EXISTS idx_users_numero_socio ON users(numero_socio)`,
+  normalizedDniIndexSql,
 ];
 
 async function tableExists(name) {

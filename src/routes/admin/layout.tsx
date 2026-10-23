@@ -1,5 +1,8 @@
-import { component$, Slot, useSignal, useTask$ } from "@builder.io/qwik";
-import { Link, useLocation, routeLoader$ } from "@builder.io/qwik-city";
+import { component$, Slot, useSignal, useTask$, type JSXOutput } from "@builder.io/qwik";
+import { Form, Link, useLocation, routeAction$, routeLoader$ } from "@builder.io/qwik-city";
+import { LuCalendar, LuGift, LuInbox, LuLogOut } from "@qwikest/icons/lucide";
+import { destroySession } from "~/server/auth";
+import { countPendingInbox } from "~/server/club-content";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // Loader to fetch the authenticated user (our mock admin)
@@ -7,10 +10,30 @@ export const useAdminUser = routeLoader$((event) => {
   return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
 });
 
+/** Cheap count queries, re-run after every admin action so the badge follows status changes. */
+export const usePendingRequestsCount = routeLoader$(async (event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  if (!user || user.role !== "admin") return 0;
+  try {
+    return await countPendingInbox(event);
+  } catch (err) {
+    console.error("Failed to count pending requests:", err);
+    return 0;
+  }
+});
+
+// Same mechanism as /perfil: revoke the session row, then clear the cookie.
+export const useAdminLogoutAction = routeAction$(async (_, requestEvent) => {
+  await destroySession(requestEvent);
+  throw requestEvent.redirect(302, "/admin/login");
+});
+
 export default component$(() => {
   const location = useLocation();
   const userLoader = useAdminUser();
   const user = userLoader.value;
+  const pendingRequests = usePendingRequestsCount();
+  const logoutAction = useAdminLogoutAction();
   const mobileMenuOpen = useSignal(false);
   const mobileMenuButton = useSignal<HTMLButtonElement>();
 
@@ -35,7 +58,7 @@ export default component$(() => {
     return cleanPath === cleanTarget || cleanPath.startsWith(`${cleanTarget}/`);
   };
 
-  const menuItems = [
+  const menuItems: { path: string; label: string; icon: JSXOutput; badge?: number }[] = [
     {
       path: "/admin/stats",
       label: "Estadísticas",
@@ -71,6 +94,22 @@ export default component$(() => {
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25a2.25 2.25 0 01-2.25 2.25h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
         </svg>
       ),
+    },
+    {
+      path: "/admin/eventos",
+      label: "Agenda",
+      icon: <LuCalendar class="w-5 h-5" />,
+    },
+    {
+      path: "/admin/sorteos",
+      label: "Sorteos",
+      icon: <LuGift class="w-5 h-5" />,
+    },
+    {
+      path: "/admin/solicitudes",
+      label: "Solicitudes",
+      icon: <LuInbox class="w-5 h-5" />,
+      badge: pendingRequests.value,
     },
     {
       path: "/admin/ai",
@@ -186,7 +225,7 @@ export default component$(() => {
         {/* Navigation Section Group */}
         <div class="min-h-0 flex-grow py-4 overflow-y-auto px-4 space-y-7 lg:py-6">
           <div class="space-y-2">
-            <span class="px-3 text-[10px] font-extrabold tracking-widest text-slate-500 uppercase block mb-3">
+            <span class="px-3 text-[11px] font-extrabold tracking-widest text-slate-500 uppercase block mb-3">
               Administración
             </span>
             <nav aria-label="Administración" class="space-y-1">
@@ -199,7 +238,7 @@ export default component$(() => {
                   class={[
                     "flex items-center space-x-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all uppercase tracking-wider focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                     isPathActive(item.path)
-                      ? "bg-brand-green text-white shadow-md shadow-brand-green/20"
+                      ? "bg-brand-navy text-white shadow-md shadow-brand-navy/20"
                       : "hover:bg-slate-800 hover:text-white text-slate-400",
                   ]}
                 >
@@ -207,6 +246,17 @@ export default component$(() => {
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
+                  {!!item.badge && (
+                    <span
+                      class={[
+                        "ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold normal-case tracking-normal",
+                        isPathActive(item.path) ? "bg-white text-brand-navy-dark" : "bg-amber-400 text-slate-900",
+                      ]}
+                    >
+                      {item.badge}
+                      <span class="sr-only"> pendientes</span>
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>
@@ -224,7 +274,7 @@ export default component$(() => {
               <span class="text-xs font-bold text-white truncate leading-none mb-1">
                 {user ? user.name : "Administrador"}
               </span>
-              <span class="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest leading-none">
+              <span class="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest leading-none">
                 {user ? user.role : "Admin"}
               </span>
             </div>
@@ -242,6 +292,17 @@ export default component$(() => {
             </svg>
             <span>Volver al Sitio</span>
           </Link>
+
+          <Form action={logoutAction}>
+            <button
+              type="submit"
+              disabled={logoutAction.isRunning}
+              class="flex w-full items-center justify-center space-x-2 px-4 py-3 rounded-2xl border border-slate-800 hover:bg-red-950/40 hover:border-red-900 text-xs font-extrabold text-slate-400 hover:text-red-200 uppercase tracking-wider transition-all disabled:opacity-60 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              <LuLogOut class="w-4 h-4" aria-hidden="true" />
+              <span>{logoutAction.isRunning ? "Cerrando sesión..." : "Cerrar sesión"}</span>
+            </button>
+          </Form>
         </div>
       </aside>
 

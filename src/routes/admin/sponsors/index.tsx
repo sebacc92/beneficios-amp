@@ -1,4 +1,5 @@
 import { component$, useSignal, $, useTask$ } from "@builder.io/qwik";
+import { isBrowser } from "@builder.io/qwik/build";
 import { putImage } from "~/server/media";
 import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuPlus, LuImage, LuBuilding, LuTrash2, LuPencil, LuArrowLeft, LuArrowRight } from "@qwikest/icons/lucide";
@@ -6,6 +7,8 @@ import { eq } from "drizzle-orm";
 import { getDB } from "~/db";
 import { sponsors as sponsorsTable } from "~/db/schema";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { ActionFeedback } from "~/components/admin/action-feedback";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 
 // --- SECURITY & LOADERS ---
 
@@ -171,6 +174,33 @@ export default component$(() => {
 
   // Reorder local signals mirroring database loader
   const orderedSponsors = useSignal<any[]>([]);
+  const formPanel = useSignal<HTMLElement>();
+
+  const isDeleteOpen = useSignal(false);
+  const deleteTarget = useSignal<{ id: string; name: string } | null>(null);
+  const deleteError = useSignal("");
+
+  // The page scrolls inside the admin layout, so bring the form itself into view.
+  useTask$(({ track }) => {
+    const editing = track(() => editingSponsor.value);
+    if (!isBrowser || !editing) return;
+    requestAnimationFrame(() => formPanel.value?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  });
+
+  const closeForm$ = $(() => {
+    isFormOpen.value = false;
+    editingSponsor.value = null;
+  });
+
+  const confirmDeleteSponsor$ = $(async () => {
+    if (!deleteTarget.value) return;
+    const { value } = await deleteSponsorAction.submit({ id: deleteTarget.value.id });
+    if (value.failed) {
+      deleteError.value = value.message || "No se pudo eliminar el sponsor. Intentá de nuevo.";
+      return;
+    }
+    isDeleteOpen.value = false;
+  });
 
   useTask$(({ track }) => {
     track(() => sponsorsLoader.value);
@@ -184,7 +214,6 @@ export default component$(() => {
     sponsorPreviewUrl.value = sp.imageUrl;
     optimizedImageBase64.value = "";
     isFormOpen.value = true;
-    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   const handleNewClick = $(() => {
@@ -204,16 +233,18 @@ export default component$(() => {
     if (targetIndex < 0 || targetIndex >= arr.length) return;
 
     // Swap locally for instant visual feedback
+    const previous = orderedSponsors.value;
     const temp = arr[index];
     arr[index] = arr[targetIndex];
     arr[targetIndex] = temp;
     
     orderedSponsors.value = arr;
 
-    // Autosave new order
-    await reorderAction.submit({
+    // Autosave new order; restore the previous one if the server rejects it
+    const { value } = await reorderAction.submit({
       idsJson: JSON.stringify(arr.map(s => s.id))
     });
+    if (value.failed) orderedSponsors.value = previous;
   });
 
   return (
@@ -222,12 +253,12 @@ export default component$(() => {
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
-            <span class="text-[10px] font-extrabold tracking-widest text-slate-450 uppercase">
+            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
+            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
               Administración / Personalización
             </span>
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             Sponsors
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
@@ -238,7 +269,7 @@ export default component$(() => {
         <div class="flex items-center gap-2">
           <button
             onClick$={handleNewClick}
-            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <LuPlus class="w-4 h-4" />
             <span>{isFormOpen.value && !editingSponsor.value ? "Cerrar Panel" : "Añadir Sponsor"}</span>
@@ -249,15 +280,14 @@ export default component$(() => {
       <div class="space-y-6 animate-in fade-in duration-300 text-left">
         {/* Dynamic Form Panel (Create or Edit) */}
         {isFormOpen.value && (
+          <div ref={formPanel} class="scroll-mt-6">
           <Form 
             action={editingSponsor.value ? updateSponsorAction : createSponsorAction} 
             enctype="multipart/form-data" 
-            onSubmit$={() => {
-              // Automatically closes form panel upon submission
-              setTimeout(() => {
-                isFormOpen.value = false;
-                editingSponsor.value = null;
-              }, 400);
+            onSubmitCompleted$={() => {
+              // Close only once saved, so a rejected submission keeps what was typed
+              const result = editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value;
+              if (result?.success) closeForm$();
             }}
             class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-md space-y-5 animate-in slide-in-from-top-6 duration-300"
           >
@@ -268,16 +298,17 @@ export default component$(() => {
               {editingSponsor.value && (
                 <button
                   type="button"
-                  onClick$={() => {
-                    isFormOpen.value = false;
-                    editingSponsor.value = null;
-                  }}
-                  class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest cursor-pointer"
+                  onClick$={closeForm$}
+                  class="text-[11px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest cursor-pointer"
                 >
                   Cancelar
                 </button>
               )}
             </div>
+
+            {(editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value)?.message && (
+              <ActionFeedback value={editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value} />
+            )}
 
             {editingSponsor.value && <input type="hidden" name="id" value={editingSponsor.value.id} />}
             {editingSponsor.value && <input type="hidden" name="imageUrl" value={editingSponsor.value.imageUrl} />}
@@ -285,27 +316,36 @@ export default component$(() => {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título / Nombre de la Marca (Tooltip)</label>
+                <label for="sponsor-name" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Título / Nombre de la Marca (Tooltip)</label>
                 <input
+                  id="sponsor-name"
                   type="text"
                   name="name"
                   required
                   value={formName.value}
                   onInput$={(e) => (formName.value = (e.target as HTMLInputElement).value)}
                   placeholder="Ej: Swiss Medical"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                  aria-invalid={!!(editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value)?.fieldErrors?.name}
+                  aria-describedby={(editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value)?.fieldErrors?.name ? "sponsor-name-error" : undefined}
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                 />
+                {(editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value)?.fieldErrors?.name && (
+                  <p id="sponsor-name-error" role="alert" class="text-xs text-red-700">
+                    {(editingSponsor.value ? updateSponsorAction.value : createSponsorAction.value)?.fieldErrors?.name}
+                  </p>
+                )}
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Enlace de Redirección (Link)</label>
+                <label for="sponsor-link" class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Enlace de Redirección (Link)</label>
                 <input
+                  id="sponsor-link"
                   type="url"
                   name="linkUrl"
                   value={formLinkUrl.value}
                   onInput$={(e) => (formLinkUrl.value = (e.target as HTMLInputElement).value)}
                   placeholder="Ej: https://swissmedical.com"
-                  class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all"
+                  class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all"
                 />
               </div>
             </div>
@@ -322,8 +362,8 @@ export default component$(() => {
                   )}
                 </div>
                 <div class="space-y-2">
-                  <label class="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-650 text-xs font-black rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm active:scale-95">
-                    <LuImage class="w-4 h-4 text-brand-green" />
+                  <label class="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-black rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <LuImage class="w-4 h-4 text-brand-navy" />
                     Subir Logotipo
                     <input
                       type="file"
@@ -376,7 +416,7 @@ export default component$(() => {
                       class="hidden"
                     />
                   </label>
-                  <p class="text-[10px] text-slate-400 font-medium">Recomendable: imágenes horizontales o cuadradas. Los archivos PNG, JPEG y WebP se optimizarán y convertirán a WebP de forma automática para máxima velocidad de carga.</p>
+                  <p class="text-[11px] text-slate-400 font-medium">Recomendable: imágenes horizontales o cuadradas. Los archivos PNG, JPEG y WebP se optimizarán y convertirán a WebP de forma automática para máxima velocidad de carga.</p>
                 </div>
               </div>
             </div>
@@ -384,46 +424,40 @@ export default component$(() => {
             <button
               type="submit"
               disabled={createSponsorAction.isRunning || updateSponsorAction.isRunning}
-              class="py-3 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer active:scale-95"
+              class="py-3 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light disabled:bg-slate-300 text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-300 cursor-pointer active:scale-95"
             >
               {createSponsorAction.isRunning || updateSponsorAction.isRunning ? "Procesando..." : "Guardar Cambios"}
             </button>
           </Form>
-        )}
-
-        {/* Action Feedbacks */}
-        {createSponsorAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-in fade-in duration-300">
-            ✓ Sponsor agregado y optimizado exitosamente.
           </div>
         )}
 
-        {updateSponsorAction.value?.success && (
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm animate-in fade-in duration-300">
-            ✓ Sponsor actualizado y optimizado exitosamente.
-          </div>
-        )}
+        {/* Action Feedbacks (form failures are shown inside the open form) */}
+        {createSponsorAction.value?.success && <ActionFeedback value={createSponsorAction.value} success="✓ Sponsor agregado y optimizado." />}
+        {updateSponsorAction.value?.success && <ActionFeedback value={updateSponsorAction.value} success="✓ Sponsor actualizado y optimizado." />}
+        <ActionFeedback value={deleteSponsorAction.value} success="✓ Sponsor eliminado." />
+        <ActionFeedback value={reorderAction.value} success="✓ Orden de sponsors guardado." />
 
         {/* Sponsors Cards List Grid */}
         <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-2">
             <div>
               <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Sponsors Cargados ({orderedSponsors.value.length})</h3>
-              <p class="text-[10px] text-slate-400 font-bold mt-0.5">Ordená la fila usando las flechas. Los cambios se guardan automáticamente en tiempo real.</p>
+              <p class="text-[11px] text-slate-400 font-bold mt-0.5">Ordená la fila usando las flechas. Los cambios se guardan automáticamente en tiempo real.</p>
             </div>
             {reorderAction.isRunning && (
-              <span class="text-[10px] font-black text-brand-green animate-pulse uppercase tracking-wider bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+              <span class="text-[11px] font-black text-brand-navy animate-pulse uppercase tracking-wider bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
                 Guardando orden...
               </span>
             )}
           </div>
           
           {orderedSponsors.value.length === 0 ? (
-            <div class="h-64 flex flex-col items-center justify-center text-slate-450 text-xs font-bold gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/40">
+            <div class="h-64 flex flex-col items-center justify-center text-slate-500 text-xs font-bold gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/40">
               <LuBuilding class="w-10 h-10 text-slate-300" />
               <div class="text-center space-y-1">
                 <p>No hay sponsors registrados aún.</p>
-                <p class="text-[10px] text-slate-400 font-medium max-w-xs">Hacé clic en "Añadir Sponsor" arriba para registrar tu primer auspiciante.</p>
+                <p class="text-[11px] text-slate-400 font-medium max-w-xs">Hacé clic en "Añadir Sponsor" arriba para registrar tu primer auspiciante.</p>
               </div>
             </div>
           ) : (
@@ -448,9 +482,9 @@ export default component$(() => {
                   {/* Sponsor Info */}
                   <div class="w-full mt-3 text-left px-1">
                     <h4 class="text-xs font-extrabold text-slate-800 truncate" title={sp.name}>{sp.name}</h4>
-                    <p class="text-[10px] text-slate-400 truncate mt-1">
+                    <p class="text-[11px] text-slate-400 truncate mt-1">
                       {sp.linkUrl ? (
-                        <a href={sp.linkUrl} target="_blank" rel="noopener noreferrer" class="text-brand-green font-bold hover:underline">
+                        <a href={sp.linkUrl} target="_blank" rel="noopener noreferrer" class="text-brand-navy font-bold hover:underline">
                           {sp.linkUrl.replace(/^https?:\/\/(www\.)?/, "")}
                         </a>
                       ) : (
@@ -465,8 +499,9 @@ export default component$(() => {
                       type="button"
                       disabled={idx === 0 || reorderAction.isRunning}
                       onClick$={() => handleMove(idx, "left")}
-                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-green disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[10px] font-bold flex items-center gap-1 leading-none"
+                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-navy disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[11px] font-bold flex items-center gap-1 leading-none"
                       title="Mover a la izquierda"
+                      aria-label={`Mover ${sp.name} a la izquierda`}
                     >
                       <LuArrowLeft class="w-3 h-3" />
                       <span>Izq</span>
@@ -476,8 +511,9 @@ export default component$(() => {
                       type="button"
                       disabled={idx === orderedSponsors.value.length - 1 || reorderAction.isRunning}
                       onClick$={() => handleMove(idx, "right")}
-                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-green disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[10px] font-bold flex items-center gap-1 leading-none"
+                      class="p-1 px-2 bg-white text-slate-500 hover:text-brand-navy disabled:opacity-30 disabled:hover:text-slate-500 rounded-lg border border-slate-200 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer text-[11px] font-bold flex items-center gap-1 leading-none"
                       title="Mover a la derecha"
+                      aria-label={`Mover ${sp.name} a la derecha`}
                     >
                       <span>Der</span>
                       <LuArrowRight class="w-3 h-3" />
@@ -485,32 +521,30 @@ export default component$(() => {
                   </div>
 
                   {/* Floating Action Controls */}
-                  <div class="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Hidden until hover on mouse devices; always reachable by keyboard focus and on touch screens */}
+                  <div class="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                     <button
                       type="button"
                       onClick$={() => handleEditClick(sp)}
-                      class="p-1.5 text-slate-500 hover:text-brand-green bg-white hover:bg-slate-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      class="p-1.5 text-slate-500 hover:text-brand-navy bg-white hover:bg-slate-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
                       title="Editar Sponsor"
+                      aria-label={`Editar sponsor ${sp.name}`}
                     >
                       <LuPencil class="w-3.5 h-3.5" />
                     </button>
-                    <Form 
-                      action={deleteSponsorAction} 
-                      onSubmit$={(ev) => {
-                        if (!window.confirm(`¿Estás seguro de que deseas eliminar el sponsor "${sp.name}"?`)) {
-                          ev.preventDefault();
-                        }
+                    <button
+                      type="button"
+                      onClick$={() => {
+                        deleteTarget.value = { id: sp.id, name: sp.name };
+                        deleteError.value = "";
+                        isDeleteOpen.value = true;
                       }}
+                      class="p-1.5 text-red-500 hover:text-red-700 bg-white hover:bg-red-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      title="Eliminar Sponsor"
+                      aria-label={`Eliminar sponsor ${sp.name}`}
                     >
-                      <input type="hidden" name="id" value={sp.id} />
-                      <button
-                        type="submit"
-                        class="p-1.5 text-red-500 hover:text-red-700 bg-white hover:bg-red-50 rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        title="Eliminar Sponsor"
-                      >
-                        <LuTrash2 class="w-3.5 h-3.5" />
-                      </button>
-                    </Form>
+                      <LuTrash2 class="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -518,6 +552,17 @@ export default component$(() => {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        title="Eliminar sponsor"
+        confirmLabel="Eliminar sponsor"
+        pending={deleteSponsorAction.isRunning}
+        error={deleteError.value}
+        onConfirm$={confirmDeleteSponsor$}
+      >
+        <p>“{deleteTarget.value?.name}” dejará de mostrarse en el carrusel de sponsors de la página de inicio.</p>
+      </ConfirmDialog>
     </div>
   );
 });

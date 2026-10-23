@@ -1,84 +1,63 @@
 import { component$ } from "@builder.io/qwik";
-import { routeAction$, Form, type DocumentHead } from "@builder.io/qwik-city";
+import { routeAction$, routeLoader$, Form, type DocumentHead } from "@builder.io/qwik-city";
+import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { saveSuggestion } from "~/server/club-content";
+import { rateLimitByIp } from "~/server/rate-limit";
+import { SUGGESTION_TYPES, isSuggestionType, validateSuggestion } from "~/utils/suggestions";
 
-// Server action to process form submission with robust programmatic validation
-export const useSubmitSuggestion = routeAction$(async (data) => {
-  const nombre = String(data.nombre || "").trim();
-  const email = String(data.email || "").trim();
-  const telefono = String(data.telefono || "").trim();
-  const tipo = String(data.tipo || "").trim();
-  const comercio = String(data.comercio || "").trim();
-  const mensaje = String(data.mensaje || "").trim();
-
-  // Error bag
-  const errors: Record<string, string> = {};
-
-  if (!nombre) {
-    errors.nombre = "El nombre es obligatorio.";
-  } else if (nombre.length < 3) {
-    errors.nombre = "El nombre debe tener al menos 3 caracteres.";
-  }
-
-  if (!email) {
-    errors.email = "El correo electrónico es obligatorio.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = "El formato de correo electrónico no es válido.";
-  }
-
-  if (telefono && !/^[0-9\s\-+()]{7,15}$/.test(telefono)) {
-    errors.telefono = "El número de teléfono no es válido.";
-  }
-
-  if (!tipo) {
-    errors.tipo = "Por favor selecciona el motivo de tu mensaje.";
-  }
-
-  if (!mensaje) {
-    errors.mensaje = "El mensaje es obligatorio.";
-  } else if (mensaje.length < 10) {
-    errors.mensaje = "El mensaje debe tener al menos 10 caracteres.";
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return {
-      success: false,
-      errors
-    };
-  }
-
-  // Visual simulation of a database save or forwarding to official API
-  console.log("[Suggestion Action] New submission received:", {
-    nombre,
-    email,
-    telefono,
-    tipo,
-    comercio,
-    mensaje,
-    submittedAt: new Date().toISOString()
-  });
-
-  // Delay slightly to simulate server processing for satisfying loading spinner animations
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
+/** Prefills from links like /sugerencias/?tipo=Problema%20Comercio&comercio=X and from the session. */
+export const useSuggestionDefaults = routeLoader$((event) => {
+  const user = event.sharedMap.get("user") as AuthenticatedUser | undefined;
+  const tipo = event.url.searchParams.get("tipo") ?? "";
   return {
-    success: true
+    tipo: isSuggestionType(tipo) ? tipo : "",
+    comercio: (event.url.searchParams.get("comercio") ?? "").trim().slice(0, 120),
+    nombre: user?.name ?? "",
+    email: user?.email ?? "",
   };
+});
+
+export const useSubmitSuggestion = routeAction$(async (data, event) => {
+  const { values, errors } = validateSuggestion(data);
+  if (Object.keys(errors).length > 0) {
+    return { success: false, errors };
+  }
+
+  const limit = rateLimitByIp(event, "suggestion", 5, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return { success: false, message: "Ya enviaste varios mensajes. Probá de nuevo más tarde." };
+  }
+
+  try {
+    await saveSuggestion(event, values);
+    return { success: true };
+  } catch (err) {
+    console.error("Error saving suggestion:", err);
+    return { success: false, message: "No pudimos guardar tu mensaje. Intentá de nuevo en unos minutos." };
+  }
 });
 
 export default component$(() => {
   const action = useSubmitSuggestion();
+  const defaults = useSuggestionDefaults();
+  // After a failed submit keep what was typed; before that, use the prefilled values.
+  const fieldValue = (name: "nombre" | "email" | "telefono" | "tipo" | "comercio" | "mensaje") => {
+    const sent = action.formData?.get(name);
+    if (sent !== undefined && sent !== null) return sent.toString();
+    return name in defaults.value ? defaults.value[name as keyof typeof defaults.value] : "";
+  };
 
   return (
     <div class="relative min-h-screen overflow-hidden py-12 sm:py-16 bg-slate-50 text-slate-800 flex items-center justify-center">
       {/* Decorative backdrop shapes */}
-      <div class="absolute w-[400px] h-[400px] bg-brand-green-light/5 rounded-full blur-3xl -top-20 -left-20" />
+      <div class="absolute w-[400px] h-[400px] bg-brand-navy-light/5 rounded-full blur-3xl -top-20 -left-20" />
       <div class="absolute w-[400px] h-[400px] bg-brand-gold/5 rounded-full blur-3xl -bottom-20 -right-20" />
 
       <div class="relative w-full max-w-2xl px-4 z-10">
         
         {/* Breadcrumb / Title */}
         <div class="text-center mb-10 space-y-3">
-          <h1 class="text-3xl sm:text-4xl font-display font-extrabold text-brand-green-dark tracking-tight">
+          <h1 class="text-3xl sm:text-4xl font-display font-extrabold text-brand-navy-dark tracking-tight">
             ¿Tenés alguna sugerencia?
           </h1>
           <p class="text-slate-500 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
@@ -99,18 +78,18 @@ export default component$(() => {
             </div>
             
             <div class="space-y-2">
-              <h2 class="text-2xl font-display font-extrabold text-brand-green-dark">
-                ¡Sugerencia Enviada!
+              <h2 class="text-2xl font-display font-extrabold text-brand-navy-dark">
+                ¡Gracias por escribirnos!
               </h2>
               <p class="text-slate-500 text-sm leading-relaxed max-w-sm mx-auto">
-                Agradecemos mucho tu tiempo. Tu mensaje ha sido registrado y será analizado por la Mesa Directiva de la LPRC para seguir mejorando el portal.
+                Recibimos tu mensaje. El equipo del club lo va a revisar y, si hace falta, te va a contactar por correo.
               </p>
             </div>
 
             <div class="pt-6 border-t border-slate-100">
               <a
                 href="/"
-                class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+                class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
               >
                 Volver al Portal
               </a>
@@ -121,6 +100,11 @@ export default component$(() => {
           <div class="border border-slate-200 rounded-3xl p-6 sm:p-10 shadow-lg bg-white">
             <Form action={action} aria-busy={action.isRunning} class="space-y-6">
               <p class="text-xs text-slate-600">Los campos con * son obligatorios.</p>
+              {action.value?.message && (
+                <p role="alert" class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {action.value.message}
+                </p>
+              )}
               
               {/* Row 1: Nombre & Correo */}
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -143,11 +127,11 @@ export default component$(() => {
                     autocomplete="name"
                     minLength={3}
                     required
-                    value={action.formData?.get("nombre")?.toString() || ""}
+                    value={fieldValue("nombre")}
                     class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.nombre
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
-                        : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
+                        : "border-slate-200 focus:ring-brand-navy-light focus:border-brand-navy-light"
                     }`}
                   />
                   {action.value?.errors?.nombre && (
@@ -175,11 +159,11 @@ export default component$(() => {
                     type="email"
                     autocomplete="email"
                     required
-                    value={action.formData?.get("email")?.toString() || ""}
+                    value={fieldValue("email")}
                     class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.email
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
-                        : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
+                        : "border-slate-200 focus:ring-brand-navy-light focus:border-brand-navy-light"
                     }`}
                   />
                   {action.value?.errors?.email && (
@@ -209,11 +193,11 @@ export default component$(() => {
                     }
                     type="tel"
                     autocomplete="tel"
-                    value={action.formData?.get("telefono")?.toString() || ""}
+                    value={fieldValue("telefono")}
                     class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all ${
                       action.value?.errors?.telefono
                         ? "border-red-400 focus:ring-red-400 focus:border-red-400"
-                        : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
+                        : "border-slate-200 focus:ring-brand-navy-light focus:border-brand-navy-light"
                     }`}
                   />
                   {action.value?.errors?.telefono && (
@@ -236,9 +220,17 @@ export default component$(() => {
                     name="comercio"
                     type="text"
                     autocomplete="organization"
-                    value={action.formData?.get("comercio")?.toString() || ""}
-                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-brand-green-light focus:border-brand-green-light transition-all"
+                    maxLength={120}
+                    value={fieldValue("comercio")}
+                    aria-invalid={!!action.value?.errors?.comercio}
+                    aria-describedby={action.value?.errors?.comercio ? "comercio-error" : undefined}
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-brand-navy-light focus:border-brand-navy-light transition-all"
                   />
+                  {action.value?.errors?.comercio && (
+                    <span id="comercio-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
+                      {action.value.errors.comercio}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -258,24 +250,17 @@ export default component$(() => {
                   class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all cursor-pointer ${
                     action.value?.errors?.tipo
                       ? "border-red-400 focus:ring-red-400 focus:border-red-400"
-                      : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
+                      : "border-slate-200 focus:ring-brand-navy-light focus:border-brand-navy-light"
                   }`}
                 >
-                  <option value="" disabled selected={!action.formData?.get("tipo")}>
-                    Selecciona una opción...
+                  <option value="" disabled selected={!fieldValue("tipo")}>
+                    Elegí una opción...
                   </option>
-                  <option value="Sugerir Comercio" selected={action.formData?.get("tipo")?.toString() === "Sugerir Comercio"}>
-                    Recomendar un nuevo comercio adherido
-                  </option>
-                  <option value="Problema Comercio" selected={action.formData?.get("tipo")?.toString() === "Problema Comercio"}>
-                    Reportar un inconveniente con un beneficio o descuento
-                  </option>
-                  <option value="Consulta General" selected={action.formData?.get("tipo")?.toString() === "Consulta General"}>
-                    Consulta o duda general sobre el club
-                  </option>
-                  <option value="Otro" selected={action.formData?.get("tipo")?.toString() === "Otro"}>
-                    Otro motivo
-                  </option>
+                  {SUGGESTION_TYPES.map((type) => (
+                    <option key={type.value} value={type.value} selected={fieldValue("tipo") === type.value}>
+                      {type.label}
+                    </option>
+                  ))}
                 </select>
                 {action.value?.errors?.tipo && (
                   <span id="tipo-error" role="alert" class="text-xs text-red-700 font-semibold mt-1.5 block pl-1">
@@ -296,17 +281,18 @@ export default component$(() => {
                   id="mensaje"
                   name="mensaje"
                   minLength={10}
+                  maxLength={4000}
                   aria-invalid={!!action.value?.errors?.mensaje}
                   aria-describedby={
                     action.value?.errors?.mensaje ? "mensaje-error" : undefined
                   }
                   required
                   rows={5}
-                  value={action.formData?.get("mensaje")?.toString() || ""}
+                  value={fieldValue("mensaje")}
                   class={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:bg-white focus:ring-1 transition-all resize-y ${
                     action.value?.errors?.mensaje
                       ? "border-red-400 focus:ring-red-400 focus:border-red-400"
-                      : "border-slate-200 focus:ring-brand-green-light focus:border-brand-green-light"
+                      : "border-slate-200 focus:ring-brand-navy-light focus:border-brand-navy-light"
                   }`}
                 />
                 {action.value?.errors?.mensaje && (
@@ -321,7 +307,7 @@ export default component$(() => {
                 <button
                   type="submit"
                   disabled={action.isRunning}
-                  class={`inline-flex w-full sm:w-auto items-center justify-center space-x-2 py-3.5 px-8 rounded-xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}
+                  class={`inline-flex w-full sm:w-auto items-center justify-center space-x-2 py-3.5 px-8 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}
                 >
                   {action.isRunning ? (
                     <>

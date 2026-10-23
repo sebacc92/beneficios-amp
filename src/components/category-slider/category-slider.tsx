@@ -196,8 +196,8 @@ export const CategorySlider = component$<CategorySliderProps>(
 
     return (
       <div class="w-full text-left">
-        <div class="flex min-h-12 items-center justify-between gap-3 mb-2 border-b border-slate-800 pb-1">
-          <h3 class="text-[12px] font-black tracking-widest text-slate-400 uppercase pl-1 m-0">
+        <div class="flex min-h-12 items-center justify-between gap-3 mb-2 border-b border-line pb-1">
+          <h3 class="text-[12px] font-black tracking-widest text-slate-600 uppercase pl-1 m-0">
             {title}
           </h3>
           {/* Category scroll controllers */}
@@ -207,7 +207,7 @@ export const CategorySlider = component$<CategorySliderProps>(
                 type="button"
                 onClick$={scrollLeft}
                 disabled={!canScrollLeft.value}
-                class="w-11 h-11 rounded-full border border-secondary/60 bg-primary/40 hover:bg-primary text-slate-300 hover:text-white flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 aria-label="Ver categorías anteriores"
                 aria-controls={sliderId}
               >
@@ -226,7 +226,7 @@ export const CategorySlider = component$<CategorySliderProps>(
                 type="button"
                 onClick$={scrollRight}
                 disabled={!canScrollRight.value}
-                class="w-11 h-11 rounded-full border border-secondary/60 bg-primary/40 hover:bg-primary text-slate-300 hover:text-white flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                class="w-11 h-11 rounded-full border border-line bg-surface hover:bg-surface-muted text-primary flex items-center justify-center shadow-sm transition-all active:scale-90 cursor-pointer disabled:opacity-35 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 aria-label="Ver más categorías"
                 aria-controls={sliderId}
               >
@@ -278,17 +278,17 @@ export const CategorySlider = component$<CategorySliderProps>(
                 class={[
                   "relative flex flex-col items-center justify-center text-center p-3 rounded-2xl border transition-all duration-300 w-28 h-28 flex-shrink-0 select-none cursor-pointer group snap-start shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                   isSelected
-                    ? "bg-brand-green border-brand-green text-white shadow-lg shadow-brand-green/20 scale-105"
-                    : "bg-primary/40 border-secondary/60 hover:border-brand-gold/50 text-slate-300 hover:text-brand-gold hover:bg-primary/70 hover:shadow-md hover:scale-105",
+                    ? "bg-accent border-accent text-primary shadow-md shadow-accent/15 scale-105"
+                    : "bg-surface border-line hover:border-accent text-primary hover:bg-amber-50 hover:shadow-md hover:scale-105",
                 ]}
               >
                 {/* Floating Benefit Count Badge */}
                 <span
                   class={[
-                    "absolute top-2 right-2 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[18px] h-4.5",
+                    "absolute top-2 right-2 text-[11px] font-black px-1.5 py-0.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center min-w-[18px] h-4.5",
                     isSelected
-                      ? "bg-brand-gold text-slate-950 shadow-md shadow-brand-gold/10"
-                      : "bg-secondary/40 text-slate-400 group-hover:bg-brand-gold group-hover:text-slate-950",
+                      ? "bg-primary text-white"
+                      : "bg-surface-muted text-slate-600 group-hover:bg-accent group-hover:text-primary",
                   ]}
                 >
                   {cat.beneficios_count || 0}
@@ -298,8 +298,8 @@ export const CategorySlider = component$<CategorySliderProps>(
                   class={[
                     "flex items-center justify-center transition-transform duration-300 group-hover:scale-110",
                     isSelected
-                      ? "text-white"
-                      : "text-slate-400 group-hover:text-brand-gold",
+                      ? "text-primary"
+                      : "text-secondary group-hover:text-primary",
                   ]}
                 >
                   {getCategoryIcon(
@@ -307,7 +307,7 @@ export const CategorySlider = component$<CategorySliderProps>(
                     "w-8 h-8 text-current stroke-[1.5]",
                   )}
                 </span>
-                <span class="text-[10px] font-black uppercase tracking-wider mt-2.5 line-clamp-2 leading-tight max-w-[96px]">
+                <span class="text-[11px] font-black uppercase tracking-wider mt-2.5 line-clamp-2 leading-tight max-w-[96px]">
                   {cat.descripcion}
                 </span>
               </Link>

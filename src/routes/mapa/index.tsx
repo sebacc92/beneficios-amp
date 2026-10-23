@@ -4,6 +4,7 @@ import {
   noSerialize,
   useComputed$,
   useSignal,
+  useTask$,
   useVisibleTask$,
   type NoSerialize,
 } from "@builder.io/qwik";
@@ -48,6 +49,14 @@ export default component$(() => {
   const location = useLocation();
   const data = useBenefitsMapData();
   const searchQuery = useSignal(location.url.searchParams.get("buscar") || "");
+  // What the visitor is typing; it reaches searchQuery (and redraws every marker) 250 ms after the last key.
+  const searchDraft = useSignal(searchQuery.value);
+  useTask$(({ track, cleanup }) => {
+    const draft = track(() => searchDraft.value);
+    if (draft === searchQuery.value) return;
+    const timer = setTimeout(() => (searchQuery.value = draft), 250);
+    cleanup(() => clearTimeout(timer));
+  });
   const selectedCategory = useSignal<number | null>(
     Number(location.url.searchParams.get("categoria")) || null,
   );
@@ -296,7 +305,7 @@ export default component$(() => {
         benefit.resumen || "Beneficio exclusivo para socios";
       const link = document.createElement("a");
       link.className =
-        "block rounded-lg bg-brand-green px-3 py-2.5 text-center font-bold !text-white";
+        "block rounded-lg bg-brand-navy px-3 py-2.5 text-center font-bold !text-white";
       link.href = `/beneficio/${encodeURIComponent(benefit.url)}/`;
       link.textContent = "Ver beneficio →";
       popup.appendChild(title);
@@ -314,7 +323,8 @@ export default component$(() => {
     });
     if (selectedBenefit.value && !markersRef.value.has(selectedBenefit.value))
       selectedBenefit.value = null;
-    if (benefits.length)
+    // Once the visitor centred the map on their location, filtering must not pull the view away.
+    if (benefits.length && !userPosition.value)
       mapRef.value.fitBounds(group.getBounds(), {
         padding: [35, 35],
         maxZoom: 16,
@@ -452,7 +462,7 @@ export default component$(() => {
           type="button"
           onClick$={requestLocation}
           disabled={geoState.value === "loading"}
-          class="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-green-accent px-3 py-2.5 text-sm font-black text-brand-green-dark disabled:opacity-60"
+          class="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-black text-brand-navy-dark disabled:opacity-60"
         >
           <LuLocateFixed
             class={`h-4 w-4 ${geoState.value === "loading" ? "animate-pulse" : ""}`}
@@ -486,7 +496,7 @@ export default component$(() => {
             <LuFilter class="h-4 w-4" />
             Filtros{" "}
             {hasFilters.value && (
-              <span class="h-2 w-2 rounded-full bg-brand-green" />
+              <span class="h-2 w-2 rounded-full bg-brand-navy" />
             )}
           </span>
           <LuChevronDown
@@ -510,11 +520,11 @@ export default component$(() => {
                 id="map-search"
                 type="search"
                 placeholder="Café, gimnasio, heladería…"
-                value={searchQuery.value}
+                value={searchDraft.value}
                 onInput$={(_, element) => {
-                  searchQuery.value = element.value;
+                  searchDraft.value = element.value;
                 }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/20"
+                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base sm:text-sm focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
               />
             </div>
           </div>
@@ -532,7 +542,7 @@ export default component$(() => {
                 onChange$={(_, element) => {
                   selectedCategory.value = Number(element.value) || null;
                 }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm focus:ring-2 focus:ring-brand-green/20"
+                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
               >
                 <option value="">Todas las categorías</option>
                 {data.value.filters.categorias.map((category) => (
@@ -555,7 +565,7 @@ export default component$(() => {
                 onChange$={(_, element) => {
                   selectedLocation.value = Number(element.value) || null;
                 }}
-                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm focus:ring-2 focus:ring-brand-green/20"
+                class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
               >
                 <option value="">Todas las localidades</option>
                 {data.value.filters.ubicaciones.map((locality) => (
@@ -579,7 +589,7 @@ export default component$(() => {
               onChange$={(_, element) => {
                 selectedOffer.value = Number(element.value) || null;
               }}
-              class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm focus:ring-2 focus:ring-brand-green/20"
+              class="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm focus:ring-2 focus:ring-brand-navy/20"
             >
               <option value="">Todos los descuentos</option>
               {data.value.filters.ofertas.map((offer) => (
@@ -594,6 +604,7 @@ export default component$(() => {
               type="button"
               onClick$={() => {
                 searchQuery.value = "";
+                searchDraft.value = "";
                 selectedCategory.value = null;
                 selectedLocation.value = null;
                 selectedOffer.value = null;
@@ -684,7 +695,7 @@ export default component$(() => {
               <li
                 key={benefit.id}
                 id={`map-benefit-${benefit.id}`}
-                class={`p-4 ${selectedBenefit.value === benefit.id ? "bg-brand-green/5 ring-2 ring-inset ring-brand-green" : ""}`}
+                class={`p-4 ${selectedBenefit.value === benefit.id ? "bg-brand-navy/5 ring-2 ring-inset ring-brand-navy" : ""}`}
               >
                 <div class="flex items-start justify-between gap-2">
                   <h3 class="text-sm font-black leading-snug text-slate-900">
@@ -706,7 +717,7 @@ export default component$(() => {
                     .map((locality) => locality.descripcion)
                     .join(" · ") || "Ver ubicación en el mapa"}
                 </p>
-                <p class="mt-2 text-sm font-bold text-brand-green-dark">
+                <p class="mt-2 text-sm font-bold text-brand-navy-dark">
                   {benefit.resumen || "Beneficio exclusivo para socios"}
                 </p>
                 <div class="mt-3 grid grid-cols-2 gap-2">
@@ -730,7 +741,7 @@ export default component$(() => {
                   </button>
                   <Link
                     href={`/beneficio/${benefit.url}/`}
-                    class="flex min-h-11 items-center justify-center rounded-lg bg-brand-green px-2 text-xs font-bold text-white hover:bg-brand-green-dark"
+                    class="flex min-h-11 items-center justify-center rounded-lg bg-brand-navy px-2 text-xs font-bold text-white hover:bg-brand-navy-dark"
                   >
                     Ver beneficio
                   </Link>
@@ -748,7 +759,7 @@ export default component$(() => {
             </p>
             <Link
               href={listadoHref.value}
-              class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-brand-green px-4 text-sm font-bold text-white"
+              class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-brand-navy px-4 text-sm font-bold text-white"
             >
               Ver catálogo
             </Link>

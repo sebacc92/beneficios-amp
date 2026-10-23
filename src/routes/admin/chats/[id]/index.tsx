@@ -1,13 +1,13 @@
-import { component$ } from "@builder.io/qwik";
+import { component$, useSignal, $ } from "@builder.io/qwik";
 import {
   routeLoader$,
   routeAction$,
-  Form,
   Link,
   type DocumentHead,
 } from "@builder.io/qwik-city";
 import { getSessionById, deleteSession } from "~/server/chatbotDb";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 
 // Loader to fetch session details and complete chat logs
 export const useSessionDetails = routeLoader$(async (event) => {
@@ -47,6 +47,18 @@ export const useDeleteSessionDetailsAction = routeAction$(async (data, requestEv
 export default component$(() => {
   const sessionLoader = useSessionDetails();
   const deleteAction = useDeleteSessionDetailsAction();
+  const isDeleteOpen = useSignal(false);
+  const deleteError = useSignal("");
+
+  const confirmDelete$ = $(async () => {
+    if (!sessionLoader.value) return;
+    const { value } = await deleteAction.submit({ id: sessionLoader.value.id });
+    if (value.failed) {
+      deleteError.value = value.message || "No se pudo eliminar la conversación. Intentá de nuevo.";
+      return;
+    }
+    isDeleteOpen.value = false;
+  });
 
   if (!sessionLoader.value) {
     return (
@@ -55,8 +67,8 @@ export default component$(() => {
         <h1 class="text-2xl font-display font-extrabold text-slate-800">Sesión de Chat No Encontrada</h1>
         <p class="text-slate-500 mt-2 text-sm">La conversación que estás buscando no existe o ya fue eliminada del registro.</p>
         <Link
-          href="/admin"
-          class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-brand-green text-white text-xs font-bold uppercase tracking-wider mt-6 hover:bg-brand-green-light transition-all shadow-md active:scale-95"
+          href="/admin/ai"
+          class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-brand-navy text-white text-xs font-bold uppercase tracking-wider mt-6 hover:bg-brand-navy-light transition-all shadow-md active:scale-95"
         >
           Volver a la Lista
         </Link>
@@ -72,45 +84,49 @@ export default component$(() => {
       {/* Navigation and Actions Row */}
       <div class="flex items-center justify-between border-b border-slate-200 pb-4">
         <Link
-          href="/admin"
-          class="inline-flex items-center space-x-1.5 text-xs font-bold text-brand-green hover:text-brand-green-light uppercase tracking-wider transition-colors"
+          href="/admin/ai"
+          class="inline-flex items-center space-x-1.5 text-xs font-bold text-brand-navy hover:text-brand-navy-light uppercase tracking-wider transition-colors"
         >
           <span>&larr;</span>
           <span>Volver a la Auditoría</span>
         </Link>
 
         {/* Delete directly from details */}
-        <Form action={deleteAction}>
-          <input type="hidden" name="id" value={s.id} />
+        {!deleteAction.value?.success && (
           <button
-            type="submit"
-            preventdefault:click
-            onClick$={async (e, el) => {
-              if (
-                confirm(
-                  "¿Estás seguro de eliminar esta conversación permanentemente de la auditoría local? Esto no se puede deshacer."
-                )
-              ) {
-                (el.closest("form") as HTMLFormElement).requestSubmit();
-              }
+            type="button"
+            onClick$={() => {
+              deleteError.value = "";
+              isDeleteOpen.value = true;
             }}
             class="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer"
           >
             Eliminar Conversación
           </button>
-        </Form>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        title="Eliminar conversación"
+        confirmLabel="Eliminar conversación"
+        pending={deleteAction.isRunning}
+        error={deleteError.value}
+        onConfirm$={confirmDelete$}
+      >
+        <p>La conversación se borrará de la auditoría de forma permanente. No se puede deshacer.</p>
+      </ConfirmDialog>
 
       {deleteAction.value?.success ? (
         <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-6 py-8 text-center text-emerald-800 shadow-sm animate-fade-in space-y-4">
           <div class="text-4xl">✅</div>
-          <h2 class="text-lg font-bold">Conversación eliminada exitosamente</h2>
-          <p class="text-xs text-slate-500 max-w-md mx-auto">La sesión fue dada de baja de los registros locales. Puedes volver a la auditoría general.</p>
+          <h2 class="text-lg font-bold" role="status">Conversación eliminada</h2>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">La sesión fue dada de baja de los registros. Podés volver a la auditoría general.</p>
           <Link
-            href="/admin"
-            class="inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-sm transition-all"
+            href="/admin/ai"
+            class="inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider shadow-sm transition-all"
           >
-            Volver a la Lista
+            Volver a la auditoría
           </Link>
         </div>
       ) : (
@@ -121,19 +137,19 @@ export default component$(() => {
             <h2 class="text-xs font-extrabold tracking-widest text-brand-gold uppercase">Detalles del Registro</h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-medium text-slate-500">
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">ID Sesión (Local)</span>
+                <span class="block text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1">ID Sesión (Local)</span>
                 <span class="font-mono font-bold text-slate-800">{s.id}</span>
               </div>
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Iniciado el</span>
+                <span class="block text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1">Iniciado el</span>
                 <span class="font-semibold text-slate-800">
-                  {s.createdAt ? new Date(s.createdAt).toLocaleString("es-AR") : "—"}
+                  {s.createdAt ? new Date(s.createdAt).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                 </span>
               </div>
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Último Mensaje el</span>
+                <span class="block text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1">Último Mensaje el</span>
                 <span class="font-semibold text-slate-800">
-                  {s.lastActive ? new Date(s.lastActive).toLocaleString("es-AR") : "—"}
+                  {s.lastActive ? new Date(s.lastActive).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                 </span>
               </div>
             </div>
@@ -142,7 +158,7 @@ export default component$(() => {
           {/* Conversation Mockup Screen */}
           <div class="rounded-2xl border border-slate-200 bg-slate-100/50 shadow-sm flex flex-col overflow-hidden">
             {/* Header Mockup */}
-            <div class="bg-brand-green-dark border-b border-brand-gold/15 p-4 flex items-center space-x-3.5 text-white">
+            <div class="bg-brand-navy-dark border-b border-brand-gold/15 p-4 flex items-center space-x-3.5 text-white">
               <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 border border-brand-gold">
                 <img
                   src="/logo-lprc.svg"
@@ -156,7 +172,7 @@ export default component$(() => {
                 <h3 class="text-xs font-display font-extrabold uppercase tracking-wide text-brand-gold">
                   Auditoría Chatbot LPRC
                 </h3>
-                <p class="text-[9px] text-slate-300 font-bold uppercase tracking-wider">Historial de Conversación</p>
+                <p class="text-[11px] text-slate-300 font-bold uppercase tracking-wider">Historial de Conversación</p>
               </div>
             </div>
 
@@ -171,7 +187,7 @@ export default component$(() => {
                   ]}
                 >
                   {/* Role Label */}
-                  <span class="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
+                  <span class="text-[11px] text-slate-400 font-extrabold uppercase tracking-wider">
                     {msg.role === "user" ? "Socio del Club (Usuario)" : "Asistente Virtual (IA)"}
                   </span>
 
@@ -180,7 +196,7 @@ export default component$(() => {
                     class={[
                       "rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed shadow-sm font-medium whitespace-pre-wrap break-words",
                       msg.role === "user"
-                        ? "rounded-br-none bg-brand-green text-white"
+                        ? "rounded-br-none bg-brand-navy text-white"
                         : "rounded-bl-none border border-slate-200 bg-white text-slate-800",
                     ]}
                   >
@@ -188,8 +204,8 @@ export default component$(() => {
                   </div>
 
                   {/* Time */}
-                  <span class="text-[8px] text-slate-400 font-semibold">
-                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString("es-AR") : ""}
+                  <span class="text-[11px] text-slate-400 font-semibold">
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : ""}
                   </span>
                 </div>
               ))}

@@ -22,13 +22,15 @@ interface ChatbotSettingsResponse {
 export const Chatbot = component$(() => {
   const state = useStore({
     enabled: true,
+    // Stays invisible until /api/chat answers, so a disabled assistant never flashes in.
+    ready: false,
     isOpen: false,
     isLoading: false,
     messages: [
       {
         role: "assistant",
         content:
-          "¡Hola! Soy el asistente virtual de la La Plata Rugby Club. ¿En qué te puedo ayudar hoy?",
+          "¡Hola! Soy el asistente virtual de La Plata Rugby Club. ¿En qué te puedo ayudar hoy?",
       },
     ] as Message[],
     sessionId: "",
@@ -38,6 +40,7 @@ export const Chatbot = component$(() => {
 
   const inputValue = useSignal("");
   const messagesContainerRef = useSignal<HTMLDivElement>();
+  const launcherRef = useSignal<HTMLButtonElement>();
   const hasScrolled = useSignal(false);
 
   // Monitor scroll height to slide chatbot launcher and window up/down
@@ -67,6 +70,8 @@ export const Chatbot = component$(() => {
       }
     } catch (err) {
       console.error("Error fetching chatbot settings:", err);
+    } finally {
+      state.ready = true;
     }
   });
 
@@ -144,7 +149,7 @@ export const Chatbot = component$(() => {
     : "bottom-6 sm:bottom-8";
 
   return (
-    <div class="print:hidden">
+    <div class={["floating-action print:hidden", !state.ready && "invisible"]} aria-hidden={!state.ready}>
       {!state.isOpen && (
         <span
           class={[
@@ -154,15 +159,18 @@ export const Chatbot = component$(() => {
         ></span>
       )}
       <button
+        ref={launcherRef}
         onClick$={() => (state.isOpen = !state.isOpen)}
         class={[
-          "fixed right-6 z-50 flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 shadow-2xl shadow-slate-900/40 transition-all duration-300 hover:scale-105 active:scale-95 h-14 w-14 sm:h-16 sm:w-16",
+          "fixed right-6 z-45 flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 shadow-2xl shadow-slate-900/40 transition-all duration-300 hover:scale-105 active:scale-95 h-14 w-14 sm:h-16 sm:w-16",
           bottomPos,
           state.isOpen
             ? "border-slate-700 bg-slate-900 text-white p-3"
-            : "border-brand-gold bg-brand-green text-white p-3.5",
+            : "border-brand-gold bg-brand-navy text-white p-3.5",
         ]}
-        aria-label="Abrir asistente virtual"
+        aria-label={state.isOpen ? "Cerrar asistente virtual" : "Abrir asistente virtual"}
+        aria-expanded={state.isOpen}
+        aria-controls="chatbot-window"
       >
         {state.isOpen ? (
           <svg
@@ -203,15 +211,23 @@ export const Chatbot = component$(() => {
 
       {state.isOpen && (
         <div
+          id="chatbot-window"
+          role="dialog"
+          aria-labelledby="chatbot-title"
+          onKeyDown$={(event) => {
+            if (event.key !== "Escape") return;
+            state.isOpen = false;
+            launcherRef.value?.focus();
+          }}
           class={[
-            "animate-in slide-in-from-bottom-5 fade-in fixed right-4 z-[100] flex h-[34rem] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96 [@media(max-height:600px)]:bottom-4 [@media(max-height:600px)]:max-h-[calc(100dvh-2rem)]",
+            "animate-fade-in-up fixed right-4 z-50 flex h-[34rem] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-gold/25 bg-white shadow-2xl text-slate-800 duration-300 sm:right-6 sm:w-96 [@media(max-height:600px)]:bottom-4 [@media(max-height:600px)]:max-h-[calc(100dvh-2rem)]",
             hasScrolled.value
               ? "bottom-44 max-h-[calc(100dvh-12rem)] sm:bottom-48 sm:max-h-[calc(100dvh-13rem)]"
               : "bottom-24 max-h-[calc(100dvh-7rem)] sm:bottom-28 sm:max-h-[calc(100dvh-8rem)]",
           ]}
         >
           {/* Header */}
-          <div class="flex shrink-0 items-center justify-between bg-brand-green-dark border-b border-brand-gold/20 p-4 text-white">
+          <div class="flex shrink-0 items-center justify-between bg-brand-navy-dark border-b border-brand-gold/20 p-4 text-white">
             <div class="flex items-center gap-3">
               <div class="relative">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-brand-gold p-1 overflow-hidden">
@@ -223,19 +239,21 @@ export const Chatbot = component$(() => {
                     height={38}
                   />
                 </div>
-                <div class="absolute right-0 bottom-0 h-3 w-3 animate-pulse rounded-full border-2 border-brand-green-dark bg-emerald-400"></div>
+                <div class="absolute right-0 bottom-0 h-3 w-3 animate-pulse rounded-full border-2 border-brand-navy-dark bg-emerald-400"></div>
               </div>
               <div>
-                <h3 class="text-sm font-display font-extrabold tracking-wide text-brand-gold-light uppercase">
+                <h3 id="chatbot-title" class="text-sm font-display font-extrabold tracking-wide text-brand-gold-light uppercase">
                   Asistente LPRC
                 </h3>
-                <p class="text-[9px] font-bold tracking-widest text-slate-300 uppercase">
+                <p class="text-[11px] font-bold tracking-widest text-slate-300 uppercase">
                   En línea
                 </p>
               </div>
             </div>
             <button
+              type="button"
               onClick$={() => (state.isOpen = false)}
+              aria-label="Cerrar asistente virtual"
               class="text-slate-300 transition-colors hover:text-brand-gold cursor-pointer"
             >
               <svg
@@ -258,6 +276,9 @@ export const Chatbot = component$(() => {
           {/* Messages Area */}
           <div
             ref={messagesContainerRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Conversación con el asistente"
             class="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto bg-slate-50 p-4 scrollbar-thin"
           >
             {state.messages.map((msg, i) => (
@@ -272,7 +293,7 @@ export const Chatbot = component$(() => {
                   class={[
                     "max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-sm font-medium whitespace-pre-wrap break-words",
                     msg.role === "user"
-                      ? "rounded-br-none bg-brand-green text-white"
+                      ? "rounded-br-none bg-brand-navy text-white"
                       : "rounded-bl-none border border-slate-200 bg-white text-slate-800",
                   ]}
                 >
@@ -284,6 +305,7 @@ export const Chatbot = component$(() => {
             {state.isLoading && (
               <div class="flex justify-start">
                 <div class="flex items-center gap-1.5 rounded-2xl rounded-bl-none border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 shadow-sm">
+                  <span class="sr-only">El asistente está escribiendo…</span>
                   <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold"></div>
                   <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold [animation-delay:-0.15s]"></div>
                   <div class="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold [animation-delay:-0.3s]"></div>
@@ -299,17 +321,22 @@ export const Chatbot = component$(() => {
               onSubmit$={sendMessage}
               class="flex gap-2"
             >
+              <label for="chatbot-input" class="sr-only">Tu consulta</label>
+              {/* readOnly instead of disabled: disabling the focused input closes the phone keyboard after every message. */}
               <input
+                id="chatbot-input"
                 type="text"
                 bind:value={inputValue}
-                placeholder="Escribe tu consulta..."
-                class="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-brand-gold focus:outline-none"
-                disabled={state.isLoading}
+                placeholder="Escribí tu consulta..."
+                class="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-base sm:text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-brand-gold focus:outline-none"
+                readOnly={state.isLoading}
+                aria-busy={state.isLoading}
               />
               <button
                 type="submit"
+                aria-label="Enviar consulta"
                 disabled={!inputValue.value.trim() || state.isLoading}
-                class="flex items-center justify-center rounded-xl bg-brand-green p-2.5 text-white transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:opacity-50 cursor-pointer"
+                class="flex items-center justify-center rounded-xl bg-brand-navy p-2.5 text-white transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:opacity-50 cursor-pointer"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

@@ -3,6 +3,8 @@ import { routeLoader$, routeAction$, Form, z, zod$, type DocumentHead } from "@b
 import { LuImage } from "@qwikest/icons/lucide";
 import { getSettings, saveSettings } from "~/server/chatbotDb";
 import { putImage } from "~/server/media";
+import { ActionFeedback } from "~/components/admin/action-feedback";
+import { POPUP_DEFAULTS } from "~/components/popup-modal/popup-modal";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 
 // --- SECURITY & LOADERS ---
@@ -63,11 +65,11 @@ export default component$(() => {
 
   const s = settings.value;
 
-  // Popup Signals
-  const popupTitleSig = useSignal(s.popupTitle || "¡Gran Beneficio Especial!");
-  const popupDescSig = useSignal(s.popupDescription || "Disfrutá de un descuento exclusivo en nuestra red de comercios adheridos.");
-  const popupButtonTextSig = useSignal(s.popupButtonText || "Ver Detalles");
-  const popupButtonLinkSig = useSignal(s.popupButtonLink || "/");
+  // Empty fields stay empty: the placeholders and the preview show what the home uses instead.
+  const popupTitleSig = useSignal(s.popupTitle || "");
+  const popupDescSig = useSignal(s.popupDescription || "");
+  const popupButtonTextSig = useSignal(s.popupButtonText || "");
+  const popupButtonLinkSig = useSignal(s.popupButtonLink || "");
   const popupImageUrlSig = useSignal(s.popupImageUrl || "");
   const popupActiveSig = useSignal(s.popupActive);
 
@@ -87,12 +89,12 @@ export default component$(() => {
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 pb-7 gap-4">
         <div class="space-y-1.5 text-left">
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
-            <span class="text-[10px] font-extrabold tracking-widest text-slate-450 uppercase">
+            <span class="w-2 h-2 rounded-full bg-brand-navy"></span>
+            <span class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
               Administración / Portada & Promociones
             </span>
           </div>
-          <h1 class="text-3xl font-display font-extrabold text-brand-green-dark tracking-tight leading-none">
+          <h1 class="text-3xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-none">
             Popup Inicial de Bienvenida
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl">
@@ -101,11 +103,9 @@ export default component$(() => {
         </div>
       </div>
 
-      {updatePopupAction.value?.success && (
-        <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-xs font-bold text-emerald-800 shadow-sm text-left animate-fade-in">
-          ✓ Configuración del Popup de Bienvenida guardada exitosamente.
-        </div>
-      )}
+      <div class="text-left">
+        <ActionFeedback value={updatePopupAction.value} success="✓ Popup de bienvenida guardado." />
+      </div>
 
       <div class="grid grid-cols-1 grid-cols-12 gap-8 items-start">
         {/* LEFT COLUMN: POPUP EDITOR */}
@@ -119,7 +119,7 @@ export default component$(() => {
                   <h2 class="flex items-center gap-2 text-lg font-display font-extrabold text-brand-gold">
                     Modal de Anuncio de Bienvenida
                   </h2>
-                  <p class="text-[10px] font-bold tracking-wider text-slate-200 uppercase mt-0.5">
+                  <p class="text-[11px] font-bold tracking-wider text-slate-200 uppercase mt-0.5">
                     Configurá el popup flotante para avisos o saludos de ingreso
                   </p>
                 </div>
@@ -142,7 +142,7 @@ export default component$(() => {
                       }}
                       class="sr-only peer"
                     />
-                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green"></div>
+                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy"></div>
                   </label>
                 </div>
 
@@ -156,8 +156,8 @@ export default component$(() => {
                     onInput$={(ev, el) => {
                       popupTitleSig.value = el.value;
                     }}
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold font-sans"
-                    placeholder="Ej: ¡Gran Beneficio Especial!"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-bold font-sans"
+                    placeholder={POPUP_DEFAULTS.title}
                   />
                 </div>
 
@@ -171,7 +171,7 @@ export default component$(() => {
                     onInput$={(ev, el) => {
                       popupDescSig.value = el.value;
                     }}
-                    class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-medium font-sans"
+                    class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-medium font-sans"
                     placeholder="Detalles sobre la promoción..."
                   />
                 </div>
@@ -180,7 +180,7 @@ export default component$(() => {
                 <div class="space-y-1">
                   <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block font-sans">Imagen del Popup</label>
                   <div class="flex items-center gap-4 font-sans">
-                    <div class="w-16 h-16 bg-slate-100 rounded-2xl border border-slate-250 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div class="w-16 h-16 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                       {previewUrl.value ? (
                         <img src={previewUrl.value} alt="Preview" class="w-full h-full object-cover" />
                       ) : popupImageUrlSig.value ? (
@@ -191,7 +191,7 @@ export default component$(() => {
                     </div>
                     <div class="flex gap-2">
                       <label class="px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
-                        <LuImage class="w-4 h-4 text-brand-green" />
+                        <LuImage class="w-4 h-4 text-brand-navy" />
                         Subir Imagen
                         <input
                           id="image-file-input"
@@ -211,7 +211,7 @@ export default component$(() => {
                             const fileInput = document.getElementById("image-file-input") as HTMLInputElement;
                             if (fileInput) fileInput.value = "";
                           }}
-                          class="px-5 py-2.5 border border-red-200 hover:bg-red-50 text-red-650 text-xs font-extrabold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          class="px-5 py-2.5 border border-red-200 hover:bg-red-50 text-red-600 text-xs font-extrabold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                         >
                           Eliminar Imagen
                         </button>
@@ -231,8 +231,8 @@ export default component$(() => {
                       onInput$={(ev, el) => {
                         popupButtonTextSig.value = el.value;
                       }}
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-bold font-sans"
-                      placeholder="Ej: Ver Más"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-bold font-sans"
+                      placeholder={POPUP_DEFAULTS.buttonText}
                     />
                   </div>
 
@@ -245,7 +245,7 @@ export default component$(() => {
                       onInput$={(ev, el) => {
                         popupButtonLinkSig.value = el.value;
                       }}
-                      class="w-full bg-slate-50 text-slate-800 text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-green focus:bg-white focus:outline-none transition-all font-sans"
+                      class="w-full bg-slate-50 text-slate-800 text-base sm:text-sm px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-navy focus:bg-white focus:outline-none transition-all font-sans"
                       placeholder="Ej: /beneficio/descuento-farmacia"
                     />
                   </div>
@@ -256,7 +256,7 @@ export default component$(() => {
                 <button
                   type="submit"
                   disabled={updatePopupAction.isRunning}
-                  class="py-3.5 px-7 rounded-2xl bg-brand-green hover:bg-[#083521] disabled:bg-slate-350 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg shadow-brand-green/10 transition-all duration-300 active:scale-95 cursor-pointer font-sans"
+                  class="py-3.5 px-7 rounded-2xl bg-brand-navy hover:bg-[#083521] disabled:bg-slate-300 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg shadow-brand-navy/10 transition-all duration-300 active:scale-95 cursor-pointer font-sans"
                 >
                   {updatePopupAction.isRunning ? "Guardando..." : "Guardar Popup"}
                 </button>
@@ -268,7 +268,7 @@ export default component$(() => {
         {/* RIGHT COLUMN: PREVIEW */}
         <div class="col-span-12 lg:col-span-5 space-y-6">
           <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-xl text-left">
-            <h3 class="text-xs font-extrabold uppercase tracking-widest text-slate-440 mb-4 flex items-center gap-1.5 font-sans">
+            <h3 class="text-xs font-extrabold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-1.5 font-sans">
               <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span>
               Vista Previa en Vivo (Escritorio / Móvil)
             </h3>
@@ -276,7 +276,7 @@ export default component$(() => {
             {/* Visual Phone Frame Mockup Container */}
             <div class="relative bg-slate-900/5 rounded-[2.5rem] p-4 border border-slate-200/50 shadow-inner overflow-hidden max-w-sm mx-auto aspect-[9/16] flex items-center justify-center font-sans">
               {/* Status Indicator Badge */}
-              <div class={`absolute top-6 left-6 z-20 px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase shadow-sm ${popupActiveSig.value ? 'bg-emerald-500 text-white border border-emerald-400' : 'bg-rose-500 text-white border border-rose-450'}`}>
+              <div class={`absolute top-6 left-6 z-20 px-3 py-1 rounded-full text-[11px] font-black tracking-widest uppercase shadow-sm ${popupActiveSig.value ? 'bg-emerald-500 text-white border border-emerald-400' : 'bg-rose-500 text-white border border-rose-500'}`}>
                 {popupActiveSig.value ? 'ACTIVO' : 'DESACTIVADO'}
               </div>
 
@@ -296,7 +296,7 @@ export default component$(() => {
               {/* Popup Modal Box Simulator */}
               <div class="relative z-10 w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[90%] scale-95 origin-center">
                 {/* Close Button X (mockup only) */}
-                <div class="absolute top-3 right-3 z-30 bg-slate-950/60 hover:bg-slate-950/80 w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] cursor-not-allowed">
+                <div class="absolute top-3 right-3 z-30 bg-slate-950/60 hover:bg-slate-950/80 w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] cursor-not-allowed">
                   ✕
                 </div>
 
@@ -311,26 +311,32 @@ export default component$(() => {
                       <svg class="w-8 h-8 opacity-50 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                       </svg>
-                      <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Sin Imagen</span>
+                      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Sin Imagen</span>
                     </div>
                   )}
                 </div>
 
                 {/* Content */}
                 <div class="p-5 flex flex-col flex-1 overflow-y-auto space-y-3.5 text-left">
-                  <h4 class="text-sm font-black text-brand-green-dark leading-tight line-clamp-2">
-                    {popupTitleSig.value || "Sin Título"}
+                  <h4 class="text-sm font-black text-brand-navy-dark leading-tight line-clamp-2">
+                    {popupTitleSig.value || POPUP_DEFAULTS.title}
                   </h4>
-                  <p class="text-[10px] font-semibold text-slate-550 leading-relaxed line-clamp-4">
-                    {popupDescSig.value || "Sin Descripción"}
-                  </p>
+                  {popupDescSig.value && (
+                    <p class="text-[11px] font-semibold text-slate-600 leading-relaxed line-clamp-4">
+                      {popupDescSig.value}
+                    </p>
+                  )}
 
-                  {/* Action Link Button */}
-                  <div class="pt-1.5">
-                    <button class="w-full py-2.5 rounded-xl bg-brand-gold text-white font-extrabold text-[10px] uppercase tracking-widest shadow-md shadow-brand-gold/15 cursor-not-allowed">
-                      {popupButtonTextSig.value || "Ver Más"}
-                    </button>
-                  </div>
+                  {/* Like the home: the button only appears when there is a link */}
+                  {popupButtonLinkSig.value ? (
+                    <div class="pt-1.5">
+                      <button type="button" disabled class="w-full py-2.5 rounded-xl bg-brand-gold text-white font-extrabold text-[11px] uppercase tracking-widest shadow-md shadow-brand-gold/15 cursor-not-allowed">
+                        {popupButtonTextSig.value || POPUP_DEFAULTS.buttonText}
+                      </button>
+                    </div>
+                  ) : (
+                    <p class="text-[11px] text-slate-500">Sin enlace: el popup no muestra botón.</p>
+                  )}
                 </div>
               </div>
             </div>

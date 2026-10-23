@@ -1,14 +1,21 @@
 import { component$, Slot } from "@builder.io/qwik";
-import { useLocation, routeLoader$, server$ } from "@builder.io/qwik-city";
+import { useLocation, routeAction$, routeLoader$, server$ } from "@builder.io/qwik-city";
 import { Chatbot } from "~/components/chatbot/chatbot";
 import { ScrollToTop } from "~/components/scroll-to-top/scroll-to-top";
 import { SiteHeader } from "~/components/site-header/site-header";
 import { SiteFooter } from "~/components/site-footer/site-footer";
 import type { AuthenticatedUser } from "~/routes/plugin@auth";
 import { searchBenefits } from "~/server/cache";
+import { destroySession } from "~/server/auth";
 
 export const useLayoutUser = routeLoader$((event) => {
   return (event.sharedMap.get("user") || null) as AuthenticatedUser | null;
+});
+
+/** Header "Cerrar sesión": same mechanism as /perfil (revoke the session row, clear the cookie). */
+export const useSiteLogoutAction = routeAction$(async (_, requestEvent) => {
+  await destroySession(requestEvent);
+  throw requestEvent.redirect(302, "/");
 });
 
 export const getSearchSuggestions = server$(async function(query: string) {
@@ -45,10 +52,10 @@ export default component$(() => {
   }
 
   return (
-    <div class="min-h-screen flex flex-col bg-background font-sans text-white">
+    <div class="min-h-screen flex flex-col bg-background font-sans text-primary">
       <a
         href="#main-content"
-        class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-xl focus:bg-accent focus:px-5 focus:py-3 focus:font-bold focus:text-primary focus:outline-2 focus:outline-offset-2 focus:outline-white"
+        class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-90 focus:rounded-xl focus:bg-accent focus:px-5 focus:py-3 focus:font-bold focus:text-primary focus:outline-2 focus:outline-offset-2 focus:outline-white"
       >
         Ir al contenido principal
       </a>

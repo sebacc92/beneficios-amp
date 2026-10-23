@@ -67,13 +67,26 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
     });
   });
 
+  // Hidden slides are display:none, so their lazy images only start loading once shown and
+  // the slide flashes empty. Warm both neighbours of the visible slide instead.
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const current = track(() => currentSlide.value);
+    if (slides.length < 2) return;
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    for (const offset of [1, -1]) {
+      const slide = slides[(current + offset + slides.length) % slides.length];
+      new Image().src = (mobile && slide.imageMobile) || slide.imageUrl;
+    }
+  });
+
   if (!slides?.length) return null;
 
   return (
     <section
       aria-label="Beneficios destacados"
       aria-roledescription="carrusel"
-      class="relative w-full bg-[#020617] overflow-hidden print:hidden"
+      class="relative w-full bg-primary overflow-hidden print:hidden"
       onMouseEnter$={() => (isHovered.value = true)}
       onMouseLeave$={() => (isHovered.value = false)}
       onFocusIn$={() => (hasFocus.value = true)}
@@ -147,12 +160,12 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
                 height={646}
               />
             </picture>
-            <div class="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/70 to-[#020617]/10" />
+            <div class="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/45 to-transparent" />
             <div
               class={`relative z-10 w-full px-5 pt-16 sm:px-8 md:px-20 lg:px-24 ${slides.length > 1 ? "pb-24" : "pb-10"}`}
             >
               <div class="max-w-2xl text-left text-white">
-                <span class="inline-flex max-w-full items-center rounded-full border border-white/10 bg-brand-gold px-4 py-2 text-[10px] font-black uppercase tracking-widest text-brand-green-dark shadow-lg sm:text-xs">
+                <span class="inline-flex max-w-full items-center rounded-full border border-white/10 bg-brand-gold px-4 py-2 text-[11px] font-black uppercase tracking-widest text-brand-navy-dark shadow-lg sm:text-xs">
                   {slide.preTitle || "Exclusivo LPRC"}
                 </span>
                 <h2 class="mt-4 mb-3 break-words font-display text-4xl font-black leading-[1.08] tracking-tight text-white drop-shadow-md sm:text-5xl md:text-6xl">
@@ -165,7 +178,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
                 {slide.buttonText && (
                   <a
                     href={slide.buttonLink || "/"}
-                    class="mt-5 inline-flex min-h-11 max-w-full items-center justify-center rounded-full bg-brand-gold px-6 py-3 text-center text-xs font-black uppercase tracking-wider text-brand-green-dark shadow-md transition-colors hover:bg-brand-gold-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:px-8 sm:text-sm"
+                    class="mt-5 inline-flex min-h-11 max-w-full items-center justify-center rounded-full bg-brand-gold px-6 py-3 text-center text-xs font-black uppercase tracking-wider text-brand-navy-dark shadow-md transition-colors hover:bg-brand-gold-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:px-8 sm:text-sm"
                   >
                     {slide.buttonText}
                   </a>
@@ -181,7 +194,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
           <button
             type="button"
             onClick$={handlePrevSlide}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-black/45 text-white hover:bg-brand-gold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white text-primary hover:bg-brand-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             aria-label="Diapositiva anterior"
           >
             <svg
@@ -201,7 +214,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
           <button
             type="button"
             onClick$={handleNextSlide}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-black/45 text-white hover:bg-brand-gold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white text-primary hover:bg-brand-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             aria-label="Diapositiva siguiente"
           >
             <svg
@@ -252,7 +265,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides }) => {
                   : "Pausar presentación automática"
             }
             aria-pressed={isPaused.value || reducedMotion.value}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-black/45 text-white hover:bg-brand-gold hover:text-primary disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white text-primary hover:bg-brand-gold disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
           >
             {isPaused.value || reducedMotion.value ? (
               <svg

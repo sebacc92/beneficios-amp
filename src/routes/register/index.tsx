@@ -9,7 +9,7 @@ import { LuShield } from "@qwikest/icons/lucide";
 export const useRegisterAction = routeAction$(
   async (_, requestEvent) => {
     return requestEvent.fail(403, {
-      message: "El registro público de cuentas de socios está deshabilitado. Por favor, comunícate con la administración de LPRC para solicitar el alta.",
+      message: "Las altas de socios las hace el club. Comunicate con la secretaría para que te habiliten.",
     });
   }
 );
@@ -24,22 +24,20 @@ export default component$(() => {
           <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 mx-auto">
             <LuShield class="w-6 h-6 text-amber-600" />
           </div>
-          <h1 class="text-2xl font-display font-extrabold text-brand-green-dark tracking-tight leading-tight mt-3">
-            Registro Inhabilitado
+          <h1 class="text-2xl font-display font-extrabold text-brand-navy-dark tracking-tight leading-tight mt-3">
+            Las altas las hace el club
           </h1>
-          <p class="text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            El registro público de cuentas agremiadas se encuentra inhabilitado desde este portal de forma temporal.
+          <p class="text-sm text-slate-600 font-medium leading-relaxed">
+            No hace falta registrarte: si sos socio de La Plata Rugby Club, ingresás con tu DNI.
           </p>
         </div>
 
         {/* Dynamic Warning Alert Box */}
-        <div class="rounded-2xl border border-amber-150 bg-amber-50/50 p-5 text-left text-xs font-medium text-amber-800 leading-relaxed shadow-sm space-y-2">
-          <p class="font-bold uppercase tracking-wider text-[10px] text-amber-700">Aviso a Profesionales</p>
+        <div class="rounded-2xl border border-amber-100 bg-amber-50/50 p-5 text-left text-sm font-medium text-amber-900 leading-relaxed shadow-sm space-y-2">
+          <p class="font-bold">¿Tu DNI no funciona?</p>
           <p>
-            Para garantizar la seguridad e integridad del padrón, todas las altas y habilitaciones de nro. de socio son gestionadas directamente por el personal administrativo de la <strong>La Plata Rugby Club</strong>.
-          </p>
-          <p class="pt-1.5 border-t border-amber-200/50 font-semibold">
-            Por favor, ponete en contacto con la administración de la LPRC para solicitar tu alta de usuario.
+            La secretaría del club da de alta a los socios en el portal. Si todavía no te habilitaron, llamá al{" "}
+            <a href="tel:+542214895777" class="font-bold underline">(0221) 489-5777</a> y pedí que te sumen.
           </p>
         </div>
 
@@ -47,15 +45,15 @@ export default component$(() => {
         <div class="pt-4 border-t border-slate-100 flex flex-col gap-3">
           <Link
             href="/login"
-            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-green hover:bg-brand-green-light text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all duration-300 cursor-pointer"
+            class="w-full flex items-center justify-center py-3.5 px-6 rounded-2xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all duration-300 cursor-pointer"
           >
-            Volver a Iniciar Sesión
+            Ingresar con mi DNI
           </Link>
           <Link
             href="/"
             class="text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors uppercase tracking-wider"
           >
-            Volver a la Home
+            Volver al inicio
           </Link>
         </div>
 
@@ -69,7 +67,7 @@ export const head: DocumentHead = {
   meta: [
     {
       name: "description",
-      content: "El registro público de cuentas de socios está inhabilitado. Contacte a la administración para el alta.",
+      content: "Los socios de La Plata Rugby Club ingresan con su DNI; las altas las hace la secretaría del club.",
     },
   ],
 };

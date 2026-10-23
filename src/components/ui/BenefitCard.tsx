@@ -68,14 +68,13 @@ const getTimeAgo = (dateStr?: string) => {
 export const BenefitCard = component$<BenefitCardProps>(
   ({ benefit, variant = "standard", isLocked = false }) => {
     const desktopImageSrc = benefit.imagen
-      ? benefit.imagen.startsWith("http") || benefit.imagen.startsWith("/")
+      ? /^(https?:|data:|blob:|\/)/.test(benefit.imagen)
         ? benefit.imagen
         : `https://beneficios.lprc.ar/files/${benefit.imagen}`
       : "";
 
     const mobileImageSrc = benefit.imagenMobile
-      ? benefit.imagenMobile.startsWith("http") ||
-        benefit.imagenMobile.startsWith("/")
+      ? /^(https?:|data:|blob:|\/)/.test(benefit.imagenMobile)
         ? benefit.imagenMobile
         : `https://beneficios.lprc.ar/files/${benefit.imagenMobile}`
       : "";
@@ -90,10 +89,10 @@ export const BenefitCard = component$<BenefitCardProps>(
       return (
         <Link
           href={`/beneficio/${benefit.url}`}
-          class="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent bg-[#0B1526] border border-accent/30 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-accent/10 hover:-translate-y-1.5 transition-all duration-300 relative min-h-[368px] text-left"
+          class="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent bg-surface border border-accent/30 rounded-[1.8rem] overflow-hidden shadow-xl hover:shadow-accent/10 hover:-translate-y-1.5 transition-all duration-300 relative min-h-[368px] text-left"
         >
           {/* Card Image */}
-          <div class="relative h-[180px] bg-slate-950 overflow-hidden flex items-center justify-center">
+          <div class="relative h-[180px] bg-surface-muted overflow-hidden flex items-center justify-center">
             {desktopImageSrc ? (
               <picture class="w-full h-full block">
                 {mobileImageSrc && (
@@ -109,11 +108,11 @@ export const BenefitCard = component$<BenefitCardProps>(
                 />
               </picture>
             ) : (
-              <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-primary to-slate-950">
-                <span class="text-accent font-display font-black text-2xl">
+              <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-surface-muted">
+                <span class="text-primary font-display font-black text-2xl">
                   LPRC GOLD
                 </span>
-                <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
+                <span class="text-slate-600 text-[11px] font-bold uppercase tracking-wider mt-1">
                   {primaryCat}
                 </span>
               </div>
@@ -121,29 +120,29 @@ export const BenefitCard = component$<BenefitCardProps>(
 
             {/* Floating Badges */}
             <div class="absolute top-3.5 left-3.5 z-10">
-              <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-accent text-primary uppercase tracking-widest shadow-sm">
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black bg-accent text-primary uppercase tracking-widest shadow-sm">
                 {primaryCat}
               </span>
             </div>
             <div class="absolute top-3.5 right-3.5 z-10 max-w-[calc(100%-1.75rem)]">
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black bg-primary/80 text-accent backdrop-blur-sm tracking-wider uppercase border border-accent/20">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black bg-primary/80 text-accent backdrop-blur-sm tracking-wider uppercase border border-accent/20">
                 ★ GOLD
               </span>
             </div>
           </div>
 
           {/* Card Body */}
-          <div class="pt-5 px-6 pb-8 flex flex-col justify-between min-h-[192px] gap-4 bg-[#0B1526] text-left">
+          <div class="pt-5 px-6 pb-8 flex flex-col justify-between min-h-[192px] gap-4 bg-surface text-left">
             <div class="space-y-1.5">
-              <h3 class="text-[12px] font-black text-accent/80 uppercase tracking-wider truncate">
+              <h3 class="text-[12px] font-black text-slate-600 uppercase tracking-wider truncate">
                 {primaryLoc}
               </h3>
-              <h4 class="text-[16.5px] font-display font-extrabold text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors duration-200">
+              <h4 class="text-[16.5px] font-display font-extrabold text-primary line-clamp-2 leading-snug group-hover:text-slate-700 transition-colors duration-200">
                 {benefit.titulo}
               </h4>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-3.5 border-t border-secondary mt-auto">
-              <span class="text-[12px] font-black text-slate-400 uppercase tracking-wider">
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-3.5 border-t border-line mt-auto">
+              <span class="text-[12px] font-black text-slate-600 uppercase tracking-wider">
                 Membresía Gold
               </span>
               <span class="inline-flex items-center px-4 py-1.5 rounded-xl text-[14.5px] font-black bg-accent text-primary shadow-md uppercase tracking-wide border border-accent/20">
@@ -164,10 +163,10 @@ export const BenefitCard = component$<BenefitCardProps>(
       return (
         <Link
           href={`/beneficio/${benefit.url}`}
-          class="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent bg-[#0B1526] border border-secondary rounded-[1.8rem] overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative min-h-[396px] text-left"
+          class="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent bg-surface border border-line rounded-[1.8rem] overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative min-h-[396px] text-left"
         >
           {/* Card Image */}
-          <div class="relative h-[180px] bg-slate-900 overflow-hidden flex items-center justify-center">
+          <div class="relative h-[180px] bg-surface-muted overflow-hidden flex items-center justify-center">
             {desktopImageSrc ? (
               <picture class="w-full h-full block">
                 {mobileImageSrc && (
@@ -183,11 +182,11 @@ export const BenefitCard = component$<BenefitCardProps>(
                 />
               </picture>
             ) : (
-              <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-gradient-to-br from-primary to-secondary">
-                <span class="text-white font-display font-black text-2xl">
+              <div class="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-surface-muted">
+                <span class="text-primary font-display font-black text-2xl">
                   LPRC
                 </span>
-                <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
+                <span class="text-slate-600 text-[11px] font-bold uppercase tracking-wider mt-1">
                   {primaryCat}
                 </span>
               </div>
@@ -195,10 +194,10 @@ export const BenefitCard = component$<BenefitCardProps>(
 
             {/* Floating Badges */}
             <div class="absolute top-3.5 left-3.5 z-10 flex items-center justify-between w-[calc(100%-1.75rem)]">
-              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-black bg-primary/70 text-slate-100 backdrop-blur-sm border border-secondary uppercase tracking-widest leading-none">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black bg-primary/70 text-slate-100 backdrop-blur-sm border border-line uppercase tracking-widest leading-none">
                 {primaryCat}
               </span>
-              <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[9px] font-black bg-primary/80 text-accent backdrop-blur-sm border border-accent/20 tracking-widest uppercase leading-none">
+              <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-black bg-primary/80 text-accent backdrop-blur-sm border border-accent/20 tracking-widest uppercase leading-none">
                 <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
                 <span>{timeAgo}</span>
               </span>
@@ -206,21 +205,23 @@ export const BenefitCard = component$<BenefitCardProps>(
           </div>
 
           {/* Card Body */}
-          <div class="pt-5 px-6 pb-8 flex flex-col justify-between min-h-[220px] gap-4 bg-[#0B1526] text-left">
+          <div class="pt-5 px-6 pb-8 flex flex-col justify-between min-h-[220px] gap-4 bg-surface text-left">
             <div class="space-y-1.5">
-              <h3 class="text-[12px] font-black text-slate-400 uppercase tracking-widest truncate leading-none">
+              <h3 class="text-[12px] font-black text-slate-600 uppercase tracking-widest truncate leading-none">
                 {primaryLoc}
               </h3>
-              <h4 class="text-[15.5px] font-display font-extrabold text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors duration-200">
+              <h4 class="text-[15.5px] font-display font-extrabold text-primary line-clamp-2 leading-snug group-hover:text-slate-700 transition-colors duration-200">
                 {benefit.titulo}
               </h4>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-3.5 border-t border-secondary mt-auto">
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-3.5 border-t border-line mt-auto">
               <div class="flex items-center space-x-2 text-left">
-                <div class="w-7.5 h-7.5 rounded-lg bg-secondary border border-slate-700 flex items-center justify-center text-slate-400 flex-shrink-0">
+                <div class="w-7.5 h-7.5 rounded-lg bg-surface-muted border border-line flex items-center justify-center text-slate-600 flex-shrink-0">
                   <svg
-                    class="w-3.5 h-3.5 text-accent"
+                    class="w-3.5 h-3.5 text-primary"
+                    aria-hidden="true"
                     fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
                     <path
@@ -232,15 +233,15 @@ export const BenefitCard = component$<BenefitCardProps>(
                   </svg>
                 </div>
                 <div class="flex flex-col">
-                  <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  <span class="text-[11px] font-black text-slate-600 uppercase tracking-widest leading-none">
                     Inicio
                   </span>
-                  <span class="text-[12px] font-bold text-slate-300 tracking-tight mt-0.5 leading-none">
+                  <span class="text-[12px] font-bold text-slate-700 tracking-tight mt-0.5 leading-none">
                     {formattedDate}
                   </span>
                 </div>
               </div>
-              <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-black bg-accent/10 text-accent border border-accent/20 shadow-sm uppercase tracking-wide">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-black bg-accent/10 text-amber-900 border border-accent/40 shadow-sm uppercase tracking-wide">
                 {formattedDiscount}
               </span>
             </div>
@@ -254,10 +255,10 @@ export const BenefitCard = component$<BenefitCardProps>(
       <Link
         href={`/beneficio/${benefit.url}`}
         aria-label={`${benefit.titulo}: ${discountText}. Ver beneficio`}
-        class="bg-[#0B1526] border border-secondary rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:shadow-accent/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent shadow-md text-left"
+        class="bg-surface border border-line rounded-[2.2rem] overflow-hidden hover:shadow-xl hover:shadow-accent/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent shadow-md text-left"
       >
         {/* Image & floating elements */}
-        <div class="relative h-[180px] bg-slate-900 overflow-hidden flex items-center justify-center">
+        <div class="relative h-[180px] bg-surface-muted overflow-hidden flex items-center justify-center">
           {desktopImageSrc ? (
             <picture class="w-full h-full block">
               {mobileImageSrc && (
@@ -274,10 +275,10 @@ export const BenefitCard = component$<BenefitCardProps>(
             </picture>
           ) : (
             <div class="flex flex-col items-center justify-center p-6 text-center">
-              <span class="text-accent font-display font-black text-2xl">
+              <span class="text-primary font-display font-black text-2xl">
                 LPRC
               </span>
-              <span class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
+              <span class="text-slate-600 text-[11px] font-bold uppercase tracking-wider mt-1">
                 {primaryCat}
               </span>
             </div>
@@ -302,7 +303,7 @@ export const BenefitCard = component$<BenefitCardProps>(
 
           {/* Floating Category Pill */}
           <div class="absolute bottom-3 left-3 z-10">
-            <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-primary/70 backdrop-blur-sm border border-secondary uppercase tracking-wide text-white">
+            <span class="inline-flex items-center px-3.5 py-1 rounded-full text-[12px] font-bold bg-primary/70 backdrop-blur-sm border border-line uppercase tracking-wide text-white">
               {primaryCat}
             </span>
           </div>
@@ -312,20 +313,20 @@ export const BenefitCard = component$<BenefitCardProps>(
         <div class="flex-grow pt-6 px-6 pb-8 flex flex-col justify-between">
           <div class="space-y-2.5 text-left mb-5">
             {/* Location pin badge */}
-            <div class="flex items-center text-accent space-x-1">
-              <svg class="w-4 h-4 text-accent fill-current" viewBox="0 0 24 24">
+            <div class="flex items-center text-primary space-x-1">
+              <svg class="w-4 h-4 text-primary fill-current" viewBox="0 0 24 24">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
               </svg>
-              <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-400">
+              <span class="text-[13.5px] font-black uppercase tracking-wider text-slate-600">
                 {primaryLoc}
               </span>
             </div>
 
-            <h3 class="text-[20px] font-display font-black text-white leading-snug line-clamp-2 group-hover:text-accent transition-colors duration-300">
+            <h3 class="text-[20px] font-display font-black text-primary leading-snug line-clamp-2 group-hover:text-slate-700 transition-colors duration-300">
               {benefit.titulo}
             </h3>
 
-            <p class="text-[14.5px] text-slate-300 leading-relaxed font-medium line-clamp-3">
+            <p class="text-[14.5px] text-slate-600 leading-relaxed font-medium line-clamp-3">
               {benefit.descripcion
                 ? benefit.descripcion
                     .replace(/<[^>]*>/g, " ")
@@ -336,7 +337,7 @@ export const BenefitCard = component$<BenefitCardProps>(
           </div>
 
           {/* Action Link Button */}
-          <div class="pt-5 border-t border-secondary mt-auto">
+          <div class="pt-5 border-t border-line mt-auto">
             <span class="block text-center text-xs font-black uppercase tracking-wider py-3.5 rounded-2xl bg-accent text-primary group-hover:bg-accent-hover transition-colors shadow-md">
               Ver beneficio &rarr;
             </span>
