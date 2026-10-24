@@ -397,18 +397,32 @@ const statusTone: Record<ClassifiedImportRow["status"], string> = {
 const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => {
   const preview = useImportPreviewAction();
   const confirm = useImportConfirmAction();
-  const csv = useSignal("");
+  const csv = useSignal(String(preview.formData?.get("csv") ?? ""));
   const fileName = useSignal("");
+  const isReadingFile = useSignal(false);
+  const fileError = useSignal("");
   const filter = useSignal<"all" | ClassifiedImportRow["status"]>("all");
 
   const readFile = $(async (_: Event, input: HTMLInputElement) => {
     const file = input.files?.[0];
     if (!file) return;
+    isReadingFile.value = true;
+    fileError.value = "";
     fileName.value = file.name;
-    csv.value = await file.text();
+    // Invalidate the old review immediately, including while the new file is being read.
+    csv.value = "";
+    try {
+      csv.value = await file.text();
+    } catch {
+      fileError.value = "No pudimos leer el archivo. Volvé a elegirlo o pegá su contenido.";
+    } finally {
+      isReadingFile.value = false;
+    }
   });
 
   const result = preview.value?.success ? preview.value : null;
+  // Multipart submissions use CRLF; textarea values use LF. Compare their actual text.
+  const reviewChanged = Boolean(result && result.csv.replace(/\r\n?/g, "\n") !== csv.value.replace(/\r\n?/g, "\n"));
   const done = confirm.value?.success ? confirm.value : null;
   const rows = result ? result.rows.filter((row) => filter.value === "all" || row.status === filter.value) : [];
 
@@ -442,8 +456,10 @@ const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => 
                   <LuFileUp class="h-4 w-4" aria-hidden="true" />
                   Elegir archivo
                 </label>
-                <input id="import-file" type="file" accept=".csv,text/csv,text/plain" onChange$={readFile} class="sr-only" />
+                <input id="import-file" type="file" accept=".csv,text/csv,text/plain" onChange$={readFile} disabled={isReadingFile.value || confirm.isRunning} class="sr-only" />
                 <p class="mt-1.5 text-xs text-slate-600 break-all">{fileName.value ? `Elegido: ${fileName.value}` : "O pegá el contenido en el cuadro."}</p>
+                {isReadingFile.value && <p role="status" class="mt-1.5 text-xs text-slate-600">Leyendo archivo...</p>}
+                {fileError.value && <p role="alert" class="mt-1.5 text-sm text-red-700">{fileError.value}</p>}
               </div>
               <div>
                 <label for="import-csv" class="field-label">Contenido</label>
@@ -452,6 +468,7 @@ const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => 
                   name="csv"
                   rows={5}
                   bind:value={csv}
+                  disabled={isReadingFile.value || confirm.isRunning}
                   spellcheck={false}
                   placeholder={"nombre;email;dni\nJuana Pérez;juana@mail.com;30.123.456\nCarlos Díaz;;28999111"}
                   class="field font-mono text-sm"
@@ -460,7 +477,7 @@ const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => 
             </div>
             {preview.value?.failed && <ActionFeedback value={preview.value} />}
             <div class="flex justify-end">
-              <button type="submit" disabled={preview.isRunning || !csv.value.trim()} class="btn btn-dark">
+              <button type="submit" disabled={preview.isRunning || confirm.isRunning || isReadingFile.value || !csv.value.trim()} class="btn btn-dark">
                 {preview.isRunning ? "Revisando..." : "Revisar archivo"}
               </button>
             </div>
@@ -468,6 +485,11 @@ const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => 
 
           {result && (
             <div class="space-y-4 border-t border-slate-200 pt-5">
+              {reviewChanged && (
+                <p id="import-review-changed" role="status" class="border-l-4 border-amber-700 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  El contenido cambió. Esta vista previa corresponde a la revisión anterior. Tocá “Revisar archivo” antes de importar los cambios.
+                </p>
+              )}
               <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar filas de la vista previa">
                 {([
                   ["all", `Todas (${result.rows.length})`],
@@ -528,9 +550,10 @@ const ImportPanel = component$<{ onClose$: QRL<() => void> }>(({ onClose$ }) => 
                 <input type="hidden" name="csv" value={result.csv} />
                 {confirm.value?.failed && <ActionFeedback value={confirm.value} />}
                 <p class="text-sm text-slate-600">Las filas duplicadas o con error no se importan.</p>
-                <button type="submit" disabled={confirm.isRunning || result.summary.valid === 0} class="btn btn-primary">
+                <button type="submit" disabled={confirm.isRunning || preview.isRunning || isReadingFile.value || reviewChanged || result.summary.valid === 0} aria-describedby={reviewChanged ? "import-review-changed" : undefined} class="btn btn-primary">
                   {confirm.isRunning
                     ? "Importando..."
+                    : reviewChanged ? "Revisá de nuevo para importar"
                     : `Importar ${result.summary.valid} ${result.summary.valid === 1 ? "socio" : "socios"}`}
                 </button>
               </Form>

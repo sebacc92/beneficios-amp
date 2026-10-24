@@ -1,4 +1,6 @@
 import type { Benefit } from "~/server/cache";
+import { matchesBenefitQuery } from "~/utils/catalog-search";
+import { matchesCampaign } from "~/utils/home-benefits";
 
 export interface Coordinates {
   latitude: number;
@@ -76,13 +78,8 @@ export function filterMapBenefits(
   categoryId: number | null,
   locationId: number | null,
   offerId: number | null = null,
+  selection: { gold?: boolean; campaignSlugs?: string[]; campaignTerms?: string[] } = {},
 ): Benefit[] {
-  const normalize = (value: string) =>
-    value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLocaleLowerCase("es-AR");
-  const normalizedQuery = normalize(query.trim());
   return benefits.filter((benefit) => {
     if (!parseCoordinates(benefit.latitud, benefit.longitud)) return false;
     if (
@@ -97,17 +94,10 @@ export function filterMapBenefits(
       return false;
     if (offerId && !benefit.ofertas.some((offer) => offer.id === offerId))
       return false;
-    return (
-      !normalizedQuery ||
-      normalize(
-        [
-          benefit.titulo,
-          benefit.descripcion,
-          ...benefit.categorias.map((category) => category.descripcion),
-          ...benefit.ubicacion.map((location) => location.descripcion),
-        ].join(" "),
-      ).includes(normalizedQuery)
-    );
+    if (selection.gold && !benefit.isPremiumOnly) return false;
+    if (selection.campaignSlugs?.length && !selection.campaignSlugs.includes(benefit.url)) return false;
+    if (selection.campaignTerms && !matchesCampaign(benefit, selection.campaignTerms)) return false;
+    return matchesBenefitQuery(benefit, query);
   });
 }
 

@@ -128,11 +128,23 @@ export default component$(() => {
         slides={slides}
       />
 
-      <section class="mx-auto max-w-[90rem] px-4 pt-10 pb-4 text-left print:hidden sm:px-6 lg:px-8" aria-labelledby="home-explore-title">
+      <section class="mx-auto max-w-[90rem] px-4 pt-6 pb-2 text-left print:hidden sm:px-6 sm:pb-4 sm:pt-10 lg:px-8" aria-labelledby="home-explore-title">
         <SectionHeading id="home-explore-title" eyebrow="Encontrá lo que buscás" title="Rubros y descuentos" size="md" />
-        <div class="mt-6 space-y-6">
-          <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} title="Por rubro" />
-          <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} title="Por descuento" />
+        <div class="mt-4 space-y-3 sm:mt-6 sm:space-y-6">
+          <div class="md:hidden">
+            <p class="mb-1 text-xs font-semibold text-slate-600">Por rubro</p>
+            <CategorySlider categorias={filters.categorias} sliderId="home-category-chips" variant="chips" filterEmpty={true} title="Por rubro" />
+          </div>
+          <div class="hidden md:block">
+            <CategorySlider categorias={filters.categorias} sliderId="home-category-container" filterEmpty={true} title="Por rubro" />
+          </div>
+          <div class="md:hidden">
+            <p class="mb-1 text-xs font-semibold text-slate-600">Por descuento</p>
+            <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-chips" variant="chips" filterEmpty={true} title="Por descuento" />
+          </div>
+          <div class="hidden md:block">
+            <OfferSlider ofertas={filters.ofertas} sliderId="home-offer-container" filterEmpty={true} title="Por descuento" />
+          </div>
         </div>
       </section>
 

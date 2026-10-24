@@ -1,8 +1,11 @@
 import { component$, useSignal } from "@builder.io/qwik";
-import { Link, type DocumentHead } from "@builder.io/qwik-city";
+import { Link, routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
 import { LuArrowRight, LuMapPin, LuMessageCircle, LuPhone } from "@qwikest/icons/lucide";
 import { SectionHeading } from "~/components/section-heading/section-heading";
 import { CLUB, dniHelpMessage, whatsappLink } from "~/utils/club";
+import { RETURN_PARAM, loginUrl, safeReturnPath } from "~/utils/return-path";
+
+export const useReturnPath = routeLoader$((event) => safeReturnPath(event.url.searchParams.get(RETURN_PARAM)));
 
 interface Cause {
   title: string;
@@ -35,6 +38,7 @@ const CAUSES: Cause[] = [
 
 /** Members have no password, so "forgot my password" is really "my DNI is not accepted". */
 export default component$(() => {
+  const returnPath = useReturnPath();
   const dni = useSignal("");
 
   return (
@@ -46,10 +50,16 @@ export default component$(() => {
               Los socios ingresan solo con su DNI, sin contraseña. Acá tenés las causas más comunes y cómo resolver cada una.
             </p>
           </SectionHeading>
-          <Link href="/login/" class="btn btn-primary mt-7">
-            Ingresar con mi DNI
-            <LuArrowRight class="h-4 w-4" aria-hidden="true" />
-          </Link>
+          <div class="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link href={loginUrl(returnPath.value)} class="btn btn-primary">
+              Ingresar con mi DNI
+              <LuArrowRight class="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <a href="#contactar-secretaria" class="btn btn-outline-light">
+              <LuMessageCircle class="h-4 w-4" aria-hidden="true" />
+              Contactar a secretaría
+            </a>
+          </div>
         </div>
       </section>
 
@@ -76,7 +86,7 @@ export default component$(() => {
         </section>
 
         <aside class="space-y-6" aria-label="Canales de ayuda">
-          <section aria-labelledby="help-channels-title" class="border-t-4 border-accent bg-primary p-6 text-white sm:p-8">
+          <section id="contactar-secretaria" aria-labelledby="help-channels-title" class="scroll-mt-52 border-t-4 border-accent bg-primary p-6 text-white sm:p-8">
             <h2 id="help-channels-title" class="heading-display text-2xl">
               Escribinos y lo revisamos
             </h2>

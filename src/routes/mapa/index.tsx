@@ -16,6 +16,9 @@ import {
   type DocumentHead,
 } from "@builder.io/qwik-city";
 import { searchBenefits, getFilters } from "~/server/cache";
+import { getSettings } from "~/server/chatbotDb";
+import { campaignTerms, parseCatalogSort, sortCatalog } from "~/utils/home-benefits";
+import { benefitDetailsHref, catalogHref, catalogSearchParams } from "~/utils/catalog-navigation";
 import {
   MAP_PIN_STYLES,
   benefitImageUrl,
@@ -44,15 +47,20 @@ import {
 } from "@qwikest/icons/lucide";
 
 export const useBenefitsMapData = routeLoader$(async (event) => {
-  const [searchResult, filters] = await Promise.all([
-    searchBenefits({ limit: 1000, requestEvent: event }),
+  const [searchResult, filters, settings] = await Promise.all([
+    searchBenefits({ limit: 10_000, requestEvent: event }),
     getFilters(event),
+    event.url.searchParams.get("campana") === "1" ? getSettings(event) : null,
   ]);
   return {
     benefits: searchResult.data.filter((benefit) =>
       parseCoordinates(benefit.latitud, benefit.longitud),
     ),
     filters,
+    catalogQuery: catalogSearchParams(event.url.searchParams).toString(),
+    campaignSlugs: settings?.campaignBenefitSlugs ?? [],
+    campaignTerms: settings ? campaignTerms(settings.campaignQuery) : undefined,
+    campaignTitle: settings?.campaignTitle || "Especiales del club",
   };
 });
 
@@ -60,7 +68,12 @@ export default component$(() => {
   useStyles$(MAP_PIN_STYLES);
   const location = useLocation();
   const data = useBenefitsMapData();
-  const searchQuery = useSignal(location.url.searchParams.get("buscar") || "");
+  const initialParams = new URLSearchParams(data.value.catalogQuery);
+  const catalogPage = useSignal(Number(initialParams.get("page")) || 1);
+  const catalogSort = parseCatalogSort(initialParams.get("orden"));
+  const selectedGold = useSignal(initialParams.get("gold") === "1");
+  const selectedCampaign = useSignal(initialParams.get("campana") === "1");
+  const searchQuery = useSignal(initialParams.get("buscar") || "");
   // What the visitor is typing; it reaches searchQuery (and redraws every marker) 250 ms after the last key.
   const searchDraft = useSignal(searchQuery.value);
   useTask$(({ track, cleanup }) => {
@@ -70,13 +83,13 @@ export default component$(() => {
     cleanup(() => clearTimeout(timer));
   });
   const selectedCategory = useSignal<number | null>(
-    Number(location.url.searchParams.get("categoria")) || null,
+    Number(initialParams.get("categoria")) || null,
   );
   const selectedLocation = useSignal<number | null>(
-    Number(location.url.searchParams.get("ubicacion")) || null,
+    Number(initialParams.get("ubicacion")) || null,
   );
   const selectedOffer = useSignal<number | null>(
-    Number(location.url.searchParams.get("oferta")) || null,
+    Number(initialParams.get("oferta")) || null,
   );
   const filtersOpen = useSignal(false);
   // Phones show the list or the map, not both stacked; desktop always shows both.
@@ -100,35 +113,58 @@ export default component$(() => {
   const markersRef = useSignal<NoSerialize<Map<number, any>>>();
   const tilesRef = useSignal<NoSerialize<any>>();
 
-  const filteredBenefits = useComputed$(() =>
-    filterMapBenefits(
+  const filteredBenefits = useComputed$(() => {
+    const slugs = data.value.campaignSlugs;
+    const matches = filterMapBenefits(
       data.value.benefits,
       searchQuery.value,
       selectedCategory.value,
       selectedLocation.value,
       selectedOffer.value,
-    ),
-  );
+      {
+        gold: selectedGold.value,
+        campaignSlugs: selectedCampaign.value ? slugs : undefined,
+        campaignTerms: selectedCampaign.value && !slugs.length ? data.value.campaignTerms : undefined,
+      },
+    );
+    const sort = catalogSort;
+    return selectedCampaign.value && slugs.length && !sort
+      ? [...matches].sort((a, b) => slugs.indexOf(a.url) - slugs.indexOf(b.url))
+      : sortCatalog(matches, sort);
+  });
   const nearbyBenefits = useComputed$(() =>
     rankMapBenefits(filteredBenefits.value, userPosition.value),
   );
-  const listadoHref = useComputed$(() => {
-    const params = new URLSearchParams();
-    if (searchQuery.value.trim())
-      params.set("buscar", searchQuery.value.trim());
-    if (selectedCategory.value)
-      params.set("categoria", String(selectedCategory.value));
-    if (selectedLocation.value)
-      params.set("ubicacion", String(selectedLocation.value));
-    if (selectedOffer.value) params.set("oferta", String(selectedOffer.value));
-    return `/beneficios/${params.size ? `?${params}` : ""}`;
+  const resultQuery = useComputed$(() => {
+    const params = new URLSearchParams(data.value.catalogQuery);
+    for (const [key, value] of [
+      ["buscar", searchQuery.value.trim()],
+      ["categoria", selectedCategory.value],
+      ["ubicacion", selectedLocation.value],
+      ["oferta", selectedOffer.value],
+      ["gold", selectedGold.value ? 1 : null],
+      ["campana", selectedCampaign.value ? 1 : null],
+      ["page", catalogPage.value > 1 ? catalogPage.value : null],
+    ] as const) {
+      if (value) params.set(key, String(value));
+      else params.delete(key);
+    }
+    return params.toString();
+  });
+  const listadoHref = useComputed$(() => catalogHref("/beneficios/", new URLSearchParams(resultQuery.value)));
+  const mapResultsHref = useComputed$(() => {
+    const params = new URLSearchParams(resultQuery.value);
+    if (mobileView.value === "lista") params.set("vista", "lista");
+    return catalogHref("/mapa/", params);
   });
   const hasFilters = useComputed$(() =>
     Boolean(
       searchQuery.value.trim() ||
         selectedCategory.value ||
         selectedLocation.value ||
-        selectedOffer.value,
+        selectedOffer.value ||
+        selectedGold.value ||
+        selectedCampaign.value,
     ),
   );
   const locationButtonLabel = useComputed$(() => {
@@ -142,21 +178,8 @@ export default component$(() => {
   });
 
   useVisibleTask$(({ track }) => {
-    const query = track(() => searchQuery.value);
-    const category = track(() => selectedCategory.value);
-    const locality = track(() => selectedLocation.value);
-    const offer = track(() => selectedOffer.value);
-    const url = new URL(window.location.href);
-    for (const [key, value] of [
-      ["buscar", query.trim()],
-      ["categoria", category],
-      ["ubicacion", locality],
-      ["oferta", offer],
-    ] as const) {
-      if (value) url.searchParams.set(key, String(value));
-      else url.searchParams.delete(key);
-    }
-    window.history.replaceState(window.history.state, "", url.toString());
+    const href = track(() => mapResultsHref.value);
+    window.history.replaceState(window.history.state, "", href);
   });
 
   useVisibleTask$(({ cleanup }) => {
@@ -325,6 +348,7 @@ export default component$(() => {
   useVisibleTask$(({ track }) => {
     const ready = track(() => mapReady.value);
     const benefits = track(() => filteredBenefits.value);
+    const resultsPath = track(() => mapResultsHref.value);
     if (!ready || !mapRef.value || !markersGroupRef.value || !markersRef.value)
       return;
     const L = (window as any).L;
@@ -366,7 +390,7 @@ export default component$(() => {
       const link = document.createElement("a");
       link.className =
         "mt-3 block bg-primary px-3 py-2.5 text-center font-display text-sm font-semibold uppercase tracking-wider !text-white";
-      link.href = `/beneficio/${encodeURIComponent(benefit.url)}/`;
+      link.href = benefitDetailsHref(benefit.url, resultsPath);
       link.textContent = "Ver beneficio →";
       popup.appendChild(link);
       const marker = L.marker([coordinates.latitude, coordinates.longitude], {
@@ -516,6 +540,9 @@ export default component$(() => {
     selectedCategory.value = null;
     selectedLocation.value = null;
     selectedOffer.value = null;
+    selectedGold.value = false;
+    selectedCampaign.value = false;
+    catalogPage.value = 1;
   });
 
   const showOnMap = $((benefitId: number) => {
@@ -548,6 +575,21 @@ export default component$(() => {
           </div>
 
           <div class="mt-5 flex flex-col gap-3">
+            {(selectedGold.value || selectedCampaign.value) && (
+              <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="font-semibold text-slate-600">Filtros del catálogo:</span>
+                {selectedGold.value && (
+                  <button type="button" class="badge badge-dark min-h-11 max-w-full cursor-pointer gap-2 whitespace-normal text-left" onClick$={() => { selectedGold.value = false; catalogPage.value = 1; }} aria-label="Quitar filtro Socios Gold">
+                    Socios Gold <span aria-hidden="true">×</span>
+                  </button>
+                )}
+                {selectedCampaign.value && (
+                  <button type="button" class="badge badge-dark min-h-11 max-w-full cursor-pointer gap-2 whitespace-normal text-left" onClick$={() => { selectedCampaign.value = false; catalogPage.value = 1; }} aria-label="Quitar filtro de campaña">
+                    {data.value.campaignTitle} <span aria-hidden="true">×</span>
+                  </button>
+                )}
+              </div>
+            )}
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
               <div class="hidden lg:block lg:flex-1">
                 <label for="map-search" class="field-label">Buscar comercio o beneficio</label>
@@ -560,6 +602,7 @@ export default component$(() => {
                     value={searchDraft.value}
                     onInput$={(_, element) => {
                       searchDraft.value = element.value;
+                      catalogPage.value = 1;
                     }}
                     class="field min-h-11 pl-9 text-base sm:text-sm"
                   />
@@ -604,6 +647,7 @@ export default component$(() => {
                   value={searchDraft.value}
                   onInput$={(_, element) => {
                     searchDraft.value = element.value;
+                    catalogPage.value = 1;
                   }}
                   class="field min-h-11 text-base"
                 />
@@ -615,6 +659,7 @@ export default component$(() => {
                   value={selectedCategory.value || ""}
                   onChange$={(_, element) => {
                     selectedCategory.value = Number(element.value) || null;
+                    catalogPage.value = 1;
                   }}
                   class="field min-h-11 text-base sm:text-sm"
                 >
@@ -633,6 +678,7 @@ export default component$(() => {
                   value={selectedLocation.value || ""}
                   onChange$={(_, element) => {
                     selectedLocation.value = Number(element.value) || null;
+                    catalogPage.value = 1;
                   }}
                   class="field min-h-11 text-base sm:text-sm"
                 >
@@ -651,6 +697,7 @@ export default component$(() => {
                   value={selectedOffer.value || ""}
                   onChange$={(_, element) => {
                     selectedOffer.value = Number(element.value) || null;
+                    catalogPage.value = 1;
                   }}
                   class="field min-h-11 text-base sm:text-sm"
                 >
@@ -766,7 +813,7 @@ export default component$(() => {
                           {benefit.resumen || "Beneficio para socios"}
                         </span>
                         <Link
-                          href={`/beneficio/${benefit.url}/`}
+                          href={benefitDetailsHref(benefit.url, mapResultsHref.value)}
                           class="relative z-10 inline-flex min-h-11 items-center gap-1 text-xs font-bold text-primary underline-offset-4 hover:underline"
                         >
                           Ver beneficio

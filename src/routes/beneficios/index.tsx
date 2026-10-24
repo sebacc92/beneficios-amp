@@ -27,6 +27,7 @@ import { CategorySlider } from "~/components/category-slider/category-slider";
 import { OfferSlider } from "~/components/offer-slider/offer-slider";
 import { BenefitCard } from "~/components/ui/BenefitCard";
 import { SectionHeading } from "~/components/section-heading/section-heading";
+import { catalogHref } from "~/utils/catalog-navigation";
 
 const PAGE_SIZE = 12;
 // Larger than the catalog: results are sorted here, after filtering, and paged afterwards.
@@ -115,6 +116,8 @@ export const useBenefitsData = routeLoader$(async (event) => {
       limit: PAGE_SIZE,
     },
     filters,
+    resultsPath: catalogHref("/beneficios/", params),
+    mapHref: catalogHref("/mapa/", params),
     campaignTitle: settings
       ? settings.campaignTitle || CAMPAIGN_DEFAULTS.title
       : null,
@@ -145,7 +148,7 @@ export default component$(() => {
   const data = useBenefitsData();
   const navigate = useNavigate();
 
-  const { searchResult, filters, activeFilters, campaignTitle, location } =
+  const { searchResult, filters, activeFilters, campaignTitle, location, resultsPath, mapHref } =
     data.value;
   const { data: benefits, total, totalPages, page, limit } = searchResult;
   const hasActiveFilters = Boolean(
@@ -207,18 +210,6 @@ export default component$(() => {
     const query = searchParams.toString();
     return `/beneficios/${query ? `?${query}` : ""}`;
   };
-
-  // The map sorts by distance from the visitor, keeping the same filters.
-  const mapParams = new URLSearchParams();
-  if (activeFilters.query) mapParams.set("buscar", activeFilters.query);
-  if (activeFilters.categoryId)
-    mapParams.set("categoria", String(activeFilters.categoryId));
-  if (activeFilters.locationId)
-    mapParams.set("ubicacion", String(activeFilters.locationId));
-  if (activeFilters.offerId)
-    mapParams.set("oferta", String(activeFilters.offerId));
-  const mapQuery = mapParams.toString();
-  const mapHref = `/mapa/${mapQuery ? `?${mapQuery}` : ""}`;
 
   // A group with nothing to pick (e.g. a search without matches) is left out entirely.
   const available = <T extends { id: number; beneficios_count?: number }>(
@@ -561,6 +552,7 @@ export default component$(() => {
                 <BenefitCard
                   benefit={benefit}
                   commonLocation={location?.name}
+                  resultsPath={resultsPath}
                 />
               </div>
             ))}

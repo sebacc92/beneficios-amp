@@ -28,10 +28,11 @@ import { eq } from "drizzle-orm";
 import { putImage, putMedia } from "~/server/media";
 import { getDB } from "~/db";
 import { benefits as benefitsTable } from "~/db/schema";
-import { getFilters, getCustomBenefitRows, type Benefit } from "~/server/cache";
+import { getFilters, type Benefit } from "~/server/cache";
+import { loadAdminBenefits, type AdminBenefitRow, type FeaturedPlacement } from "~/server/admin-benefits";
 import { BenefitCard } from "~/components/ui/BenefitCard";
 import { createBenefitFilter, validateBenefitFilterSelection, BenefitFilterValidationError, type BenefitFilterType } from "~/server/benefit-filters";
-import { deleteBenefit, getCouponCountsByBenefit } from "~/server/coupons";
+import { deleteBenefit } from "~/server/coupons";
 import { ActionFeedback, Notice } from "~/components/admin/action-feedback";
 import { AdminPageHeader } from "~/components/admin/page-header";
 import { isDraftBenefit, parseValidUntil } from "~/utils/benefit-status";
@@ -65,7 +66,6 @@ const filterEditorLabels = {
 
 const couponLabel = (count: number) => (count === 1 ? "1 cupón" : `${count} cupones`);
 
-type AdminBenefitRow = typeof benefitsTable.$inferSelect & { couponCount: number };
 type FieldErrors = Record<string, string | undefined>;
 type StatusFilter = "all" | "published" | "draft";
 type ValidityFilter = "all" | "vencido" | "vence-pronto";
@@ -74,6 +74,13 @@ const fieldLabelClass = "field-label";
 const hintClass = "mt-1 text-xs text-slate-600";
 const iconButtonClass =
   "inline-flex h-10 w-10 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary cursor-pointer";
+
+const featuredLabels: Record<FeaturedPlacement, { label: string; detail: string }> = {
+  home: { label: "En portada", detail: "Está entre los 6 beneficios destacados de la portada." },
+  overflow: { label: "Fuera de los 6", detail: "Marcado como destacado. Otros 6 publicados y vigentes tienen prioridad por fecha de creación. Sigue en el catálogo." },
+  draft: { label: "Destacado · Borrador", detail: "Marcado como destacado. Publicalo para que participe de la selección de portada." },
+  expired: { label: "Destacado · Vencido", detail: "Marcado como destacado. No aparece en portada ni en el catálogo porque venció." },
+};
 
 /** Date inputs only take YYYY-MM-DD; a stored ISO instant keeps its day. */
 const dateInputValue = (raw: string | null | undefined) => parseValidUntil(raw).validUntil?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -465,18 +472,7 @@ export const useAdminCustomBenefitsLoader = routeLoader$(async (event) => {
   if (!user || user.role !== "admin") {
     throw event.redirect(302, "/login");
   }
-  try {
-    const [rows, couponCounts] = await Promise.all([
-      getCustomBenefitRows(event),
-      getCouponCountsByBenefit(event),
-    ]);
-    return rows
-      .map((row) => ({ ...row, couponCount: couponCounts[row.id] ?? 0 }))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch (err) {
-    console.error("Failed to load custom benefits:", err);
-    return [];
-  }
+  return loadAdminBenefits(event);
 });
 
 export const useAdminFiltersLoader = routeLoader$(async (event) => {
@@ -741,10 +737,10 @@ const BenefitForm = component$<BenefitFormProps>((props) => {
   const filterNotice = useSignal("");
   const imageError = useSignal("");
 
-  const duplicate = useComputed$(() => findDuplicateTitle(benefits.value, titulo.value, isEdit ? source.id : undefined));
+  const duplicate = useComputed$(() => findDuplicateTitle(benefits.value.rows, titulo.value, isEdit ? source.id : undefined));
   const offerDescription = useComputed$(() => adminFilters.value.ofertas.find((offer) => String(offer.id) === selection.ofertas)?.descripcion);
   const resumenSuggestions = useComputed$(() => {
-    const values = [...adminFilters.value.ofertas.map((offer) => offer.descripcion), ...benefits.value.map((benefit) => benefit.resumen)];
+    const values = [...adminFilters.value.ofertas.map((offer) => offer.descripcion), ...benefits.value.rows.map((benefit) => benefit.resumen)];
     return [...new Set(values.map(normalizeResumen).filter(Boolean))].slice(0, 30);
   });
 
@@ -1192,7 +1188,7 @@ const BenefitForm = component$<BenefitFormProps>((props) => {
                   />
                   <label for={`${p}-isFeatured`} class="text-sm font-bold text-primary cursor-pointer">
                     Mostrar en “Beneficios destacados”
-                    <span class="block text-xs font-normal text-slate-600">La portada muestra hasta 6 destacados publicados, de los más nuevos a los más viejos.</span>
+                    <span class="block text-xs font-normal text-slate-600">La portada muestra hasta 6 destacados publicados y vigentes, de los más nuevos a los más viejos. El listado indica cuáles están en portada.</span>
                   </label>
                 </div>
               </div>
@@ -1263,7 +1259,7 @@ export default component$(() => {
 
   // Deep links: ?estado=, ?vigencia=, ?ubicacion=sin, ?destacados=1 and ?editar=<id> from the
   // dashboard; ?nuevo=1&titulo=&telefono= from a merchant request (prefilled, never saved alone).
-  const editTarget = benefits.value.find((row) => row.id === params.get("editar")) ?? null;
+  const editTarget = benefits.value.rows.find((row) => row.id === params.get("editar")) ?? null;
   const createPrefill =
     !editTarget && params.get("nuevo") === "1"
       ? { titulo: (params.get("titulo") ?? "").trim().slice(0, 120), phone: (params.get("telefono") ?? "").trim().slice(0, 40) }
@@ -1348,7 +1344,7 @@ export default component$(() => {
   const today = argentinaDay();
 
   const filteredBenefits = useComputed$(() => {
-    let items = benefits.value;
+    let items = benefits.value.rows;
     if (featuredOnly.value) items = items.filter((benefit) => benefit.isFeatured);
     if (withoutLocationOnly.value) items = items.filter((benefit) => !hasCoordinates(benefit));
     if (statusFilter.value === "published") items = items.filter((b) => !isDraftBenefit(b.validUntil));
@@ -1378,14 +1374,14 @@ export default component$(() => {
   });
 
   const renderBadges = (benefit: AdminBenefitRow) => {
-    const isActive = !isDraftBenefit(benefit.validUntil);
+    const placement = benefit.featuredPlacement && featuredLabels[benefit.featuredPlacement];
     const expires = formatValidUntil(benefit.validUntil);
     const validity = benefitValidity(benefit.validUntil, today);
     return (
       <>
-        {benefit.isFeatured && (
-          <span class="badge badge-accent" title={isActive ? "Seleccionado para Beneficios destacados" : "Marcado como destacado; publicalo para incluirlo en la selección"}>
-            <LuSparkles class="h-3 w-3" /> Destacado
+        {placement && (
+          <span class={benefit.featuredPlacement === "home" ? "badge badge-accent" : "badge badge-muted"} title={placement.detail}>
+            <LuSparkles class="h-3 w-3" aria-hidden="true" /> {placement.label}
           </span>
         )}
         {benefit.isPremiumOnly && <span class="badge badge-dark" title="Solo los socios Gold pueden generar el cupón">Solo Gold</span>}
@@ -1611,7 +1607,7 @@ export default component$(() => {
               <LuMapPinOff class="h-4 w-4" /> Sin ubicación
             </button>
             <p class="ml-auto text-sm text-slate-600" aria-live="polite">
-              {filteredBenefits.value.length === 1 ? "1 beneficio" : `${filteredBenefits.value.length} beneficios`}
+              {benefits.value.loadError ? "Listado no disponible" : filteredBenefits.value.length === 1 ? "1 beneficio" : `${filteredBenefits.value.length} beneficios`}
               {filtersActive && (
                 <>
                   {" · "}
@@ -1636,10 +1632,16 @@ export default component$(() => {
 
         {/* Cards up to `xl`, where the table has room for every column next to the sidebar */}
         <div class="border border-line bg-white">
-          {paginatedBenefits.value.length === 0 ? (
+          {benefits.value.loadError ? (
+            <div role="alert" class="space-y-3 px-6 py-10 text-center">
+              <p class="font-semibold text-primary">No pudimos cargar los beneficios.</p>
+              <p class="text-sm text-slate-600">No se pudo consultar el listado. Reintentá para ver los beneficios guardados.</p>
+              <a href={location.url.pathname + location.url.search} class="btn btn-outline">Reintentar</a>
+            </div>
+          ) : paginatedBenefits.value.length === 0 ? (
             <div class="flex items-center justify-center gap-2 px-6 py-12 text-center text-sm text-slate-600">
               <LuTicket class="h-5 w-5 text-slate-400" />
-              <span>{benefits.value.length ? "No hay beneficios que coincidan con los filtros." : "Todavía no hay beneficios. Tocá “Nuevo beneficio” para cargar el primero."}</span>
+              <span>{benefits.value.rows.length ? "No hay beneficios que coincidan con los filtros." : "Todavía no hay beneficios. Tocá “Nuevo beneficio” para cargar el primero."}</span>
             </div>
           ) : (
             <>

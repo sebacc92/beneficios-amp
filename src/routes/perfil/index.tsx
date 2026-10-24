@@ -419,7 +419,11 @@ export default component$(() => {
                     <button type="submit" disabled={updateAction.isRunning || dniMismatch} class="btn btn-dark">
                       {updateAction.isRunning ? "Guardando…" : "Guardar cambios"}
                     </button>
-                    <button type="button" onClick$={() => (showEditForm.value = false)} class="btn btn-outline">
+                    <button type="button" onClick$={() => {
+                      dniDraft.value = userLoader.value.numeroSocio || "";
+                      dniConfirm.value = "";
+                      showEditForm.value = false;
+                    }} class="btn btn-outline">
                       Cancelar
                     </button>
                   </div>
@@ -448,7 +452,11 @@ export default component$(() => {
                       </dd>
                     </div>
                   </dl>
-                  <button type="button" onClick$={() => (showEditForm.value = true)} class="btn btn-outline btn-sm mt-6">
+                  <button type="button" onClick$={() => {
+                    dniDraft.value = userLoader.value.numeroSocio || "";
+                    dniConfirm.value = "";
+                    showEditForm.value = true;
+                  }} class="btn btn-outline btn-sm mt-6">
                     Modificar datos
                   </button>
                 </>

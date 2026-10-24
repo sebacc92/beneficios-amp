@@ -3,6 +3,7 @@ import { Link } from "@builder.io/qwik-city";
 import { LuLock, LuMapPin } from "@qwikest/icons/lucide";
 import type { Benefit } from "~/server/cache";
 import { formatDiscount, isClubLocation } from "~/utils/home-benefits";
+import { benefitDetailsHref } from "~/utils/catalog-navigation";
 
 interface BenefitCardProps {
   benefit: Benefit;
@@ -14,6 +15,7 @@ interface BenefitCardProps {
    * repeat it; cards elsewhere still show theirs.
    */
   commonLocation?: string | null;
+  resultsPath?: string | null;
 }
 
 const parseDate = (dateStr?: string) => {
@@ -41,7 +43,7 @@ const getTimeAgo = (dateStr?: string) => {
 const imageSrc = (path?: string | null) =>
   path ? (/^(https?:|data:|blob:|\/)/.test(path) ? path : `https://beneficios.lprc.ar/files/${path}`) : "";
 
-export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard", isLocked = false, commonLocation }) => {
+export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "standard", isLocked = false, commonLocation, resultsPath }) => {
   const desktopImageSrc = imageSrc(benefit.imagen);
   const mobileImageSrc = imageSrc(benefit.imagenMobile);
   const primaryCat = benefit.categorias?.[0]?.descripcion || "Beneficios";
@@ -58,7 +60,7 @@ export const BenefitCard = component$<BenefitCardProps>(({ benefit, variant = "s
 
   return (
     <Link
-      href={`/beneficio/${benefit.url}`}
+      href={benefitDetailsHref(benefit.url, resultsPath)}
       aria-label={`${benefit.titulo}: ${discount}. Ver beneficio`}
       class="group card flex h-full w-full flex-col overflow-hidden text-left transition-[border-color,box-shadow] duration-200 hover:border-primary hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
     >

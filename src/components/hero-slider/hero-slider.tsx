@@ -95,7 +95,7 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides, compact = false
     <section
       aria-label="Comercios destacados"
       aria-roledescription="carrusel"
-      class={`relative w-full overflow-hidden bg-primary print:hidden ${compact ? "h-full min-h-[24rem] sm:min-h-[26rem]" : ""}`}
+      class={`relative w-full overflow-hidden bg-primary print:hidden ${compact ? "h-full min-h-[18rem] sm:min-h-[26rem]" : ""}`}
       onMouseEnter$={() => (isHovered.value = true)}
       onMouseLeave$={() => (isHovered.value = false)}
       onFocusIn$={() => (hasFocus.value = true)}
@@ -174,25 +174,25 @@ export const HeroSlider = component$<HeroSliderProps>(({ slides, compact = false
             </picture>
             <div class="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/45 to-transparent" />
             <div
-              class={`relative z-10 w-full pt-16 ${compact ? "px-5 sm:px-8 lg:px-10" : "px-5 sm:px-8 md:px-20 lg:px-24"} ${slides.length > 1 ? "pb-24" : "pb-10"}`}
+              class={`relative z-10 w-full ${compact ? "px-4 pt-6 sm:px-8 sm:pt-16 lg:px-10" : "px-5 pt-16 sm:px-8 md:px-20 lg:px-24"} ${slides.length > 1 ? (compact ? "pb-16 sm:pb-24" : "pb-24") : "pb-10"}`}
             >
               <div class="max-w-2xl text-left text-white">
                 <span class="badge badge-accent max-w-full whitespace-normal">
                   {slide.preTitle || "Exclusivo LPRC"}
                 </span>
                 <h2
-                  class={`heading-display mt-4 mb-3 break-words text-white drop-shadow-md ${compact ? "text-3xl sm:text-4xl xl:text-5xl" : "text-4xl sm:text-5xl md:text-6xl"}`}
+                  class={`heading-display break-words text-white drop-shadow-md ${compact ? "mb-2 mt-2 text-2xl sm:mb-3 sm:mt-4 sm:text-4xl xl:text-5xl" : "mb-3 mt-4 text-4xl sm:text-5xl md:text-6xl"}`}
                 >
                   {slide.title}
                 </h2>
-                <p class={`max-w-xl text-sm font-medium leading-relaxed text-slate-100 drop-shadow sm:text-base ${compact ? "" : "md:text-lg"}`}>
+                <p class={`max-w-xl text-sm font-medium leading-relaxed text-slate-100 drop-shadow sm:text-base ${compact ? "line-clamp-2 sm:line-clamp-none" : "md:text-lg"}`}>
                   {slide.subtitle ||
                     "Presentá tu credencial digital y disfrutá de los mejores descuentos."}
                 </p>
                 {slide.buttonText && (
                   <a
                     href={slide.buttonLink || "/"}
-                    class={`btn mt-5 max-w-full ${compact ? "btn-outline-light" : "btn-primary"}`}
+                    class={`btn max-w-full ${compact ? "btn-outline-light mt-3 sm:mt-5" : "btn-primary mt-5"}`}
                   >
                     {slide.buttonText}
                   </a>

@@ -42,6 +42,7 @@ import {
 import { isValidDni, normalizeDni } from "~/utils/dni";
 import { formatValidUntil } from "~/utils/benefit-admin";
 import { loginUrl } from "~/utils/return-path";
+import { benefitDetailsHref, RESULTS_PARAM, safeResultsPath } from "~/utils/catalog-navigation";
 import { dniHelpMessage, whatsappLink } from "~/utils/club";
 import {
   MAP_PIN_STYLES,
@@ -144,6 +145,7 @@ export const useBenefitData = routeLoader$(async (event) => {
 
   return {
     benefit,
+    resultsPath: safeResultsPath(event.url.searchParams.get(RESULTS_PARAM)),
     similar,
     merchant,
     directions,
@@ -275,7 +277,7 @@ export default component$(() => {
   const couponPanelRef = useSignal<HTMLElement>();
   const couponPanelInView = useSignal(false);
   const asideRef = useSignal<HTMLElement>();
-  const benefitPath = `/beneficio/${data.value?.benefit.url ?? ""}/`;
+  const benefitPath = benefitDetailsHref(data.value?.benefit.url ?? "", data.value?.resultsPath);
 
   // After the express DNI flow reloads the page, say who is signed in and point at the coupon.
   // eslint-disable-next-line qwik/no-use-visible-task
@@ -548,6 +550,12 @@ export default component$(() => {
           Para imprimir tu cupón, ingresá en la web y tocá «Obtener mi cupón». Después lo podés imprimir desde Mis cupones.
         </p>
 
+        {data.value.resultsPath && (
+          <Link href={data.value.resultsPath} class="mb-3 inline-flex min-h-11 items-center text-sm font-bold text-primary underline underline-offset-4 print:hidden">
+            ← Volver a resultados
+          </Link>
+        )}
+
         <nav aria-label="Ruta de navegación" class="mb-6">
           <ol class="eyebrow flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-600">
             <li>
@@ -632,6 +640,14 @@ export default component$(() => {
                   </li>
                 )}
               </ul>
+
+              <section aria-labelledby="detalle-title">
+                <SectionHeading title="Detalle del beneficio" as="h2" size="md" id="detalle-title" />
+                <div
+                  dangerouslySetInnerHTML={benefit.descripcion}
+                  class="mt-5 space-y-4 break-words text-sm leading-relaxed text-slate-700 md:text-base [&_a]:font-semibold [&_a]:text-primary [&_a]:underline [&_b]:text-primary [&_strong]:text-primary"
+                />
+              </section>
 
               {manualShareLink.value && (
                 <div class="space-y-2 border border-line bg-surface p-4">
@@ -869,14 +885,6 @@ export default component$(() => {
               </Link>
             </section>
 
-            <section aria-labelledby="detalle-title">
-              <SectionHeading title="Detalle del beneficio" as="h2" size="md" id="detalle-title" />
-              <div
-                dangerouslySetInnerHTML={benefit.descripcion}
-                class="mt-5 space-y-4 break-words text-sm leading-relaxed text-slate-700 md:text-base [&_a]:font-semibold [&_a]:text-primary [&_a]:underline [&_b]:text-primary [&_strong]:text-primary"
-              />
-            </section>
-
             {data.value.merchantCode && (
               <div class="flex flex-wrap items-center justify-between gap-3 border border-line bg-surface p-4 text-sm text-slate-700 sm:p-5">
                 <p>
@@ -1033,7 +1041,7 @@ export default component$(() => {
                 return (
                   <li key={item.id} class="w-[78%] shrink-0 snap-start sm:w-auto">
                     <Link
-                      href={`/beneficio/${item.url}/`}
+                      href={benefitDetailsHref(item.url, data.value.resultsPath)}
                       class="group flex h-full flex-col border border-line bg-surface transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                       <div class="relative aspect-[16/10] overflow-hidden bg-primary">

@@ -7,7 +7,7 @@ import { findUsersByDni } from "~/server/member-dni";
 import { rateLimitByIp } from "~/server/rate-limit";
 import { CLUB, WHATSAPP_MESSAGES, dniHelpMessage, whatsappLink } from "~/utils/club";
 import { isValidDni, normalizeDni } from "~/utils/dni";
-import { RETURN_PARAM, safeReturnPath } from "~/utils/return-path";
+import { RETURN_PARAM, loginHelpUrl, safeReturnPath } from "~/utils/return-path";
 
 /** Where to go after logging in: the page that sent the member here, if it is ours. */
 export const useReturnPath = routeLoader$((event) => safeReturnPath(event.url.searchParams.get(RETURN_PARAM)));
@@ -225,7 +225,7 @@ export default component$(() => {
           </form>
 
           <p class="mt-5 text-sm">
-            <Link href="/ayuda-ingreso/" class="inline-flex min-h-11 items-center gap-2 font-bold text-primary underline decoration-slate-300 underline-offset-4 hover:decoration-primary">
+            <Link href={loginHelpUrl(returnPath.value)} class="inline-flex min-h-11 items-center gap-2 font-bold text-primary underline decoration-slate-300 underline-offset-4 hover:decoration-primary">
               ¿No podés ingresar?
               <LuArrowRight class="h-4 w-4" aria-hidden="true" />
             </Link>

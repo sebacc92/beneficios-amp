@@ -19,7 +19,7 @@
     "fmt": "prettier --write .",
     "fmt.check": "prettier --check .",
     "lint": "eslint \"src/**/*.ts*\"",
-    "test:ux": "node scripts/tests/map-benefits.mjs && node scripts/tests/coupons.mjs && node scripts/tests/notifications.mjs && node scripts/tests/benefit-filters.mjs && node scripts/tests/member-dni.mjs && node scripts/tests/home-benefits.mjs && node scripts/tests/club-content.mjs && node scripts/tests/admin-benefits.mjs && node scripts/tests/admin-coupons.mjs && node scripts/tests/tailwind-colors.mjs && node scripts/tests/club-links.mjs && node scripts/tests/club-agenda.mjs && node scripts/tests/admin-users.mjs",
+    "test:ux": "node scripts/tests/map-benefits.mjs && node scripts/tests/coupons.mjs && node scripts/tests/notifications.mjs && node scripts/tests/benefit-filters.mjs && node scripts/tests/member-dni.mjs && node scripts/tests/home-benefits.mjs && node scripts/tests/club-content.mjs && node scripts/tests/admin-benefits.mjs && node scripts/tests/admin-coupons.mjs && node scripts/tests/tailwind-colors.mjs && node scripts/tests/club-links.mjs && node scripts/tests/club-agenda.mjs && node scripts/tests/admin-users.mjs && node scripts/tests/admin-catalog.mjs && node scripts/tests/member-navigation.mjs && node scripts/tests/catalog-search-navigation.mjs",
     "migrate": "node scripts/migrate.mjs",
     "seed": "node scripts/seed.mjs",
     "create-admin": "node scripts/create-admin.mjs",

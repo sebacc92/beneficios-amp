@@ -7,15 +7,24 @@ export const RETURN_PARAM = "volver";
  */
 export function safeReturnPath(raw: string | null | undefined): string | null {
   const value = raw?.trim();
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
-  if (value.startsWith("/login")) return null;
-  return value;
+  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\p{Cc}]/u.test(value)) return null;
+  // Check the browser's canonical path too: dot segments must not bypass the
+  // login loop guard or produce a protocol-relative destination.
+  const url = new URL(value, "https://portal.invalid");
+  if (url.origin !== "https://portal.invalid" || url.pathname.startsWith("//") || url.pathname.startsWith("/login")) return null;
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 /** `/login/?volver=<path>` for a path the member was trying to open. */
 export function loginUrl(returnTo?: string | null): string {
   const path = safeReturnPath(returnTo);
   return path ? `/login/?${RETURN_PARAM}=${encodeURIComponent(path)}` : "/login/";
+}
+
+/** Help keeps the original destination when the member returns to login. */
+export function loginHelpUrl(returnTo?: string | null): string {
+  const path = safeReturnPath(returnTo);
+  return path ? `/ayuda-ingreso/?${RETURN_PARAM}=${encodeURIComponent(path)}` : "/ayuda-ingreso/";
 }
 
 export const ADMIN_LOGIN_PATH = "/admin/login";

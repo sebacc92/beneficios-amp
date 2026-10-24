@@ -4,6 +4,7 @@ import { benefits } from "~/db/schema";
 import { BENEFIT_FILTERS_CACHE_KEY, getSavedBenefitFilters } from "./benefit-filters";
 import { isDraftBenefit, parseValidUntil } from "~/utils/benefit-status";
 import { matchesCampaign } from "~/utils/home-benefits";
+import { matchesBenefitQuery, normalizeSearchText } from "~/utils/catalog-search";
 
 export interface Category {
   id: number;
@@ -429,7 +430,7 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
     uniqueBenefits = await getBenefits();
   }
   
-  const query = params.query?.toLowerCase().trim() || '';
+  const query = normalizeSearchText(params.query || "");
   const categoryId = params.categoryId ? Number(params.categoryId) : null;
   const locationId = params.locationId ? Number(params.locationId) : null;
   const offerId = params.offerId ? Number(params.offerId) : null;
@@ -443,13 +444,7 @@ export async function searchBenefits(params: SearchParams): Promise<SearchResult
 
   // 1. Text search filter
   if (query) {
-    filtered = filtered.filter(b => {
-      const titleMatch = b.titulo.toLowerCase().includes(query);
-      const descMatch = b.descripcion.toLowerCase().includes(query);
-      const catMatch = b.categorias.some(c => c.descripcion.toLowerCase().includes(query));
-      const locMatch = b.ubicacion.some(l => l.descripcion.toLowerCase().includes(query));
-      return titleMatch || descMatch || catMatch || locMatch;
-    });
+    filtered = filtered.filter(b => matchesBenefitQuery(b, query));
   }
 
   // 2. Category filter

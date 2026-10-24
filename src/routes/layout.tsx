@@ -1,3 +1,4 @@
+import { normalizeSearchText } from "~/utils/catalog-search";
 import { component$, Slot } from "@builder.io/qwik";
 import { useLocation, routeAction$, routeLoader$, server$ } from "@builder.io/qwik-city";
 import { Chatbot } from "~/components/chatbot/chatbot";
@@ -34,10 +35,11 @@ export const useSiteLogoutAction = routeAction$(async (_, requestEvent) => {
 });
 
 export const getSearchSuggestions = server$(async function(query: string) {
-  if (!query || query.trim().length < 2) return [];
+  const normalizedQuery = normalizeSearchText(query || "");
+  if (normalizedQuery.length < 2) return [];
   try {
     const results = await searchBenefits({
-      query: query.trim(),
+      query: normalizedQuery,
       limit: 6,
       requestEvent: this
     });
